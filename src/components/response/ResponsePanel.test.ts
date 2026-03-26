@@ -1,0 +1,195 @@
+import { defineComponent } from 'vue'
+import { describe, expect, it, vi } from 'vitest'
+import { mount } from '@vue/test-utils'
+
+vi.mock('./ResponseCodeViewer.vue', () => ({
+  default: defineComponent({
+    name: 'ResponseCodeViewer',
+    props: {
+      content: {
+        type: String,
+        required: true,
+      },
+      language: {
+        type: String,
+        required: true,
+      },
+    },
+    template: '<div data-testid="response-code-viewer" :data-language="language" :data-content="content" />',
+  }),
+}))
+
+vi.mock('./ResponseHtmlPreview.vue', () => ({
+  default: defineComponent({
+    name: 'ResponseHtmlPreview',
+    props: {
+      document: {
+        type: String,
+        required: true,
+      },
+      title: {
+        type: String,
+        default: '',
+      },
+    },
+    template: '<div data-testid="response-html-preview"><iframe data-testid="response-html-preview-frame" :srcdoc="document" :title="title" /></div>',
+  }),
+}))
+
+import ResponsePanel from './ResponsePanel.vue'
+import { getMessages } from '@/lib/i18n'
+
+describe('ResponsePanel i18n copy', () => {
+  it('renders collapsed summary labels from i18n in zh-CN locale', () => {
+    const wrapper = mount(ResponsePanel, {
+      props: {
+        locale: 'zh-CN',
+        collapsed: true,
+        status: 201,
+        statusText: 'Created',
+        time: '25 ms',
+        size: '3 KB',
+      },
+    })
+
+    expect(wrapper.text()).toContain('状态')
+    expect(wrapper.text()).toContain('耗时')
+    expect(wrapper.text()).toContain('大小')
+  })
+
+  it('renders the collapsed summary in a denser desktop-style grid', () => {
+    const wrapper = mount(ResponsePanel, {
+      props: {
+        locale: 'zh-CN',
+        collapsed: true,
+      },
+    })
+
+    const summaryGrid = wrapper.get('.grid')
+
+    expect(summaryGrid.classes()).toEqual(
+      expect.arrayContaining(['gap-1.5', 'px-3', 'py-3']),
+    )
+  })
+
+  it('moves the active chrome to the selected response tab', async () => {
+    const locale = 'en'
+    const text = getMessages(locale)
+    const wrapper = mount(ResponsePanel, {
+      props: {
+        locale,
+      },
+    })
+
+    const tabLabels: string[] = [
+      text.response.body,
+      text.response.headers,
+      text.response.cookies,
+      text.response.tests,
+    ]
+    const tabButtons = wrapper.findAll('button').filter((button) =>
+      tabLabels.includes(button.text()),
+    )
+    const bodyButton = tabButtons.find((button) => button.text() === text.response.body)
+    const headersButton = tabButtons.find((button) => button.text() === text.response.headers)
+
+    expect(bodyButton).toBeDefined()
+    expect(headersButton).toBeDefined()
+
+    await headersButton!.trigger('click')
+
+    expect(bodyButton!.classes()).toContain('zr-tab-button')
+    expect(bodyButton!.classes()).not.toContain('zr-tab-button-active')
+    expect(bodyButton!.classes()).not.toContain('bg-secondary')
+    expect(headersButton!.classes()).toContain('zr-tab-button-active')
+  })
+
+  it('renders the response body inside a read-only code viewer with detected language', () => {
+    const wrapper = mount(ResponsePanel, {
+      props: {
+        locale: 'en',
+        contentType: 'application/xml',
+        responseBody: '<root><item>1</item></root>',
+      },
+    })
+
+    const viewer = wrapper.get('[data-testid="response-code-viewer"]')
+
+    expect(viewer.attributes('data-language')).toBe('xml')
+  })
+
+  it('shows html preview mode controls and switches between source and preview', async () => {
+    const responseBody = '<html><body><main><h1>Hello</h1></main></body></html>'
+    const wrapper = mount(ResponsePanel, {
+      props: {
+        locale: 'en',
+        contentType: 'text/html',
+        responseBody,
+      },
+    })
+
+    expect(wrapper.get('[data-testid="response-body-mode-source"]').text()).toContain('Source')
+    expect(wrapper.get('[data-testid="response-body-mode-preview"]').text()).toContain('Preview')
+    expect(wrapper.find('[data-testid="response-html-preview"]').exists()).toBe(false)
+
+    await wrapper.get('[data-testid="response-body-mode-preview"]').trigger('click')
+
+    const iframe = wrapper.get('[data-testid="response-html-preview-frame"]')
+    expect(iframe.attributes('srcdoc')).toBe(responseBody)
+    expect(wrapper.find('[data-testid="response-code-viewer"]').exists()).toBe(false)
+
+    await wrapper.get('[data-testid="response-body-mode-source"]').trigger('click')
+
+    expect(wrapper.get('[data-testid="response-code-viewer"]').attributes('data-language')).toBe('html')
+  })
+
+  it('keeps non-html responses on the source-only path', () => {
+    const wrapper = mount(ResponsePanel, {
+      props: {
+        locale: 'en',
+        contentType: 'application/json',
+        responseBody: '{"ok":true}',
+      },
+    })
+
+    expect(wrapper.find('[data-testid="response-body-mode-source"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="response-body-mode-preview"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="response-code-viewer"]').attributes('data-language')).toBe('json')
+  })
+
+  it('updates the preview when the active html response changes', async () => {
+    const wrapper = mount(ResponsePanel, {
+      props: {
+        locale: 'en',
+        contentType: 'text/html',
+        responseBody: '<html><body><main>first</main></body></html>',
+      },
+    })
+
+    await wrapper.get('[data-testid="response-body-mode-preview"]').trigger('click')
+    await wrapper.setProps({
+      responseBody: '<html><body><main>second</main></body></html>',
+    })
+
+    expect(wrapper.get('[data-testid="response-html-preview-frame"]').attributes('srcdoc')).toContain('second')
+  })
+
+  it('falls back to source mode when the active response stops being html', async () => {
+    const wrapper = mount(ResponsePanel, {
+      props: {
+        locale: 'en',
+        contentType: 'text/html',
+        responseBody: '<html><body><main>Hello</main></body></html>',
+      },
+    })
+
+    await wrapper.get('[data-testid="response-body-mode-preview"]').trigger('click')
+    await wrapper.setProps({
+      contentType: 'application/json',
+      responseBody: '{"ok":true}',
+    })
+
+    expect(wrapper.find('[data-testid="response-body-mode-preview"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="response-code-viewer"]').attributes('data-language')).toBe('json')
+  })
+})

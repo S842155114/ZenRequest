@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ZenRequest</title>
+    <script>
+      try {
+        var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+        document.documentElement.dataset.startupTheme = prefersDark ? "dark" : "light";
+      } catch (_error) {
+        document.documentElement.dataset.startupTheme = "dark";
+      }
+    </script>
+    <style>
+      html, body {
+        margin: 0;
+        min-height: 100%;
+      }
+
+      body {
+        min-height: 100vh;
+        font-family: "IBM Plex Sans", "Segoe UI", "Helvetica Neue", sans-serif;
+      }
+
+      #app {
+        min-height: 100vh;
+      }
+
+      #startup-launch-screen {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background:
+          radial-gradient(circle at 18% 0%, rgba(255, 108, 55, 0.12), transparent 28%),
+          linear-gradient(180deg, #12161c 0%, #0d1015 50%, #090c11 100%);
+        color: #e8edf3;
+      }
+
+      html[data-startup-theme="light"] #startup-launch-screen {
+        background:
+          radial-gradient(circle at 12% 0%, rgba(255, 108, 55, 0.1), transparent 30%),
+          linear-gradient(180deg, #f6f7f9 0%, #eef2f6 52%, #e8edf2 100%);
+        color: #18212c;
+      }
+
+      .startup-launch-card {
+        width: min(100%, 360px);
+        box-sizing: border-box;
+        border-radius: 24px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        padding: 24px;
+        background: rgba(20, 24, 31, 0.88);
+        box-shadow: 0 18px 44px rgba(0, 0, 0, 0.22);
+        backdrop-filter: blur(12px);
+      }
+
+      html[data-startup-theme="light"] .startup-launch-card {
+        border-color: rgba(15, 23, 42, 0.08);
+        background: rgba(255, 255, 255, 0.9);
+        box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
+      }
+
+      .startup-launch-header {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 18px;
+      }
+
+      .startup-launch-badge {
+        display: inline-flex;
+        height: 44px;
+        width: 44px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 16px;
+        background: linear-gradient(135deg, #ff8b5f 0%, #ff6c37 55%, #d94a1a 100%);
+        color: #ffffff;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+      }
+
+      .startup-launch-kicker {
+        margin: 0 0 4px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        opacity: 0.72;
+      }
+
+      .startup-launch-title {
+        margin: 0;
+        font-size: 28px;
+        font-weight: 600;
+      }
+
+      .startup-launch-status {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border-radius: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.04);
+        padding: 14px 16px;
+      }
+
+      html[data-startup-theme="light"] .startup-launch-status {
+        border-color: rgba(15, 23, 42, 0.08);
+        background: rgba(255, 255, 255, 0.64);
+      }
+
+      .startup-launch-spinner {
+        height: 18px;
+        width: 18px;
+        flex-shrink: 0;
+        border-radius: 999px;
+        border: 2px solid rgba(255, 255, 255, 0.18);
+        border-top-color: #ff6c37;
+        animation: startup-launch-spin 900ms linear infinite;
+      }
+
+      html[data-startup-theme="light"] .startup-launch-spinner {
+        border-color: rgba(15, 23, 42, 0.12);
+        border-top-color: #ff6c37;
+      }
+
+      .startup-launch-label {
+        margin: 0 0 4px;
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .startup-launch-copy {
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.5;
+        opacity: 0.78;
+      }
+
+      @keyframes startup-launch-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="startup-launch-screen" role="status" aria-live="polite" aria-label="Launching ZenRequest">
+      <div class="startup-launch-card">
+        <div class="startup-launch-header">
+          <div class="startup-launch-badge">ZR</div>
+          <div>
+            <p class="startup-launch-kicker">ZenRequest</p>
+            <h1 class="startup-launch-title">Launching</h1>
+          </div>
+        </div>
+        <div class="startup-launch-status">
+          <div class="startup-launch-spinner" aria-hidden="true"></div>
+          <div>
+            <p class="startup-launch-label">Preparing your workspace</p>
+            <p class="startup-launch-copy">Loading workspaces, environments, saved requests, and recent history.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
