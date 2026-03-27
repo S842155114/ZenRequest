@@ -75,7 +75,17 @@ const addFormDataField = () => {
 }
 
 const setAuthType = (type: AuthConfig['type']) => {
-  auth.value.type = type
+  auth.value = {
+    ...auth.value,
+    type,
+  }
+}
+
+const setApiKeyPlacement = (placement: NonNullable<AuthConfig['apiKeyPlacement']>) => {
+  auth.value = {
+    ...auth.value,
+    apiKeyPlacement: placement,
+  }
 }
 
 const addTest = () => {
@@ -166,6 +176,23 @@ const decodeBase64Size = (value: string) => {
 
 const binaryPayloadSize = computed(() => decodeBase64Size(bodyContent.value))
 
+const enabledParamsCount = computed(() => params.value.filter((item) => item.enabled).length)
+const enabledHeadersCount = computed(() => headers.value.filter((item) => item.enabled).length)
+const enabledEnvironmentVariablesCount = computed(() => environmentVariables.value.filter((item) => item.enabled).length)
+const enabledFormDataCount = computed(() => formDataFields.value.filter((field) => field.enabled && field.key.trim()).length)
+const bodyConfiguredCount = computed(() => {
+  if (bodyType.value === 'formdata') {
+    return enabledFormDataCount.value
+  }
+
+  if (bodyType.value === 'json' || bodyType.value === 'raw' || bodyType.value === 'binary') {
+    return bodyContent.value.trim() ? 1 : 0
+  }
+
+  return 0
+})
+const authConfiguredCount = computed(() => (auth.value.type === 'none' ? 0 : 1))
+
 const bytesToBase64 = (value: Uint8Array) => {
   let output = ''
   const chunkSize = 0x8000
@@ -195,22 +222,31 @@ const text = computed(() => getMessages(props.locale))
 <template>
   <Tabs default-value="params" class="flex min-h-0 flex-1 flex-col">
     <TabsList class="zr-input mx-3 mt-3 w-fit rounded-lg p-0.5">
-      <TabsTrigger value="params" class="zr-tab-trigger">
+      <TabsTrigger value="params" data-testid="request-section-trigger-params" class="zr-tab-trigger">
         {{ text.request.params }}
-        <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ params.filter(p => p.enabled).length }}</Badge>
+        <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ enabledParamsCount }}</Badge>
       </TabsTrigger>
-      <TabsTrigger value="headers" class="zr-tab-trigger">
+      <TabsTrigger value="headers" data-testid="request-section-trigger-headers" class="zr-tab-trigger">
         {{ text.request.headers }}
-        <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ headers.filter(h => h.enabled).length }}</Badge>
+        <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ enabledHeadersCount }}</Badge>
       </TabsTrigger>
-      <TabsTrigger value="body" class="zr-tab-trigger">{{ text.request.body }}</TabsTrigger>
+      <TabsTrigger value="body" data-testid="request-section-trigger-body" class="zr-tab-trigger">
+        {{ text.request.body }}
+        <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ bodyConfiguredCount }}</Badge>
+      </TabsTrigger>
       <span class="mx-1 h-5 w-px self-center bg-[color:var(--zr-border)]" />
-      <TabsTrigger value="auth" data-request-secondary="true" class="zr-tab-trigger opacity-80">{{ text.request.auth }}</TabsTrigger>
-      <TabsTrigger value="tests" data-request-secondary="true" class="zr-tab-trigger opacity-80">
+      <TabsTrigger value="auth" data-testid="request-section-trigger-auth" data-request-secondary="true" class="zr-tab-trigger opacity-80">
+        {{ text.request.auth }}
+        <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ authConfiguredCount }}</Badge>
+      </TabsTrigger>
+      <TabsTrigger value="tests" data-testid="request-section-trigger-tests" data-request-secondary="true" class="zr-tab-trigger opacity-80">
         {{ text.request.tests }}
         <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ tests.length }}</Badge>
       </TabsTrigger>
-      <TabsTrigger value="env" data-request-secondary="true" class="zr-tab-trigger opacity-80">{{ text.request.env }}</TabsTrigger>
+      <TabsTrigger value="env" data-testid="request-section-trigger-env" data-request-secondary="true" class="zr-tab-trigger opacity-80">
+        {{ text.request.env }}
+        <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ enabledEnvironmentVariablesCount }}</Badge>
+      </TabsTrigger>
     </TabsList>
     
     <TabsContent value="params" class="mt-2.5 flex-1 px-3 pb-3">
@@ -229,8 +265,14 @@ const text = computed(() => getMessages(props.locale))
             <tbody>
               <tr v-for="(param, idx) in params" :key="idx" class="group border-b border-[color:var(--zr-border-soft)] last:border-b-0">
                 <td class="text-center">
-                  <button class="zr-toggle-badge" @click="toggleItem(params, idx)">
-                    {{ param.enabled ? text.common.enabled : '' }}
+                  <button
+                    :data-testid="`request-row-toggle-params-${idx}`"
+                    :data-state="param.enabled ? 'on' : 'off'"
+                    class="zr-toggle-badge"
+                    type="button"
+                    @click="toggleItem(params, idx)"
+                  >
+                    <span class="zr-toggle-dot" aria-hidden="true" />
                   </button>
                 </td>
                 <td class="py-1.5">
@@ -281,8 +323,14 @@ const text = computed(() => getMessages(props.locale))
             <tbody>
               <tr v-for="(header, idx) in headers" :key="idx" class="group border-b border-[color:var(--zr-border-soft)] last:border-b-0">
                 <td class="text-center">
-                  <button class="zr-toggle-badge" @click="toggleItem(headers, idx)">
-                    {{ header.enabled ? text.common.enabled : '' }}
+                  <button
+                    :data-testid="`request-row-toggle-headers-${idx}`"
+                    :data-state="header.enabled ? 'on' : 'off'"
+                    class="zr-toggle-badge"
+                    type="button"
+                    @click="toggleItem(headers, idx)"
+                  >
+                    <span class="zr-toggle-dot" aria-hidden="true" />
                   </button>
                 </td>
                 <td class="py-1.5">
@@ -314,7 +362,7 @@ const text = computed(() => getMessages(props.locale))
     
     <TabsContent value="body" class="mt-2.5 flex-1 px-3 pb-3">
       <div class="mb-2.5 flex items-center gap-1.5">
-        <Button variant="secondary" size="sm" :class="['h-7 rounded-lg px-2.5 text-[10px]', bodyType === 'json' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="bodyType = 'json'">{{ text.request.json }}</Button>
+        <Button variant="ghost" size="sm" :class="['h-7 rounded-lg px-2.5 text-[10px]', bodyType === 'json' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="bodyType = 'json'">{{ text.request.json }}</Button>
         <Button variant="ghost" size="sm" :class="['h-7 rounded-lg px-2.5 text-[10px]', bodyType === 'formdata' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="bodyType = 'formdata'">{{ text.request.formData }}</Button>
         <Button variant="ghost" size="sm" :class="['h-7 rounded-lg px-2.5 text-[10px]', bodyType === 'raw' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="bodyType = 'raw'">{{ text.request.raw }}</Button>
         <Button variant="ghost" size="sm" :class="['h-7 rounded-lg px-2.5 text-[10px]', bodyType === 'binary' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="bodyType = 'binary'">{{ text.request.binary }}</Button>
@@ -344,8 +392,14 @@ const text = computed(() => getMessages(props.locale))
                       class="group border-t border-[color:var(--zr-border-soft)] first:border-t-0"
                     >
                       <td class="px-3 text-center">
-                        <button class="zr-toggle-badge" @click="toggleFormDataField(idx)">
-                          {{ field.enabled ? text.common.enabled : '' }}
+                        <button
+                          :data-testid="`request-row-toggle-formdata-${idx}`"
+                          :data-state="field.enabled ? 'on' : 'off'"
+                          class="zr-toggle-badge"
+                          type="button"
+                          @click="toggleFormDataField(idx)"
+                        >
+                          <span class="zr-toggle-dot" aria-hidden="true" />
                         </button>
                       </td>
                       <td class="px-3 py-1.5">
@@ -449,7 +503,7 @@ const text = computed(() => getMessages(props.locale))
     
     <TabsContent value="auth" class="mt-2.5 flex-1 px-3 pb-3">
       <div class="mb-2.5 flex flex-wrap items-center gap-1.5">
-        <Button variant="secondary" size="sm" :class="['h-7 rounded-lg text-[10px]', auth.type === 'none' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="setAuthType('none')">{{ text.request.none }}</Button>
+        <Button variant="ghost" size="sm" :class="['h-7 rounded-lg text-[10px]', auth.type === 'none' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="setAuthType('none')">{{ text.request.none }}</Button>
         <Button variant="ghost" size="sm" :class="['h-7 rounded-lg text-[10px]', auth.type === 'bearer' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="setAuthType('bearer')">{{ text.request.bearerToken }}</Button>
         <Button variant="ghost" size="sm" :class="['h-7 rounded-lg text-[10px]', auth.type === 'basic' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="setAuthType('basic')">{{ text.request.basicAuth }}</Button>
         <Button variant="ghost" size="sm" :class="['h-7 rounded-lg text-[10px]', auth.type === 'apiKey' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="setAuthType('apiKey')">{{ text.request.apiKey }}</Button>
@@ -494,8 +548,8 @@ const text = computed(() => getMessages(props.locale))
             </div>
           </div>
           <div class="mt-3 flex items-center gap-1.5">
-            <Button variant="secondary" size="sm" :class="['h-7 rounded-lg px-2.5 text-[10px]', auth.apiKeyPlacement === 'header' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="auth.apiKeyPlacement = 'header'">{{ text.request.header }}</Button>
-            <Button variant="ghost" size="sm" :class="['h-7 rounded-lg px-2.5 text-[10px]', auth.apiKeyPlacement === 'query' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="auth.apiKeyPlacement = 'query'">{{ text.request.query }}</Button>
+            <Button variant="ghost" size="sm" :class="['h-7 rounded-lg px-2.5 text-[10px]', auth.apiKeyPlacement === 'header' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="setApiKeyPlacement('header')">{{ text.request.header }}</Button>
+            <Button variant="ghost" size="sm" :class="['h-7 rounded-lg px-2.5 text-[10px]', auth.apiKeyPlacement === 'query' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="setApiKeyPlacement('query')">{{ text.request.query }}</Button>
           </div>
         </template>
       </div>
@@ -572,7 +626,7 @@ const text = computed(() => getMessages(props.locale))
           <div class="mt-1 text-sm font-medium text-[var(--zr-text-primary)]">{{ props.environmentName }}</div>
         </div>
         <Badge variant="secondary" class="rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-2 py-0.5 text-[10px] text-[var(--zr-text-secondary)]">
-          {{ text.request.vars(environmentVariables.filter(v => v.enabled).length) }}
+          {{ text.request.vars(enabledEnvironmentVariablesCount) }}
         </Badge>
       </div>
       <ScrollArea class="h-[calc(100%-48px)]">
@@ -590,8 +644,14 @@ const text = computed(() => getMessages(props.locale))
             <tbody>
               <tr v-for="(variable, idx) in environmentVariables" :key="idx" class="group border-b border-[color:var(--zr-border-soft)] last:border-b-0">
                 <td class="text-center">
-                  <button class="zr-toggle-badge" @click="toggleItem(environmentVariables, idx)">
-                    {{ variable.enabled ? text.common.enabled : '' }}
+                  <button
+                    :data-testid="`request-row-toggle-env-${idx}`"
+                    :data-state="variable.enabled ? 'on' : 'off'"
+                    class="zr-toggle-badge"
+                    type="button"
+                    @click="toggleItem(environmentVariables, idx)"
+                  >
+                    <span class="zr-toggle-dot" aria-hidden="true" />
                   </button>
                 </td>
                 <td class="py-1.5">
