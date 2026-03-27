@@ -78,6 +78,8 @@ type RequestReadinessState = {
   advisories: string[]
 }
 
+type CompactTabState = 'neutral' | 'dirty' | 'pending' | 'success' | 'error'
+
 const normalizedTabs = computed(() => props.tabs.map((tab) => normalizeRequestTabState(tab)))
 const activeTab = computed(() => normalizedTabs.value.find((tab) => tab.id === props.activeTabId) ?? normalizedTabs.value[0] ?? null)
 const text = computed(() => getMessages(props.locale))
@@ -226,35 +228,42 @@ const getExecutionStateLabel = (tab: RequestTabState) => {
   }
 }
 
-const getOriginBadgeClass = (tab: RequestTabState) => {
-  switch (getTabOriginKind(tab)) {
-    case 'resource': return 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-    case 'replay': return 'border-violet-500/25 bg-violet-500/10 text-violet-700 dark:text-violet-300'
-    case 'detached': return 'border-rose-500/25 bg-rose-500/10 text-rose-700 dark:text-rose-300'
-    default: return 'border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300'
-  }
-}
-
-const getPersistenceBadgeClass = (tab: RequestTabState) => (
-  tab.persistenceState === 'saved'
-    ? 'border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] text-[var(--zr-text-secondary)]'
-    : tab.persistenceState === 'unbound'
-      ? 'border-rose-500/25 bg-rose-500/10 text-rose-700 dark:text-rose-300'
-      : 'border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300'
-)
-
-const getExecutionBadgeClass = (tab: RequestTabState) => {
+const getExecutionState = (tab: RequestTabState) => {
   const state = props.activityProjection.tabs[tab.id]?.result ?? tab.executionState ?? 'idle'
-  switch (state) {
-    case 'pending': return 'border-sky-500/25 bg-sky-500/10 text-sky-700 dark:text-sky-300'
-    case 'success': return 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-    case 'http-error':
-    case 'transport-error':
-      return 'border-rose-500/25 bg-rose-500/10 text-rose-700 dark:text-rose-300'
+  return state
+}
+
+const getCompactTabState = (tab: RequestTabState): CompactTabState => {
+  const state = getExecutionState(tab)
+
+  if (tab.isSending || state === 'pending') return 'pending'
+  if (state === 'http-error' || state === 'transport-error') return 'error'
+  if (tab.isDirty || tab.persistenceState !== 'saved') return 'dirty'
+  if (state === 'success') return 'success'
+  return 'neutral'
+}
+
+const getCompactTabStateLabel = (tab: RequestTabState) => {
+  switch (getCompactTabState(tab)) {
+    case 'pending':
+      return text.value.request.running
+    case 'error':
+      return text.value.request.failed
+    case 'dirty':
+      return getPersistenceLabel(tab)
+    case 'success':
+      return text.value.request.success
     default:
-      return 'border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] text-[var(--zr-text-secondary)]'
+      return text.value.request.ready
   }
 }
+
+const getCompactTabTitle = (tab: RequestTabState) => [
+  tab.method,
+  tab.name,
+  localizeScratchPadName(tab.collectionName, props.locale),
+  getCompactTabStateLabel(tab),
+].join(' · ')
 
 const templateTokenPattern = /\{\{\s*([^}]+?)\s*\}\}/g
 
@@ -371,9 +380,6 @@ const requestReadiness = computed<RequestReadinessState>(() => {
       <div class="mb-2.5 flex items-center justify-between gap-2.5">
         <div class="min-w-0">
           <div class="text-[11px] uppercase tracking-[0.22em] text-[var(--zr-text-muted)]">{{ text.request.workspaceTitle }}</div>
-          <div class="mt-1 truncate text-base font-semibold text-[var(--zr-text-primary)]">
-            {{ activeTab?.name ?? text.request.requestBuilder }}
-          </div>
         </div>
         <button
           class="zr-tool-button inline-flex h-8 w-8 items-center justify-center rounded-md"
@@ -386,7 +392,7 @@ const requestReadiness = computed<RequestReadinessState>(() => {
       <div
         v-if="!props.collapsed"
         data-testid="request-panel-tabs"
-        class="zr-request-tab-strip flex items-center gap-1.5 overflow-x-auto pb-3"
+        class="zr-request-tab-strip flex items-center gap-1 overflow-x-auto pb-2.5"
       >
         <ContextMenu
           v-for="tab in normalizedTabs"
@@ -396,52 +402,28 @@ const requestReadiness = computed<RequestReadinessState>(() => {
             <div
               :data-testid="`request-tab-${getContextMenuTestIdKey(tab.id)}`"
               data-resource-context-menu-surface="true"
+              :title="getCompactTabTitle(tab)"
               :class="[
-                'zr-request-tab group flex min-w-[188px] items-center gap-2 rounded-md border px-2.5 py-2 text-left transition-colors',
+                'zr-request-tab group flex min-w-[156px] shrink-0 items-center gap-2 rounded-md border px-2 py-1.5 text-left transition-colors',
                 tab.id === activeTabId ? 'zr-request-tab-active' : 'zr-request-tab-idle',
               ]"
               @click="emit('select-tab', tab.id)"
               @contextmenu.capture="handleResourceContextMenuGuard"
             >
-              <span :class="['text-[10px] font-semibold uppercase tracking-[0.18em]', getTabMethodClass(tab.method)]">{{ tab.method }}</span>
-              <div class="min-w-0 flex-1">
-                <div class="truncate text-sm font-medium text-[var(--zr-text-primary)]">{{ tab.name }}</div>
-                <div class="truncate text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">{{ localizeScratchPadName(tab.collectionName, props.locale) }}</div>
-                <div class="mt-1 flex flex-wrap items-center gap-1">
-                  <span
-                    :data-testid="`request-tab-origin-${getContextMenuTestIdKey(tab.id)}`"
-                    :class="[
-                      'rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em]',
-                      getOriginBadgeClass(tab),
-                    ]"
-                  >
-                    {{ getOriginLabel(tab) }}
-                  </span>
-                  <span
-                    :data-testid="`request-tab-persistence-${getContextMenuTestIdKey(tab.id)}`"
-                    :class="[
-                      'rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em]',
-                      getPersistenceBadgeClass(tab),
-                    ]"
-                  >
-                    {{ getPersistenceLabel(tab) }}
-                  </span>
-                  <span
-                    :class="[
-                      'rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em]',
-                      getExecutionBadgeClass(tab),
-                    ]"
-                  >
-                    {{ getExecutionStateLabel(tab) }}
-                  </span>
-                </div>
-              </div>
+              <span :class="['shrink-0 text-[10px] font-semibold uppercase tracking-[0.16em]', getTabMethodClass(tab.method)]">{{ tab.method }}</span>
+              <div class="min-w-0 flex-1 truncate text-[13px] font-medium leading-5 text-[var(--zr-text-primary)]">{{ tab.name }}</div>
+              <span
+                :data-testid="`request-tab-status-${getContextMenuTestIdKey(tab.id)}`"
+                :data-state="getCompactTabState(tab)"
+                :aria-label="getCompactTabStateLabel(tab)"
+                class="zr-request-tab-status shrink-0"
+              />
               <button
-                class="inline-flex h-6 w-6 items-center justify-center rounded-full text-[var(--zr-text-muted)] transition-colors hover:bg-[var(--zr-soft-hover)] hover:text-[var(--zr-text-primary)]"
+                class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[var(--zr-text-muted)] transition-colors hover:bg-[var(--zr-soft-hover)] hover:text-[var(--zr-text-primary)]"
                 :disabled="normalizedTabs.length === 1"
                 @click.stop="emit('close-tab', tab.id)"
               >
-                <X class="h-3.5 w-3.5" />
+                <X class="h-3 w-3" />
               </button>
             </div>
           </ContextMenuTrigger>
@@ -463,8 +445,8 @@ const requestReadiness = computed<RequestReadinessState>(() => {
           </ContextMenuContent>
         </ContextMenu>
 
-        <Button variant="ghost" size="icon-sm" class="zr-tool-button h-8 w-8 shrink-0 rounded-md" @click="emit('create-tab')">
-          <Plus class="h-4 w-4" />
+        <Button variant="ghost" size="icon-sm" class="zr-tool-button h-7 w-7 shrink-0 rounded-md" @click="emit('create-tab')">
+          <Plus class="h-3.5 w-3.5" />
         </Button>
       </div>
 

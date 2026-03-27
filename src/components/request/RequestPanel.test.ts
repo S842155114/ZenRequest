@@ -175,6 +175,62 @@ describe('RequestPanel i18n copy', () => {
     expect(busySurface.find('[data-testid="request-panel-tabs"]').exists()).toBe(false)
   })
 
+  it('does not duplicate the active request title in expanded header chrome', () => {
+    const wrapper = mount(RequestPanel, {
+      props: {
+        locale: 'en',
+        tabs: [createTab({ id: 'tab-orders', name: 'Orders Lookup' })],
+        activeTabId: 'tab-orders',
+        activeEnvironmentName: 'Local',
+        activeEnvironmentVariables: [],
+        resolvedActiveUrl: 'https://example.com/orders',
+      },
+      global: {
+        stubs: {
+          RequestUrlBar: defineComponent({ template: '<div data-testid="request-url-bar-stub" />' }),
+          RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
+        },
+      },
+    })
+
+    const headerText = wrapper.get('[data-testid="request-panel-header"]').text()
+    const titleMatches = headerText.match(/Orders Lookup/g) ?? []
+
+    expect(titleMatches).toHaveLength(1)
+  })
+
+  it('compresses expanded request tabs into a denser single-line layout for multi-tab workbenches', () => {
+    const wrapper = mount(RequestPanel, {
+      props: {
+        locale: 'en',
+        tabs: [
+          createTab({ id: 'tab-1', name: 'Lookup Request', collectionName: 'Orders' }),
+          createTab({ id: 'tab-2', name: 'User Detail', collectionName: 'Users' }),
+        ],
+        activeTabId: 'tab-1',
+        activeEnvironmentName: 'Local',
+        activeEnvironmentVariables: [],
+        resolvedActiveUrl: 'https://example.com/orders',
+      },
+      global: {
+        stubs: {
+          RequestUrlBar: defineComponent({ template: '<div data-testid="request-url-bar-stub" />' }),
+          RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
+        },
+      },
+    })
+
+    const strip = wrapper.get('[data-testid="request-panel-tabs"]')
+    const firstTab = wrapper.get('[data-testid="request-tab-tab-1"]')
+
+    expect(strip.classes()).toContain('gap-1')
+    expect(firstTab.classes()).toContain('min-w-[156px]')
+    expect(firstTab.classes()).not.toContain('min-w-[188px]')
+    expect(wrapper.find('[data-testid="request-tab-origin-tab-1"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="request-tab-persistence-tab-1"]').exists()).toBe(false)
+    expect(firstTab.find('[data-testid="request-tab-status-tab-1"]').exists()).toBe(true)
+  })
+
   it('removes the busy overlay when the active tab is not sending', async () => {
     const sendingTab = createTab()
     sendingTab.isSending = true
@@ -264,7 +320,7 @@ describe('RequestPanel i18n copy', () => {
     expect(document.body.querySelector('[data-testid="request-tab-context-menu"]')).toBeNull()
   })
 
-  it('distinguishes resource, replay, scratch, and detached tabs in the tab strip', () => {
+  it('compresses tab lifecycle states into a single compact indicator in the tab strip', () => {
     const wrapper = mount(RequestPanel, {
       props: {
         locale: 'en',
@@ -304,6 +360,16 @@ describe('RequestPanel i18n copy', () => {
             executionState: 'http-error',
             isDirty: true,
           }),
+          createTab({
+            id: 'tab-pending',
+            name: 'Pending Request',
+            collectionName: 'Orders',
+            requestId: 'request-pending',
+            origin: { kind: 'resource', requestId: 'request-pending' },
+            persistenceState: 'saved',
+            executionState: 'pending',
+            isSending: true,
+          }),
         ],
         activeTabId: 'tab-resource',
         activeEnvironmentName: 'Local',
@@ -318,14 +384,16 @@ describe('RequestPanel i18n copy', () => {
       },
     })
 
-    expect(wrapper.get('[data-testid="request-tab-origin-tab-resource"]').text()).toContain('Resource')
-    expect(wrapper.get('[data-testid="request-tab-origin-tab-replay"]').text()).toContain('Recovered')
-    expect(wrapper.get('[data-testid="request-tab-origin-tab-scratch"]').text()).toContain('Scratch')
-    expect(wrapper.get('[data-testid="request-tab-origin-tab-detached"]').text()).toContain('Detached')
-    expect(wrapper.get('[data-testid="request-tab-persistence-tab-detached"]').text()).toContain('Unbound')
+    expect(wrapper.get('[data-testid="request-tab-status-tab-resource"]').attributes('data-state')).toBe('success')
+    expect(wrapper.get('[data-testid="request-tab-status-tab-replay"]').attributes('data-state')).toBe('dirty')
+    expect(wrapper.get('[data-testid="request-tab-status-tab-scratch"]').attributes('data-state')).toBe('dirty')
+    expect(wrapper.get('[data-testid="request-tab-status-tab-detached"]').attributes('data-state')).toBe('error')
+    expect(wrapper.get('[data-testid="request-tab-status-tab-pending"]').attributes('data-state')).toBe('pending')
+    expect(wrapper.find('[data-testid="request-tab-origin-tab-resource"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="request-tab-persistence-tab-detached"]').exists()).toBe(false)
   })
 
-  it('does not render resource origin as saved state when a canonical request tab is dirty', () => {
+  it('prefers the dirty compact state for canonical request tabs with unsaved edits', () => {
     const wrapper = mount(RequestPanel, {
       props: {
         locale: 'en',
@@ -354,9 +422,9 @@ describe('RequestPanel i18n copy', () => {
       },
     })
 
-    expect(wrapper.get('[data-testid="request-tab-origin-tab-resource-dirty"]').text()).toContain('Resource')
-    expect(wrapper.get('[data-testid="request-tab-origin-tab-resource-dirty"]').text()).not.toContain('Saved')
-    expect(wrapper.get('[data-testid="request-tab-persistence-tab-resource-dirty"]').text()).toContain('Draft')
+    expect(wrapper.get('[data-testid="request-tab-status-tab-resource-dirty"]').attributes('data-state')).toBe('dirty')
+    expect(wrapper.find('[data-testid="request-tab-origin-tab-resource-dirty"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="request-tab-persistence-tab-resource-dirty"]').exists()).toBe(false)
   })
 
   it('shows provenance cues in the collapsed summary for replay drafts', () => {

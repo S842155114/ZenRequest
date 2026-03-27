@@ -768,15 +768,15 @@
   }
 
   .zr-request-tab-strip {
-    gap: 0.55rem;
+    gap: 0.35rem;
   }
 
   .zr-request-tab {
     position: relative;
     background:
-      linear-gradient(180deg, color-mix(in srgb, var(--zr-elevated) 14%, transparent), transparent 88%),
+      linear-gradient(180deg, color-mix(in srgb, var(--zr-elevated) 11%, transparent), transparent 86%),
       var(--zr-chip-bg);
-    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--zr-elevated) 18%, transparent);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--zr-elevated) 14%, transparent);
   }
 
   .zr-request-tab-active {
@@ -799,6 +799,30 @@
     background:
       linear-gradient(180deg, color-mix(in srgb, var(--zr-control-hover) 56%, transparent), transparent 88%),
       var(--zr-control-bg);
+  }
+
+  .zr-request-tab-status {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--zr-text-muted) 72%, white 28%);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--zr-panel) 82%, transparent);
+  }
+
+  .zr-request-tab-status[data-state='dirty'] {
+    background: #f59e0b;
+  }
+
+  .zr-request-tab-status[data-state='pending'] {
+    background: #38bdf8;
+  }
+
+  .zr-request-tab-status[data-state='success'] {
+    background: #10b981;
+  }
+
+  .zr-request-tab-status[data-state='error'] {
+    background: #f43f5e;
   }
 
   .zr-request-command-bar {
@@ -949,22 +973,48 @@
 
   .zr-toggle-badge {
     display: inline-flex;
-    min-width: 1.75rem;
-    height: 1.2rem;
+    width: 1.7rem;
+    height: 1rem;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
+    padding: 0 0.14rem;
     border-radius: 9999px;
     border: 1px solid var(--zr-border);
-    background: var(--zr-chip-bg);
-    font-size: 9px;
-    font-weight: 700;
-    color: #ffb295;
-    transition: all 180ms ease;
+    background: color-mix(in srgb, var(--zr-chip-bg) 92%, transparent);
+    transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
   }
 
   .zr-toggle-badge:hover {
     border-color: var(--zr-accent-border);
-    background: var(--zr-accent-soft);
+    background: color-mix(in srgb, var(--zr-accent-soft) 72%, var(--zr-chip-bg));
+  }
+
+  .zr-toggle-badge:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--zr-accent-border) 28%, transparent);
+  }
+
+  .zr-toggle-badge[data-state='on'] {
+    border-color: color-mix(in srgb, var(--zr-accent-border) 82%, var(--zr-border));
+    background: color-mix(in srgb, var(--zr-accent-soft) 82%, var(--zr-chip-bg));
+  }
+
+  .zr-toggle-badge[data-state='off'] {
+    background: color-mix(in srgb, var(--zr-chip-bg) 84%, transparent);
+  }
+
+  .zr-toggle-dot {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--zr-text-muted) 80%, white 20%);
+    transform: translateX(0);
+    transition: transform 180ms ease, background-color 180ms ease;
+  }
+
+  .zr-toggle-badge[data-state='on'] .zr-toggle-dot {
+    background: color-mix(in srgb, var(--zr-accent-border) 82%, white 18%);
+    transform: translateX(0.6rem);
   }
 }
 
