@@ -19,7 +19,14 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Separator } from '@/components/ui/separator'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import type { AppLocale, HistoryItem, RequestCollection, RequestPreset } from '@/types/request'
+import type {
+  AppLocale,
+  HistoryItem,
+  RequestCollection,
+  RequestPreset,
+  WorkbenchActivityProjection,
+  WorkbenchActivitySignal,
+} from '@/types/request'
 import { getContextMenuTestIdKey, shouldBypassResourceContextMenu } from '@/lib/resource-context-menu'
 import {
   Boxes,
@@ -45,11 +52,23 @@ const props = withDefaults(defineProps<{
   collections?: RequestCollection[]
   historyItems?: HistoryItem[]
   activeRequestId?: string
+  activityProjection?: WorkbenchActivityProjection
   searchQuery?: string
   runtimeReady?: boolean
 }>(), {
   collections: () => [],
   historyItems: () => [],
+  activityProjection: () => ({
+    requests: {},
+    history: {},
+    tabs: {},
+    summary: {
+      open: 0,
+      dirty: 0,
+      running: 0,
+      recovered: 0,
+    },
+  }),
   searchQuery: '',
   runtimeReady: true,
 })
@@ -206,6 +225,93 @@ const groupedHistoryItems = computed(() => {
       items: groups[key],
     }))
 })
+
+const requestRowIsActive = (requestId: string) => (
+  props.activityProjection.requests[requestId]?.active
+  || props.activeRequestId === requestId
+)
+
+const getRequestActivity = (requestId?: string) => (
+  requestId ? props.activityProjection.requests[requestId] : undefined
+)
+
+const getHistoryActivity = (historyItemId?: string) => (
+  historyItemId ? props.activityProjection.history[historyItemId] : undefined
+)
+
+const getActivityResultLabel = (result: WorkbenchActivitySignal['result']) => {
+  switch (result) {
+    case 'pending':
+      return text.value.sidebar.activity.running
+    case 'success':
+      return text.value.sidebar.activity.success
+    case 'http-error':
+      return text.value.sidebar.activity.failed
+    case 'transport-error':
+      return text.value.sidebar.activity.error
+    default:
+      return text.value.sidebar.activity.idle
+  }
+}
+
+type ActivityPill = {
+  key: string
+  label: string
+  tone: string
+}
+
+const getActivityPills = (signal?: WorkbenchActivitySignal): ActivityPill[] => {
+  if (!signal) return []
+
+  const pills: ActivityPill[] = []
+  if (signal.active) {
+    pills.push({ key: 'active', label: text.value.sidebar.activity.active, tone: 'active' })
+  } else if (signal.open) {
+    pills.push({ key: 'open', label: text.value.sidebar.activity.open, tone: 'open' })
+  }
+
+  if (signal.running) {
+    pills.push({ key: 'running', label: text.value.sidebar.activity.running, tone: 'running' })
+  }
+
+  if (signal.dirty) {
+    pills.push({ key: 'dirty', label: text.value.sidebar.activity.dirty, tone: 'dirty' })
+  }
+
+  if (signal.recovered) {
+    pills.push({ key: 'recovered', label: text.value.sidebar.activity.recovered, tone: 'recovered' })
+  }
+
+  if (!signal.running && signal.result !== 'idle') {
+    pills.push({ key: 'result', label: getActivityResultLabel(signal.result), tone: 'result' })
+  }
+
+  return pills
+}
+
+const getActivityPillClass = (tone: string) => {
+  switch (tone) {
+    case 'active':
+      return 'border-orange-500/35 bg-orange-500/12 text-orange-700 dark:text-orange-300'
+    case 'running':
+      return 'border-sky-500/35 bg-sky-500/12 text-sky-700 dark:text-sky-300'
+    case 'dirty':
+      return 'border-amber-500/35 bg-amber-500/12 text-amber-700 dark:text-amber-300'
+    case 'recovered':
+      return 'border-violet-500/35 bg-violet-500/12 text-violet-700 dark:text-violet-300'
+    case 'result':
+      return 'border-emerald-500/35 bg-emerald-500/12 text-emerald-700 dark:text-emerald-300'
+    default:
+      return 'border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] text-[var(--zr-text-secondary)]'
+  }
+}
+
+const worksetSummaryItems = computed(() => ([
+  { key: 'open', label: text.value.sidebar.activity.open, value: props.activityProjection.summary.open },
+  { key: 'dirty', label: text.value.sidebar.activity.dirty, value: props.activityProjection.summary.dirty },
+  { key: 'running', label: text.value.sidebar.activity.running, value: props.activityProjection.summary.running },
+  { key: 'recovered', label: text.value.sidebar.activity.recovered, value: props.activityProjection.summary.recovered },
+]))
 </script>
 
 <template>
@@ -272,6 +378,23 @@ const groupedHistoryItems = computed(() => {
           :placeholder="activeSidebarMeta.searchPlaceholder"
           @input="emit('update:search-query', ($event.target as HTMLInputElement).value)"
         >
+      </div>
+
+      <div
+        data-testid="sidebar-workset-summary"
+        class="mt-2.5 flex flex-wrap items-center gap-1.5"
+      >
+        <span class="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">
+          {{ text.sidebar.activity.workset }}
+        </span>
+        <span
+          v-for="item in worksetSummaryItems"
+          :key="item.key"
+          :data-testid="`sidebar-workset-${item.key}`"
+          class="rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-2 py-0.5 text-[10px] font-medium text-[var(--zr-text-secondary)]"
+        >
+          {{ item.label }} {{ item.value }}
+        </span>
       </div>
     </div>
 
@@ -386,10 +509,10 @@ const groupedHistoryItems = computed(() => {
                   >
                     <button
                       :data-testid="`request-row-${getTestIdKey(request.id)}`"
-                      :aria-current="props.activeRequestId === request.id ? 'true' : undefined"
+                      :aria-current="requestRowIsActive(request.id) ? 'true' : undefined"
                       :class="[
                         'zr-request-row group flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors',
-                        props.activeRequestId === request.id
+                        requestRowIsActive(request.id)
                           ? 'zr-request-row-active'
                           : 'zr-request-row-idle'
                       ]"
@@ -412,6 +535,22 @@ const groupedHistoryItems = computed(() => {
                         <div class="truncate text-[12px] font-medium text-[var(--zr-text-primary)]">{{ request.name }}</div>
                         <div v-if="request.description" class="mt-0.5 line-clamp-2 text-[10px] leading-4 text-[var(--zr-text-muted)]">
                           {{ request.description }}
+                        </div>
+                        <div
+                          v-if="getActivityPills(getRequestActivity(request.id)).length"
+                          :data-testid="`request-activity-${getTestIdKey(request.id)}`"
+                          class="mt-1.5 flex flex-wrap items-center gap-1"
+                        >
+                          <span
+                            v-for="pill in getActivityPills(getRequestActivity(request.id))"
+                            :key="pill.key"
+                            :class="[
+                              'rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em]',
+                              getActivityPillClass(pill.tone),
+                            ]"
+                          >
+                            {{ pill.label }}
+                          </span>
                         </div>
                       </div>
                       <Button
@@ -514,6 +653,22 @@ const groupedHistoryItems = computed(() => {
               </div>
               <div class="mt-1.5 truncate text-[13px] font-medium text-[var(--zr-text-primary)]">{{ item.name }}</div>
               <div class="mt-0.5 truncate font-mono text-[10px] text-[var(--zr-text-muted)]">{{ item.url }}</div>
+              <div
+                v-if="getActivityPills(getHistoryActivity(item.id)).length"
+                :data-testid="`history-activity-${getTestIdKey(item.id)}`"
+                class="mt-1.5 flex flex-wrap items-center gap-1"
+              >
+                <span
+                  v-for="pill in getActivityPills(getHistoryActivity(item.id))"
+                  :key="pill.key"
+                  :class="[
+                    'rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em]',
+                    getActivityPillClass(pill.tone),
+                  ]"
+                >
+                  {{ pill.label }}
+                </span>
+              </div>
             </div>
             <Button
               variant="ghost"

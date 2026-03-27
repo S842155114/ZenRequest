@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/context-menu'
 import RequestUrlBar from './RequestUrlBar.vue'
 import RequestParams from './RequestParams.vue'
-import { cloneAuth, cloneItems, cloneTests } from '@/lib/request-workspace'
+import { cloneAuth, cloneItems, cloneTests, normalizeRequestTabState } from '@/lib/request-workspace'
 import { getContextMenuTestIdKey, shouldBypassResourceContextMenu } from '@/lib/resource-context-menu'
 import type {
   AppLocale,
@@ -21,6 +21,7 @@ import type {
   RequestTabState,
   RequestTestDefinition,
   SendRequestPayload,
+  WorkbenchActivityProjection,
 } from '@/types/request'
 import { ChevronDown, ChevronUp, Plus, X } from 'lucide-vue-next'
 
@@ -31,6 +32,7 @@ defineOptions({
 const props = withDefaults(defineProps<{
   locale: AppLocale
   tabs: RequestTabState[]
+  activityProjection?: WorkbenchActivityProjection
   activeTabId: string
   activeEnvironmentName: string
   activeEnvironmentVariables: KeyValueItem[]
@@ -38,6 +40,17 @@ const props = withDefaults(defineProps<{
   collapsed?: boolean
 }>(), {
   tabs: () => [],
+  activityProjection: () => ({
+    requests: {},
+    history: {},
+    tabs: {},
+    summary: {
+      open: 0,
+      dirty: 0,
+      running: 0,
+      recovered: 0,
+    },
+  }),
   locale: 'en',
   activeTabId: '',
   activeEnvironmentName: '',
@@ -60,7 +73,13 @@ const emit = defineEmits<{
   (e: 'toggle-collapsed'): void
 }>()
 
-const activeTab = computed(() => props.tabs.find((tab) => tab.id === props.activeTabId) ?? props.tabs[0] ?? null)
+type RequestReadinessState = {
+  blockers: string[]
+  advisories: string[]
+}
+
+const normalizedTabs = computed(() => props.tabs.map((tab) => normalizeRequestTabState(tab)))
+const activeTab = computed(() => normalizedTabs.value.find((tab) => tab.id === props.activeTabId) ?? normalizedTabs.value[0] ?? null)
 const text = computed(() => getMessages(props.locale))
 const requestPanelBusy = computed(() => activeTab.value?.isSending ?? false)
 
@@ -136,6 +155,7 @@ watch(environmentVariables, (items) => {
 
 const handleSend = () => {
   if (!activeTab.value) return
+  if (requestReadiness.value.blockers.length > 0) return
 
   emit('send', {
     tabId: activeTab.value.id,
@@ -175,6 +195,171 @@ const getTabMethodClass = (value: string) => {
     default: return 'text-[var(--zr-text-secondary)]'
   }
 }
+
+const getTabOriginKind = (tab: RequestTabState) => tab.origin?.kind ?? (tab.requestId ? 'resource' : 'scratch')
+
+const getOriginLabel = (tab: RequestTabState) => {
+  switch (getTabOriginKind(tab)) {
+    case 'resource': return text.value.request.resource
+    case 'replay': return text.value.request.recovered
+    case 'detached': return text.value.request.detached
+    default: return text.value.request.scratch
+  }
+}
+
+const getPersistenceLabel = (tab: RequestTabState) => {
+  switch (tab.persistenceState) {
+    case 'saved': return text.value.request.saved
+    case 'unbound': return text.value.request.unbound
+    default: return text.value.request.draft
+  }
+}
+
+const getExecutionStateLabel = (tab: RequestTabState) => {
+  const state = props.activityProjection.tabs[tab.id]?.result ?? tab.executionState ?? 'idle'
+  switch (state) {
+    case 'pending': return text.value.request.running
+    case 'success': return text.value.request.success
+    case 'http-error': return text.value.request.failed
+    case 'transport-error': return text.value.request.error
+    default: return text.value.request.ready
+  }
+}
+
+const getOriginBadgeClass = (tab: RequestTabState) => {
+  switch (getTabOriginKind(tab)) {
+    case 'resource': return 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+    case 'replay': return 'border-violet-500/25 bg-violet-500/10 text-violet-700 dark:text-violet-300'
+    case 'detached': return 'border-rose-500/25 bg-rose-500/10 text-rose-700 dark:text-rose-300'
+    default: return 'border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+  }
+}
+
+const getPersistenceBadgeClass = (tab: RequestTabState) => (
+  tab.persistenceState === 'saved'
+    ? 'border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] text-[var(--zr-text-secondary)]'
+    : tab.persistenceState === 'unbound'
+      ? 'border-rose-500/25 bg-rose-500/10 text-rose-700 dark:text-rose-300'
+      : 'border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+)
+
+const getExecutionBadgeClass = (tab: RequestTabState) => {
+  const state = props.activityProjection.tabs[tab.id]?.result ?? tab.executionState ?? 'idle'
+  switch (state) {
+    case 'pending': return 'border-sky-500/25 bg-sky-500/10 text-sky-700 dark:text-sky-300'
+    case 'success': return 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+    case 'http-error':
+    case 'transport-error':
+      return 'border-rose-500/25 bg-rose-500/10 text-rose-700 dark:text-rose-300'
+    default:
+      return 'border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] text-[var(--zr-text-secondary)]'
+  }
+}
+
+const templateTokenPattern = /\{\{\s*([^}]+?)\s*\}\}/g
+
+const collectTemplateKeys = (value?: string) => {
+  const keys = new Set<string>()
+  if (!value) return keys
+
+  for (const match of value.matchAll(templateTokenPattern)) {
+    const key = match[1]?.trim()
+    if (key) {
+      keys.add(key)
+    }
+  }
+
+  return keys
+}
+
+const jsonBodyError = computed(() => {
+  if (bodyType.value !== 'json' || !bodyContent.value.trim()) return ''
+
+  try {
+    JSON.parse(bodyContent.value)
+    return ''
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error)
+  }
+})
+
+const requestReadiness = computed<RequestReadinessState>(() => {
+  if (!activeTab.value) {
+    return {
+      blockers: [],
+      advisories: [],
+    }
+  }
+
+  const blockers: string[] = []
+  const advisories: string[] = []
+  const availableVariables = new Map(
+    props.activeEnvironmentVariables
+      .filter((item) => item.enabled && item.key.trim() && item.value.trim())
+      .map((item) => [item.key.trim(), item.value.trim()]),
+  )
+
+  if (!url.value.trim()) {
+    blockers.push(text.value.request.emptyUrlBlocker)
+  }
+
+  const unresolvedKeys = new Set<string>()
+  const stringSources = [
+    url.value,
+    bodyType.value === 'json' || bodyType.value === 'raw' ? bodyContent.value : '',
+    bodyContentType.value,
+    binaryFileName.value,
+    binaryMimeType.value,
+    ...params.value.flatMap((item) => [item.key, item.value]),
+    ...headers.value.flatMap((item) => [item.key, item.value]),
+    auth.value.bearerToken,
+    auth.value.username,
+    auth.value.password,
+    auth.value.apiKeyKey,
+    auth.value.apiKeyValue,
+    ...tests.value.flatMap((test) => [test.name, test.target ?? '', test.expected ?? '']),
+  ]
+
+  if (bodyType.value === 'formdata') {
+    stringSources.push(
+      ...formDataFields.value.flatMap((field) => [
+        field.key,
+        field.value,
+        field.fileName ?? '',
+        field.mimeType ?? '',
+      ]),
+    )
+  }
+
+  for (const source of stringSources) {
+    for (const key of collectTemplateKeys(source)) {
+      if (!availableVariables.has(key)) {
+        unresolvedKeys.add(key)
+      }
+    }
+  }
+
+  if (unresolvedKeys.size > 0) {
+    blockers.push(text.value.request.missingVariablesBlocker([...unresolvedKeys].join(', ')))
+  }
+
+  if (bodyType.value === 'json' && jsonBodyError.value) {
+    blockers.push(text.value.request.invalidJsonBlocker)
+  }
+
+  if (bodyType.value === 'binary' && !bodyContent.value.trim()) {
+    blockers.push(text.value.request.missingBinaryPayloadBlocker)
+  }
+
+  if (activeTab.value.isDirty || activeTab.value.persistenceState !== 'saved') {
+    advisories.push(text.value.request.unsavedChangesAdvisory)
+  }
+
+  return {
+    blockers,
+    advisories,
+  }
+})
 </script>
 
 <template>
@@ -204,7 +389,7 @@ const getTabMethodClass = (value: string) => {
         class="zr-request-tab-strip flex items-center gap-1.5 overflow-x-auto pb-3"
       >
         <ContextMenu
-          v-for="tab in tabs"
+          v-for="tab in normalizedTabs"
           :key="tab.id"
         >
           <ContextMenuTrigger as-child>
@@ -222,10 +407,38 @@ const getTabMethodClass = (value: string) => {
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-medium text-[var(--zr-text-primary)]">{{ tab.name }}</div>
                 <div class="truncate text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">{{ localizeScratchPadName(tab.collectionName, props.locale) }}</div>
+                <div class="mt-1 flex flex-wrap items-center gap-1">
+                  <span
+                    :data-testid="`request-tab-origin-${getContextMenuTestIdKey(tab.id)}`"
+                    :class="[
+                      'rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em]',
+                      getOriginBadgeClass(tab),
+                    ]"
+                  >
+                    {{ getOriginLabel(tab) }}
+                  </span>
+                  <span
+                    :data-testid="`request-tab-persistence-${getContextMenuTestIdKey(tab.id)}`"
+                    :class="[
+                      'rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em]',
+                      getPersistenceBadgeClass(tab),
+                    ]"
+                  >
+                    {{ getPersistenceLabel(tab) }}
+                  </span>
+                  <span
+                    :class="[
+                      'rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em]',
+                      getExecutionBadgeClass(tab),
+                    ]"
+                  >
+                    {{ getExecutionStateLabel(tab) }}
+                  </span>
+                </div>
               </div>
               <button
                 class="inline-flex h-6 w-6 items-center justify-center rounded-full text-[var(--zr-text-muted)] transition-colors hover:bg-[var(--zr-soft-hover)] hover:text-[var(--zr-text-primary)]"
-                :disabled="tabs.length === 1"
+                :disabled="normalizedTabs.length === 1"
                 @click.stop="emit('close-tab', tab.id)"
               >
                 <X class="h-3.5 w-3.5" />
@@ -242,7 +455,7 @@ const getTabMethodClass = (value: string) => {
             <ContextMenuSeparator />
             <ContextMenuItem
               :data-testid="`request-tab-context-close-${getContextMenuTestIdKey(tab.id)}`"
-              :disabled="tabs.length === 1"
+              :disabled="normalizedTabs.length === 1"
               @select="emit('close-tab', tab.id)"
             >
               {{ text.common.close }}
@@ -260,13 +473,25 @@ const getTabMethodClass = (value: string) => {
           <div class="text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">{{ text.request.summaryMethod }}</div>
           <div class="mt-1 text-sm font-semibold text-[var(--zr-text-primary)]">{{ activeTab?.method ?? method }}</div>
         </div>
+        <div data-testid="request-summary-origin" class="zr-summary-card px-3 py-2">
+          <div class="text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">{{ text.request.summaryOrigin }}</div>
+          <div class="mt-1 text-sm font-semibold text-[var(--zr-text-primary)]">{{ activeTab ? getOriginLabel(activeTab) : text.request.scratch }}</div>
+        </div>
+        <div data-testid="request-summary-persistence" class="zr-summary-card px-3 py-2">
+          <div class="text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">{{ text.request.summaryPersistence }}</div>
+          <div class="mt-1 text-sm font-semibold text-[var(--zr-text-primary)]">{{ activeTab ? getPersistenceLabel(activeTab) : text.request.draft }}</div>
+        </div>
         <div class="zr-summary-card px-3 py-2">
           <div class="text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">{{ text.request.summaryEnvironment }}</div>
           <div class="mt-1 truncate text-sm font-semibold text-[var(--zr-text-primary)]">{{ activeEnvironmentName }}</div>
         </div>
         <div class="zr-summary-card px-3 py-2">
           <div class="text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">{{ text.request.summaryTabs }}</div>
-          <div class="mt-1 text-sm font-semibold text-[var(--zr-text-primary)]">{{ tabs.length }}</div>
+          <div class="mt-1 text-sm font-semibold text-[var(--zr-text-primary)]">{{ normalizedTabs.length }}</div>
+        </div>
+        <div data-testid="request-summary-result" class="zr-summary-card px-3 py-2">
+          <div class="text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">{{ text.request.summaryResult }}</div>
+          <div class="mt-1 text-sm font-semibold text-[var(--zr-text-primary)]">{{ activeTab ? getExecutionStateLabel(activeTab) : text.request.ready }}</div>
         </div>
       </div>
     </div>
@@ -286,6 +511,11 @@ const getTabMethodClass = (value: string) => {
             :method="method"
             :url="url"
             :is-loading="activeTab.isSending"
+            :request-name="activeTab.name"
+            :origin-kind="activeTab.origin?.kind"
+            :persistence-state="activeTab.persistenceState"
+            :execution-state="props.activityProjection.tabs[activeTab.id]?.result ?? activeTab.executionState"
+            :readiness="requestReadiness"
             :collection-name="activeTab.collectionName"
             :environment-name="activeEnvironmentName"
             :resolved-url="resolvedActiveUrl"

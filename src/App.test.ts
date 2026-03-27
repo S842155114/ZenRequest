@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, h, nextTick, ref } from 'vue'
+import { defineComponent, h, nextTick, ref, watch } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
 vi.mock('@/components/ui/resizable', () => {
@@ -292,9 +292,20 @@ const AppHeaderStub = defineComponent({
 const AppSidebarStub = defineComponent({
   name: 'AppSidebar',
   props: {
+    collections: { type: Array, required: false, default: () => [] },
     historyItems: { type: Array, required: false, default: () => [] },
+    activityProjection: {
+      type: Object,
+      required: false,
+      default: () => ({
+        summary: { open: 0, dirty: 0, running: 0, recovered: 0 },
+        requests: {},
+        history: {},
+        tabs: {},
+      }),
+    },
   },
-  emits: ['select-history'],
+  emits: ['select-history', 'select-request', 'delete-request'],
   setup(props, { emit }) {
     return () => h('div', { 'data-testid': 'sidebar-stub' }, [
       'sidebar',
@@ -302,6 +313,26 @@ const AppSidebarStub = defineComponent({
         'data-testid': 'resource-context-surface',
         'data-resource-context-menu-surface': 'true',
       }, 'resource-surface'),
+      h('button', {
+        'data-testid': 'sidebar-select-request',
+        onClick: () => {
+          const firstCollection = (props.collections as RequestCollection[])[0]
+          const firstRequest = firstCollection?.requests[0]
+          if (firstCollection && firstRequest) {
+            emit('select-request', firstRequest)
+          }
+        },
+      }, 'select-request'),
+      h('button', {
+        'data-testid': 'sidebar-delete-request',
+        onClick: () => {
+          const firstCollection = (props.collections as RequestCollection[])[0]
+          const firstRequest = firstCollection?.requests[0]
+          if (firstCollection && firstRequest) {
+            emit('delete-request', { collectionName: firstCollection.name, requestId: firstRequest.id })
+          }
+        },
+      }, 'delete-request'),
       h('button', {
         'data-testid': 'sidebar-select-history',
         onClick: () => {
@@ -321,8 +352,18 @@ const RequestPanelStub = defineComponent({
     activeTabId: { type: String, required: false, default: '' },
     tabs: { type: Array, required: false, default: () => [] },
     collapsed: { type: Boolean, required: false, default: false },
+    activityProjection: {
+      type: Object,
+      required: false,
+      default: () => ({
+        summary: { open: 0, dirty: 0, running: 0, recovered: 0 },
+        requests: {},
+        history: {},
+        tabs: {},
+      }),
+    },
   },
-  emits: ['send', 'toggle-collapsed'],
+  emits: ['send', 'toggle-collapsed', 'save-tab', 'select-tab', 'close-tab'],
   setup(props, { emit }) {
     const baseAuth = {
       type: 'none',
@@ -369,6 +410,14 @@ const RequestPanelStub = defineComponent({
           'data-testid': 'request-panel-toggle-collapse',
           onClick: () => emit('toggle-collapsed'),
         }, 'toggle-collapse'),
+        ...((props.tabs as Array<{ id: string; name: string }>).map((tab) => h('button', {
+          'data-testid': `request-panel-save-${tab.id}`,
+          onClick: () => emit('save-tab', tab.id),
+        }, `save-${tab.id}`))),
+        ...((props.tabs as Array<{ id: string; name: string }>).map((tab) => h('button', {
+          'data-testid': `request-panel-close-${tab.id}`,
+          onClick: () => emit('close-tab', tab.id),
+        }, `close-${tab.id}`))),
       ])
     }
   },
@@ -408,7 +457,67 @@ const ResponsePanelStub = defineComponent({
 
 const WorkspaceDialogStub = defineComponent({
   name: 'WorkspaceDialog',
-  template: '<div data-testid="dialog-stub"></div>',
+  props: {
+    open: { type: Boolean, default: false },
+    nameValue: { type: String, default: '' },
+    detailsValue: { type: String, default: '' },
+    tagsValue: { type: String, default: '' },
+    selectValue: { type: String, default: '' },
+    secondaryActionText: { type: String, default: '' },
+  },
+  emits: ['submit', 'close', 'secondary-action'],
+  setup(props, { emit }) {
+    const localName = ref(props.nameValue)
+    const localDetails = ref(props.detailsValue)
+    const localTags = ref(props.tagsValue)
+    const localSelect = ref(props.selectValue)
+
+    watch(
+      () => [props.open, props.nameValue, props.detailsValue, props.tagsValue, props.selectValue],
+      () => {
+        localName.value = props.nameValue
+        localDetails.value = props.detailsValue
+        localTags.value = props.tagsValue
+        localSelect.value = props.selectValue
+      },
+      { immediate: true },
+    )
+
+    return () => h('div', {
+      'data-testid': 'dialog-stub',
+      'data-open': props.open ? 'true' : 'false',
+      'data-details-value': localDetails.value,
+      'data-secondary-action-text': props.secondaryActionText,
+    }, [
+      h('input', {
+        'data-testid': 'dialog-name-input',
+        value: localName.value,
+        onInput: (event: Event) => {
+          localName.value = (event.target as HTMLInputElement).value
+        },
+      }),
+      h('textarea', {
+        'data-testid': 'dialog-details-input',
+        value: localDetails.value,
+        onInput: (event: Event) => {
+          localDetails.value = (event.target as HTMLTextAreaElement).value
+        },
+      }),
+      h('button', {
+        'data-testid': 'dialog-submit',
+        onClick: () => emit('submit', {
+          nameValue: localName.value,
+          detailsValue: localDetails.value,
+          tagsValue: localTags.value,
+          selectValue: localSelect.value,
+        }),
+      }, 'submit'),
+      h('button', {
+        'data-testid': 'dialog-secondary-action',
+        onClick: () => emit('secondary-action'),
+      }, props.secondaryActionText || 'secondary'),
+    ])
+  },
 })
 
 const AppToastListStub = defineComponent({
@@ -434,6 +543,14 @@ const mountApp = async () => {
   await flushPromises()
   await nextTick()
   return wrapper
+}
+
+const getRequestPanelTabs = (wrapper: Awaited<ReturnType<typeof mountApp>>) =>
+  wrapper.findComponent(RequestPanelStub).props('tabs') as Array<Record<string, any>>
+
+const getActiveRequestPanelTab = (wrapper: Awaited<ReturnType<typeof mountApp>>) => {
+  const activeTabId = wrapper.findComponent(RequestPanelStub).props('activeTabId') as string
+  return getRequestPanelTabs(wrapper).find((tab) => tab.id === activeTabId)
 }
 
 beforeEach(() => {
@@ -835,5 +952,1086 @@ describe('App workbench shell', () => {
     expect(wrapper.get('[data-testid="response-panel-stub"]').text()).toContain('201 POST https://example.com/orders')
     expect(wrapper.get('[data-testid="response-panel-stub"]').text()).toContain('{"ok":true,"source":"history"}')
     expect(wrapper.get('[data-testid="response-panel-stub"]').text()).toContain('"content-type"')
+  })
+
+  it('reopens the same history item into one stable replay draft instead of duplicating tabs', async () => {
+    window.innerWidth = 1440
+
+    const payload = createBootstrapPayload()
+    payload.collections = [
+      {
+        id: 'collection-orders',
+        name: 'Orders',
+        expanded: true,
+        requests: [{
+          id: 'request-orders-list',
+          name: 'Orders Lookup',
+          description: '',
+          tags: [],
+          collectionId: 'collection-orders',
+          collectionName: 'Orders',
+          method: 'POST',
+          url: 'https://example.com/orders',
+          params: [],
+          headers: [],
+          body: '',
+          bodyType: 'json',
+          auth: {
+            type: 'none',
+            bearerToken: '',
+            username: '',
+            password: '',
+            apiKeyKey: '',
+            apiKeyValue: '',
+            apiKeyPlacement: 'header',
+          },
+          tests: [],
+        }],
+      },
+    ]
+    payload.history = [{
+      id: 'history-orders-1',
+      name: 'Orders Lookup',
+      method: 'POST',
+      status: 201,
+      time: '20 ms',
+      url: 'https://example.com/orders',
+      requestId: 'request-orders-list',
+      executedAtEpochMs: 1_774_961_200_000,
+      statusText: 'Created',
+      elapsedMs: 20,
+      sizeBytes: 2048,
+      contentType: 'application/json',
+      truncated: false,
+      requestSnapshot: {
+        workspaceId: 'workspace-1',
+        tabId: 'tab-history-1',
+        requestId: 'request-orders-list',
+        name: 'Orders Lookup',
+        description: 'Recovered from history',
+        tags: ['history'],
+        collectionName: 'Orders',
+        method: 'POST',
+        url: 'https://example.com/orders',
+        params: [],
+        headers: [],
+        body: { kind: 'json', value: '{"orderId":1}' },
+        bodyType: 'json',
+        auth: {
+          type: 'none',
+          bearerToken: '',
+          username: '',
+          password: '',
+          apiKeyKey: '',
+          apiKeyValue: '',
+          apiKeyPlacement: 'header',
+        },
+        tests: [],
+      },
+      responsePreview: '{"ok":true,"source":"history"}',
+      responseHeaders: [{ key: 'content-type', value: 'application/json' }],
+    } as unknown as HistoryItem]
+
+    setRuntimeAdapter(createAdapter(payload))
+
+    const wrapper = await mountApp()
+    const initialTabCount = getRequestPanelTabs(wrapper).length
+
+    await wrapper.get('[data-testid="sidebar-select-history"]').trigger('click')
+    await nextTick()
+
+    const firstReplay = getActiveRequestPanelTab(wrapper)
+    expect(firstReplay?.origin?.kind).toBe('replay')
+    expect(firstReplay?.origin?.historyItemId).toBe('history-orders-1')
+    expect(getRequestPanelTabs(wrapper)).toHaveLength(initialTabCount + 1)
+
+    await wrapper.get('[data-testid="sidebar-select-history"]').trigger('click')
+    await nextTick()
+
+    expect(getRequestPanelTabs(wrapper)).toHaveLength(initialTabCount + 1)
+    expect(getActiveRequestPanelTab(wrapper)?.id).toBe(firstReplay?.id)
+  })
+
+  it('saves the tab that triggered save even when it is not the active tab', async () => {
+    window.innerWidth = 1440
+
+    const payload = createBootstrapPayload()
+    payload.collections = [
+      {
+        id: 'collection-active',
+        name: 'Active',
+        expanded: true,
+        requests: [{
+          id: 'request-active',
+          name: 'Active Request',
+          description: '',
+          tags: [],
+          collectionId: 'collection-active',
+          collectionName: 'Active',
+          method: 'GET',
+          url: 'https://example.com/active',
+          params: [],
+          headers: [],
+          body: '',
+          bodyType: 'json',
+          auth: {
+            type: 'none',
+            bearerToken: '',
+            username: '',
+            password: '',
+            apiKeyKey: '',
+            apiKeyValue: '',
+            apiKeyPlacement: 'header',
+          },
+          tests: [],
+        }],
+      },
+      {
+        id: 'collection-background',
+        name: 'Background',
+        expanded: true,
+        requests: [{
+          id: 'request-background',
+          name: 'Background Request',
+          description: '',
+          tags: [],
+          collectionId: 'collection-background',
+          collectionName: 'Background',
+          method: 'POST',
+          url: 'https://example.com/background',
+          params: [],
+          headers: [],
+          body: '',
+          bodyType: 'json',
+          auth: {
+            type: 'none',
+            bearerToken: '',
+            username: '',
+            password: '',
+            apiKeyKey: '',
+            apiKeyValue: '',
+            apiKeyPlacement: 'header',
+          },
+          tests: [],
+        }],
+      },
+    ]
+    payload.session = {
+      activeEnvironmentId: 'env-local',
+      activeTabId: 'tab-active',
+      openTabs: [
+        {
+          id: 'tab-active',
+          requestId: 'request-active',
+          collectionId: 'collection-active',
+          name: 'Active Request',
+          description: '',
+          tags: [],
+          collectionName: 'Active',
+          method: 'GET',
+          url: 'https://example.com/active',
+          params: [],
+          headers: [],
+          body: '',
+          bodyType: 'json',
+          auth: {
+            type: 'none',
+            bearerToken: '',
+            username: '',
+            password: '',
+            apiKeyKey: '',
+            apiKeyValue: '',
+            apiKeyPlacement: 'header',
+          },
+          tests: [],
+          response: {
+            responseBody: '{}',
+            status: 200,
+            statusText: 'OK',
+            time: '10 ms',
+            size: '1 KB',
+            headers: [],
+            contentType: 'application/json',
+            requestMethod: 'GET',
+            requestUrl: 'https://example.com/active',
+            testResults: [],
+          },
+          isSending: false,
+          isDirty: false,
+        },
+        {
+          id: 'tab-background',
+          requestId: 'request-background',
+          collectionId: 'collection-background',
+          name: 'Background Request',
+          description: '',
+          tags: [],
+          collectionName: 'Background',
+          method: 'POST',
+          url: 'https://example.com/background',
+          params: [],
+          headers: [],
+          body: '',
+          bodyType: 'json',
+          auth: {
+            type: 'none',
+            bearerToken: '',
+            username: '',
+            password: '',
+            apiKeyKey: '',
+            apiKeyValue: '',
+            apiKeyPlacement: 'header',
+          },
+          tests: [],
+          response: {
+            responseBody: '{}',
+            status: 200,
+            statusText: 'OK',
+            time: '10 ms',
+            size: '1 KB',
+            headers: [],
+            contentType: 'application/json',
+            requestMethod: 'POST',
+            requestUrl: 'https://example.com/background',
+            testResults: [],
+          },
+          isSending: false,
+          isDirty: true,
+        },
+      ],
+    }
+
+    const saveRequest = vi.fn<RuntimeAdapter['saveRequest']>()
+      .mockImplementation(async (_workspaceId, _collectionId, request) => ok(request))
+
+    setRuntimeAdapter(createAdapter(payload, { saveRequest }))
+
+    const wrapper = await mountApp()
+
+    await wrapper.get('[data-testid="request-panel-save-tab-background"]').trigger('click')
+    await nextTick()
+    await wrapper.get('[data-testid="dialog-submit"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect(saveRequest).toHaveBeenCalledTimes(1)
+    expect(saveRequest.mock.calls[0]?.[1]).toBe('collection-background')
+    expect(saveRequest.mock.calls[0]?.[2].id).toBe('request-background')
+    expect(saveRequest.mock.calls[0]?.[2].name).toBe('Background Request')
+  })
+
+  it('keeps unsaved state after a successful send until the tab is explicitly saved', async () => {
+    window.innerWidth = 1440
+
+    const payload = createBootstrapPayload()
+    payload.session = {
+      activeEnvironmentId: 'env-local',
+      activeTabId: 'tab-orders',
+      openTabs: [{
+        id: 'tab-orders',
+        requestId: 'request-orders-list',
+        name: 'Orders Lookup',
+        description: '',
+        tags: ['orders'],
+        collectionId: 'collection-orders',
+        collectionName: 'Orders',
+        method: 'POST',
+        url: 'https://example.com/orders',
+        params: [],
+        headers: [],
+        body: '',
+        bodyType: 'json',
+        auth: {
+          type: 'none',
+          bearerToken: '',
+          username: '',
+          password: '',
+          apiKeyKey: '',
+          apiKeyValue: '',
+          apiKeyPlacement: 'header',
+        },
+        tests: [],
+        response: {
+          responseBody: '{"ok":false}',
+          status: 500,
+          statusText: 'Error',
+          time: '20 ms',
+          size: '2 KB',
+          headers: [],
+          contentType: 'application/json',
+          requestMethod: 'POST',
+          requestUrl: 'https://example.com/orders',
+          testResults: [],
+        },
+        isSending: false,
+        isDirty: true,
+      }],
+    }
+
+    setRuntimeAdapter(createAdapter(payload, {
+      sendRequest: async () => ok({
+        requestMethod: 'POST',
+        requestUrl: 'https://example.com/orders',
+        status: 200,
+        statusText: 'OK',
+        elapsedMs: 18,
+        sizeBytes: 64,
+        contentType: 'application/json',
+        responseBody: '{"ok":true}',
+        headers: [],
+        truncated: false,
+      }),
+    }))
+
+    const wrapper = await mountApp()
+
+    await wrapper.get('[data-testid="request-panel-send"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect(getActiveRequestPanelTab(wrapper)?.isDirty).toBe(true)
+  })
+
+  it('reopens the save dialog with the last saved request description', async () => {
+    window.innerWidth = 1440
+
+    const payload = createBootstrapPayload()
+    payload.collections = [{
+      id: 'collection-orders',
+      name: 'Orders',
+      expanded: true,
+      requests: [{
+        id: 'request-orders-list',
+        name: 'Orders Lookup',
+        description: '',
+        tags: [],
+        collectionId: 'collection-orders',
+        collectionName: 'Orders',
+        method: 'POST',
+        url: 'https://example.com/orders',
+        params: [],
+        headers: [],
+        body: '',
+        bodyType: 'json',
+        auth: {
+          type: 'none',
+          bearerToken: '',
+          username: '',
+          password: '',
+          apiKeyKey: '',
+          apiKeyValue: '',
+          apiKeyPlacement: 'header',
+        },
+        tests: [],
+      }],
+    }]
+    payload.session = {
+      activeEnvironmentId: 'env-local',
+      activeTabId: 'tab-orders',
+      openTabs: [{
+        id: 'tab-orders',
+        requestId: 'request-orders-list',
+        origin: {
+          kind: 'resource',
+          requestId: 'request-orders-list',
+        },
+        persistenceState: 'saved',
+        executionState: 'idle',
+        collectionId: 'collection-orders',
+        name: 'Orders Lookup',
+        description: '',
+        tags: [],
+        collectionName: 'Orders',
+        method: 'POST',
+        url: 'https://example.com/orders',
+        params: [],
+        headers: [],
+        body: '',
+        bodyType: 'json',
+        auth: {
+          type: 'none',
+          bearerToken: '',
+          username: '',
+          password: '',
+          apiKeyKey: '',
+          apiKeyValue: '',
+          apiKeyPlacement: 'header',
+        },
+        tests: [],
+        response: {
+          responseBody: '{}',
+          status: 200,
+          statusText: 'OK',
+          time: '10 ms',
+          size: '1 KB',
+          headers: [],
+          contentType: 'application/json',
+          requestMethod: 'POST',
+          requestUrl: 'https://example.com/orders',
+          testResults: [],
+        },
+        isSending: false,
+        isDirty: false,
+      }],
+    }
+
+    setRuntimeAdapter(createAdapter(payload, {
+      saveRequest: async (_workspaceId, _collectionId, request) => ok(request),
+    }))
+
+    const wrapper = await mountApp()
+
+    await wrapper.get('[data-testid="request-panel-save-tab-orders"]').trigger('click')
+    await nextTick()
+    expect(wrapper.get('[data-testid="dialog-stub"]').attributes('data-details-value')).toBe('')
+
+    await wrapper.get('[data-testid="dialog-details-input"]').setValue('Saved request description')
+    await wrapper.get('[data-testid="dialog-submit"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    await wrapper.get('[data-testid="request-panel-save-tab-orders"]').trigger('click')
+    await nextTick()
+
+    expect(wrapper.get('[data-testid="dialog-stub"]').attributes('data-details-value')).toBe('Saved request description')
+  })
+
+  it('prompts before closing a dirty tab instead of discarding it immediately', async () => {
+    window.innerWidth = 1440
+
+    const payload = createBootstrapPayload()
+    payload.session = {
+      activeEnvironmentId: 'env-local',
+      activeTabId: 'tab-dirty',
+      openTabs: [
+        {
+          id: 'tab-dirty',
+          requestId: 'request-dirty',
+          origin: {
+            kind: 'resource',
+            requestId: 'request-dirty',
+          },
+          persistenceState: 'unsaved',
+          executionState: 'idle',
+          collectionId: 'collection-orders',
+          name: 'Dirty Request',
+          description: 'Unsaved changes',
+          tags: [],
+          collectionName: 'Orders',
+          method: 'POST',
+          url: 'https://example.com/orders',
+          params: [],
+          headers: [],
+          body: '',
+          bodyType: 'json',
+          auth: {
+            type: 'none',
+            bearerToken: '',
+            username: '',
+            password: '',
+            apiKeyKey: '',
+            apiKeyValue: '',
+            apiKeyPlacement: 'header',
+          },
+          tests: [],
+          response: {
+            responseBody: '{}',
+            status: 200,
+            statusText: 'OK',
+            time: '10 ms',
+            size: '1 KB',
+            headers: [],
+            contentType: 'application/json',
+            requestMethod: 'POST',
+            requestUrl: 'https://example.com/orders',
+            testResults: [],
+          },
+          isSending: false,
+          isDirty: true,
+        },
+        {
+          id: 'tab-clean',
+          requestId: 'request-clean',
+          origin: {
+            kind: 'resource',
+            requestId: 'request-clean',
+          },
+          persistenceState: 'saved',
+          executionState: 'success',
+          collectionId: 'collection-orders',
+          name: 'Clean Request',
+          description: '',
+          tags: [],
+          collectionName: 'Orders',
+          method: 'GET',
+          url: 'https://example.com/orders/1',
+          params: [],
+          headers: [],
+          body: '',
+          bodyType: 'json',
+          auth: {
+            type: 'none',
+            bearerToken: '',
+            username: '',
+            password: '',
+            apiKeyKey: '',
+            apiKeyValue: '',
+            apiKeyPlacement: 'header',
+          },
+          tests: [],
+          response: {
+            responseBody: '{}',
+            status: 200,
+            statusText: 'OK',
+            time: '10 ms',
+            size: '1 KB',
+            headers: [],
+            contentType: 'application/json',
+            requestMethod: 'GET',
+            requestUrl: 'https://example.com/orders/1',
+            testResults: [],
+          },
+          isSending: false,
+          isDirty: false,
+        },
+      ],
+    }
+
+    setRuntimeAdapter(createAdapter(payload))
+
+    const wrapper = await mountApp()
+
+    await wrapper.get('[data-testid="request-panel-close-tab-dirty"]').trigger('click')
+    await nextTick()
+
+    expect(wrapper.get('[data-testid="dialog-stub"]').attributes('data-open')).toBe('true')
+    expect(wrapper.get('[data-testid="dialog-stub"]').attributes('data-secondary-action-text')).toBe('Discard')
+    expect(getRequestPanelTabs(wrapper).map((tab) => tab.id)).toEqual(['tab-dirty', 'tab-clean'])
+  })
+
+  it('can discard a dirty tab from the close confirmation dialog', async () => {
+    window.innerWidth = 1440
+
+    const payload = createBootstrapPayload()
+    payload.session = {
+      activeEnvironmentId: 'env-local',
+      activeTabId: 'tab-dirty',
+      openTabs: [
+        {
+          id: 'tab-dirty',
+          requestId: 'request-dirty',
+          origin: {
+            kind: 'resource',
+            requestId: 'request-dirty',
+          },
+          persistenceState: 'unsaved',
+          executionState: 'idle',
+          collectionId: 'collection-orders',
+          name: 'Dirty Request',
+          description: 'Unsaved changes',
+          tags: [],
+          collectionName: 'Orders',
+          method: 'POST',
+          url: 'https://example.com/orders',
+          params: [],
+          headers: [],
+          body: '',
+          bodyType: 'json',
+          auth: {
+            type: 'none',
+            bearerToken: '',
+            username: '',
+            password: '',
+            apiKeyKey: '',
+            apiKeyValue: '',
+            apiKeyPlacement: 'header',
+          },
+          tests: [],
+          response: {
+            responseBody: '{}',
+            status: 200,
+            statusText: 'OK',
+            time: '10 ms',
+            size: '1 KB',
+            headers: [],
+            contentType: 'application/json',
+            requestMethod: 'POST',
+            requestUrl: 'https://example.com/orders',
+            testResults: [],
+          },
+          isSending: false,
+          isDirty: true,
+        },
+        {
+          id: 'tab-clean',
+          requestId: 'request-clean',
+          origin: {
+            kind: 'resource',
+            requestId: 'request-clean',
+          },
+          persistenceState: 'saved',
+          executionState: 'success',
+          collectionId: 'collection-orders',
+          name: 'Clean Request',
+          description: '',
+          tags: [],
+          collectionName: 'Orders',
+          method: 'GET',
+          url: 'https://example.com/orders/1',
+          params: [],
+          headers: [],
+          body: '',
+          bodyType: 'json',
+          auth: {
+            type: 'none',
+            bearerToken: '',
+            username: '',
+            password: '',
+            apiKeyKey: '',
+            apiKeyValue: '',
+            apiKeyPlacement: 'header',
+          },
+          tests: [],
+          response: {
+            responseBody: '{}',
+            status: 200,
+            statusText: 'OK',
+            time: '10 ms',
+            size: '1 KB',
+            headers: [],
+            contentType: 'application/json',
+            requestMethod: 'GET',
+            requestUrl: 'https://example.com/orders/1',
+            testResults: [],
+          },
+          isSending: false,
+          isDirty: false,
+        },
+      ],
+    }
+
+    setRuntimeAdapter(createAdapter(payload))
+
+    const wrapper = await mountApp()
+
+    await wrapper.get('[data-testid="request-panel-close-tab-dirty"]').trigger('click')
+    await nextTick()
+    await wrapper.get('[data-testid="dialog-secondary-action"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect(getRequestPanelTabs(wrapper).map((tab) => tab.id)).toEqual(['tab-clean'])
+    expect(wrapper.get('[data-testid="request-panel-stub"]').text()).toContain('Clean Request')
+  })
+
+  it('can save a dirty tab from the close confirmation flow before closing it', async () => {
+    window.innerWidth = 1440
+
+    const payload = createBootstrapPayload()
+    payload.collections = [{
+      id: 'collection-orders',
+      name: 'Orders',
+      expanded: true,
+      requests: [{
+        id: 'request-dirty',
+        name: 'Dirty Request',
+        description: 'Unsaved changes',
+        tags: [],
+        collectionId: 'collection-orders',
+        collectionName: 'Orders',
+        method: 'POST',
+        url: 'https://example.com/orders',
+        params: [],
+        headers: [],
+        body: '',
+        bodyType: 'json',
+        auth: {
+          type: 'none',
+          bearerToken: '',
+          username: '',
+          password: '',
+          apiKeyKey: '',
+          apiKeyValue: '',
+          apiKeyPlacement: 'header',
+        },
+        tests: [],
+      }],
+    }]
+    payload.session = {
+      activeEnvironmentId: 'env-local',
+      activeTabId: 'tab-dirty',
+      openTabs: [
+        {
+          id: 'tab-dirty',
+          requestId: 'request-dirty',
+          origin: {
+            kind: 'resource',
+            requestId: 'request-dirty',
+          },
+          persistenceState: 'unsaved',
+          executionState: 'idle',
+          collectionId: 'collection-orders',
+          name: 'Dirty Request',
+          description: 'Unsaved changes',
+          tags: [],
+          collectionName: 'Orders',
+          method: 'POST',
+          url: 'https://example.com/orders',
+          params: [],
+          headers: [],
+          body: '',
+          bodyType: 'json',
+          auth: {
+            type: 'none',
+            bearerToken: '',
+            username: '',
+            password: '',
+            apiKeyKey: '',
+            apiKeyValue: '',
+            apiKeyPlacement: 'header',
+          },
+          tests: [],
+          response: {
+            responseBody: '{}',
+            status: 200,
+            statusText: 'OK',
+            time: '10 ms',
+            size: '1 KB',
+            headers: [],
+            contentType: 'application/json',
+            requestMethod: 'POST',
+            requestUrl: 'https://example.com/orders',
+            testResults: [],
+          },
+          isSending: false,
+          isDirty: true,
+        },
+        {
+          id: 'tab-clean',
+          requestId: 'request-clean',
+          origin: {
+            kind: 'resource',
+            requestId: 'request-clean',
+          },
+          persistenceState: 'saved',
+          executionState: 'success',
+          collectionId: 'collection-orders',
+          name: 'Clean Request',
+          description: '',
+          tags: [],
+          collectionName: 'Orders',
+          method: 'GET',
+          url: 'https://example.com/orders/1',
+          params: [],
+          headers: [],
+          body: '',
+          bodyType: 'json',
+          auth: {
+            type: 'none',
+            bearerToken: '',
+            username: '',
+            password: '',
+            apiKeyKey: '',
+            apiKeyValue: '',
+            apiKeyPlacement: 'header',
+          },
+          tests: [],
+          response: {
+            responseBody: '{}',
+            status: 200,
+            statusText: 'OK',
+            time: '10 ms',
+            size: '1 KB',
+            headers: [],
+            contentType: 'application/json',
+            requestMethod: 'GET',
+            requestUrl: 'https://example.com/orders/1',
+            testResults: [],
+          },
+          isSending: false,
+          isDirty: false,
+        },
+      ],
+    }
+
+    const saveRequest = vi.fn<RuntimeAdapter['saveRequest']>()
+      .mockImplementation(async (_workspaceId, _collectionId, request) => ok(request))
+
+    setRuntimeAdapter(createAdapter(payload, { saveRequest }))
+
+    const wrapper = await mountApp()
+
+    await wrapper.get('[data-testid="request-panel-close-tab-dirty"]').trigger('click')
+    await nextTick()
+    await wrapper.get('[data-testid="dialog-submit"]').trigger('click')
+    await nextTick()
+    await wrapper.get('[data-testid="dialog-submit"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect(saveRequest).toHaveBeenCalledTimes(1)
+    expect(getRequestPanelTabs(wrapper).map((tab) => tab.id)).toEqual(['tab-clean'])
+  })
+
+  it('marks open tabs as detached drafts when their backing saved request is deleted', async () => {
+    window.innerWidth = 1440
+
+    const payload = createBootstrapPayload()
+    payload.collections = [{
+      id: 'collection-orders',
+      name: 'Orders',
+      expanded: true,
+      requests: [{
+        id: 'request-orders-list',
+        name: 'Orders Lookup',
+        description: '',
+        tags: [],
+        collectionId: 'collection-orders',
+        collectionName: 'Orders',
+        method: 'POST',
+        url: 'https://example.com/orders',
+        params: [],
+        headers: [],
+        body: '',
+        bodyType: 'json',
+        auth: {
+          type: 'none',
+          bearerToken: '',
+          username: '',
+          password: '',
+          apiKeyKey: '',
+          apiKeyValue: '',
+          apiKeyPlacement: 'header',
+        },
+        tests: [],
+      }],
+    }]
+    payload.session = {
+      activeEnvironmentId: 'env-local',
+      activeTabId: 'tab-orders',
+      openTabs: [{
+        id: 'tab-orders',
+        requestId: 'request-orders-list',
+        collectionId: 'collection-orders',
+        name: 'Orders Lookup',
+        description: '',
+        tags: [],
+        collectionName: 'Orders',
+        method: 'POST',
+        url: 'https://example.com/orders',
+        params: [],
+        headers: [],
+        body: '',
+        bodyType: 'json',
+        auth: {
+          type: 'none',
+          bearerToken: '',
+          username: '',
+          password: '',
+          apiKeyKey: '',
+          apiKeyValue: '',
+          apiKeyPlacement: 'header',
+        },
+        tests: [],
+        response: {
+          responseBody: '{}',
+          status: 200,
+          statusText: 'OK',
+          time: '10 ms',
+          size: '1 KB',
+          headers: [],
+          contentType: 'application/json',
+          requestMethod: 'POST',
+          requestUrl: 'https://example.com/orders',
+          testResults: [],
+        },
+        isSending: false,
+        isDirty: false,
+      }],
+    }
+
+    setRuntimeAdapter(createAdapter(payload))
+
+    const wrapper = await mountApp()
+
+    await wrapper.get('[data-testid="sidebar-delete-request"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    const detachedTab = getActiveRequestPanelTab(wrapper)
+    expect(detachedTab?.requestId).toBeUndefined()
+    expect(detachedTab?.origin?.kind).toBe('detached')
+    expect(detachedTab?.collectionName).toBe('Scratch Pad')
+  })
+
+  it('derives a shared activity projection for saved requests, replay drafts, and tab surfaces', async () => {
+    window.innerWidth = 1440
+
+    const payload = createBootstrapPayload()
+    payload.collections = [{
+      id: 'collection-orders',
+      name: 'Orders',
+      expanded: true,
+      requests: [{
+        id: 'request-orders-list',
+        name: 'Orders Lookup',
+        description: 'Fetch one order',
+        tags: ['orders'],
+        collectionId: 'collection-orders',
+        collectionName: 'Orders',
+        method: 'POST',
+        url: 'https://example.com/orders',
+        params: [],
+        headers: [],
+        body: '',
+        bodyType: 'json',
+        auth: {
+          type: 'none',
+          bearerToken: '',
+          username: '',
+          password: '',
+          apiKeyKey: '',
+          apiKeyValue: '',
+          apiKeyPlacement: 'header',
+        },
+        tests: [],
+      }],
+    }]
+    payload.history = [{
+      id: 'history-orders-1',
+      requestId: 'request-orders-list',
+      name: 'Orders Replay',
+      method: 'POST',
+      time: '28 ms',
+      status: 201,
+      url: 'https://example.com/orders/1',
+      requestSnapshot: {
+        tabId: 'snapshot-orders-1',
+        requestId: 'request-orders-list',
+        name: 'Orders Replay',
+        description: '',
+        tags: ['orders'],
+        collectionName: 'Orders',
+        method: 'POST',
+        url: 'https://example.com/orders/1',
+        params: [],
+        headers: [],
+        body: '',
+        bodyType: 'json',
+        auth: {
+          type: 'none',
+          bearerToken: '',
+          username: '',
+          password: '',
+          apiKeyKey: '',
+          apiKeyValue: '',
+          apiKeyPlacement: 'header',
+        },
+        tests: [],
+      },
+    }]
+    payload.session = {
+      activeEnvironmentId: 'env-local',
+      activeTabId: 'tab-orders',
+      openTabs: [{
+        id: 'tab-orders',
+        requestId: 'request-orders-list',
+        origin: {
+          kind: 'resource',
+          requestId: 'request-orders-list',
+        },
+        persistenceState: 'saved',
+        executionState: 'success',
+        collectionId: 'collection-orders',
+        name: 'Orders Lookup',
+        description: '',
+        tags: ['orders'],
+        collectionName: 'Orders',
+        method: 'POST',
+        url: 'https://example.com/orders',
+        params: [],
+        headers: [],
+        body: '',
+        bodyType: 'json',
+        auth: {
+          type: 'none',
+          bearerToken: '',
+          username: '',
+          password: '',
+          apiKeyKey: '',
+          apiKeyValue: '',
+          apiKeyPlacement: 'header',
+        },
+        tests: [],
+        response: {
+          responseBody: '{"ok":true}',
+          status: 201,
+          statusText: 'Created',
+          time: '18 ms',
+          size: '2 KB',
+          headers: [],
+          contentType: 'application/json',
+          requestMethod: 'POST',
+          requestUrl: 'https://example.com/orders',
+          testResults: [],
+        },
+        isSending: false,
+        isDirty: false,
+      }],
+    }
+
+    setRuntimeAdapter(createAdapter(payload))
+
+    const wrapper = await mountApp()
+
+    const initialSidebarProjection = wrapper.findComponent(AppSidebarStub).props('activityProjection') as Record<string, any>
+    expect(initialSidebarProjection.summary).toMatchObject({
+      open: 1,
+      dirty: 0,
+      running: 0,
+      recovered: 0,
+    })
+    expect(initialSidebarProjection.requests['request-orders-list']).toMatchObject({
+      active: true,
+      open: true,
+      dirty: false,
+      running: false,
+      recovered: false,
+      result: 'success',
+    })
+
+    await wrapper.get('[data-testid="sidebar-select-history"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    const updatedSidebarProjection = wrapper.findComponent(AppSidebarStub).props('activityProjection') as Record<string, any>
+    expect(updatedSidebarProjection.summary).toMatchObject({
+      open: 2,
+      dirty: 1,
+      running: 0,
+      recovered: 1,
+    })
+    expect(updatedSidebarProjection.history['history-orders-1']).toMatchObject({
+      active: true,
+      open: true,
+      dirty: true,
+      running: false,
+      recovered: true,
+      result: 'success',
+    })
+
+    const activeReplayTab = getActiveRequestPanelTab(wrapper)
+    const requestPanelProjection = wrapper.findComponent(RequestPanelStub).props('activityProjection') as Record<string, any>
+
+    expect(activeReplayTab?.origin?.kind).toBe('replay')
+    expect(activeReplayTab?.origin?.historyItemId).toBe('history-orders-1')
+    expect(requestPanelProjection.tabs[activeReplayTab!.id]).toMatchObject({
+      active: true,
+      open: true,
+      dirty: true,
+      running: false,
+      recovered: true,
+      result: 'success',
+    })
   })
 })

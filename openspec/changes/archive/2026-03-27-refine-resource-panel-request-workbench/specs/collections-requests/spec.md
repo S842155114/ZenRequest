@@ -1,21 +1,4 @@
-# collections-requests Specification
-
-## Purpose
-TBD - created by archiving change align-runtime-domain-model. Update Purpose after archive.
-## Requirements
-### Requirement: Collections are stable entities
-The system SHALL model each collection as a stable entity with its own id, and each collection MUST belong to exactly one workspace.
-
-#### Scenario: Collection identity survives rename
-- **WHEN** the user renames a collection
-- **THEN** the collection keeps the same id and remains associated with the same workspace
-
-### Requirement: Requests are stable entities owned by collections
-The system SHALL model each saved request as a stable entity with its own id, and each saved request MUST belong to exactly one collection and one workspace.
-
-#### Scenario: Saved request belongs to a collection
-- **WHEN** the user saves a request into a collection
-- **THEN** the system stores that request as a collection-owned entity with a stable id
+## MODIFIED Requirements
 
 ### Requirement: Saving a dirty draft updates the canonical request
 The system SHALL treat saved request entities as canonical records distinct from replay, scratch, and detached drafts, and saving a dirty draft for a saved request MUST update the targeted canonical request entity without changing the lifecycle state of other open drafts.
@@ -28,12 +11,7 @@ The system SHALL treat saved request entities as canonical records distinct from
 - **WHEN** the user invokes save from a non-active request tab that is linked to a saved request
 - **THEN** the system saves the canonical request targeted by that tab instead of redirecting the save to the currently active tab
 
-### Requirement: Request deletion preserves history snapshots
-Deleting a saved request SHALL require explicit user confirmation, and confirmed deletion MUST remove the canonical request entity without deleting existing history snapshots created from that request.
-
-#### Scenario: Delete request with history
-- **WHEN** the user confirms deletion of a saved request that has history entries
-- **THEN** the system deletes the saved request and preserves history items created from earlier executions
+## ADDED Requirements
 
 ### Requirement: Saved requests open through one canonical resource tab by default
 The system SHALL treat each saved request as having one canonical resource tab in the workbench, and selecting the same saved request again MUST focus that tab unless the user explicitly chooses to open a separate draft.
@@ -56,4 +34,3 @@ The system SHALL preserve the contents of open tabs when their backing saved req
 #### Scenario: User deletes a collection with open request tabs
 - **WHEN** the user confirms deletion of a collection whose saved requests still have open tabs
 - **THEN** the system preserves those tabs as detached drafts even though their canonical saved resources no longer exist
-
