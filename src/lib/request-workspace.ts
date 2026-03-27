@@ -562,6 +562,7 @@ export const resolveTemplate = (template: string, variables: Record<string, stri
 export const applyThemeToDocument = (theme: ResolvedTheme) => {
   if (typeof document === 'undefined') return
   document.documentElement.dataset.theme = theme
+  document.documentElement.dataset.startupTheme = theme
 }
 
 export const resolveThemeMode = (themeMode: ThemeMode): ResolvedTheme => {

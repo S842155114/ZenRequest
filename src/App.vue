@@ -114,8 +114,8 @@ const legacySnapshot = readWorkspaceSnapshot()
 const initialEnvironments = defaultEnvironments().map(cloneEnvironment)
 const initialTabs = [createRequestTabFromPreset(defaultRequestPreset)]
 
-const locale = ref<AppLocale>('en')
-const themeMode = ref<ThemeMode>('dark')
+const locale = ref<AppLocale>(legacySnapshot?.locale ?? 'en')
+const themeMode = ref<ThemeMode>(legacySnapshot?.themeMode ?? 'dark')
 const workspaces = ref<WorkspaceSummary[]>([{ id: 'workspace-local', name: 'Local Workspace' }])
 const activeWorkspaceId = ref(workspaces.value[0].id)
 const activeEnvironmentId = ref(initialEnvironments[0].id)
@@ -327,10 +327,16 @@ const removeStartupLaunchScreen = () => {
   document.getElementById(STARTUP_LAUNCH_SCREEN_ID)?.remove()
 }
 
+const completeStartupHandoff = async (nextState: StartupState) => {
+  applyThemeToDocument(resolvedTheme.value)
+  startupState.value = nextState
+  await nextTick()
+  removeStartupLaunchScreen()
+}
+
 const runStartupBootstrap = async () => {
   startupState.value = 'loading'
   startupErrorMessage.value = ''
-  removeStartupLaunchScreen()
 
   try {
     await refreshRuntimeState(startupSnapshot.value)
@@ -338,11 +344,11 @@ const runStartupBootstrap = async () => {
       clearWorkspaceSnapshot()
       startupSnapshot.value = null
     }
-    startupState.value = 'ready'
+    await completeStartupHandoff('ready')
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     startupErrorMessage.value = message
-    startupState.value = 'failed'
+    await completeStartupHandoff('failed')
     showErrorToast(text.value.toasts.bootstrapFailed, message)
   }
 }
