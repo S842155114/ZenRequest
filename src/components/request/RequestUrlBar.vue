@@ -95,6 +95,7 @@ const displayCollectionName = computed(() => localizeScratchPadName(props.collec
           :model-value="url"
           @update:model-value="handleUrlChange"
           :placeholder="text.request.urlPlaceholder"
+          data-native-context-menu="true"
           class="zr-input h-9 rounded-md pr-18 text-[13px] font-mono shadow-none focus-visible:border-[#ff6c37]/45 focus-visible:ring-[#ff6c37]/30"
         />
         <div class="absolute right-2 top-1/2 flex -translate-y-1/2 gap-1 md:hidden">

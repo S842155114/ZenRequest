@@ -298,6 +298,10 @@ const AppSidebarStub = defineComponent({
   setup(props, { emit }) {
     return () => h('div', { 'data-testid': 'sidebar-stub' }, [
       'sidebar',
+      h('div', {
+        'data-testid': 'resource-context-surface',
+        'data-resource-context-menu-surface': 'true',
+      }, 'resource-surface'),
       h('button', {
         'data-testid': 'sidebar-select-history',
         onClick: () => {
@@ -336,6 +340,10 @@ const RequestPanelStub = defineComponent({
       return h('div', { 'data-testid': 'request-panel-stub' }, [
         current?.name ?? 'no-active-tab',
         h('div', { 'data-testid': 'request-panel-collapsed-state' }, props.collapsed ? 'collapsed' : 'expanded'),
+        h('input', {
+          'data-testid': 'native-context-input',
+          'data-native-context-menu': 'true',
+        }),
         h('button', {
           'data-testid': 'request-panel-send',
           onClick: () => {
@@ -410,6 +418,7 @@ const AppToastListStub = defineComponent({
 
 const mountApp = async () => {
   const wrapper = mount(App, {
+    attachTo: document.body,
     global: {
       stubs: {
         AppHeader: AppHeaderStub,
@@ -436,6 +445,7 @@ beforeEach(() => {
 
 afterEach(() => {
   setRuntimeAdapter(createAdapter())
+  document.body.innerHTML = ''
 })
 
 describe('App workbench shell', () => {
@@ -704,6 +714,25 @@ describe('App workbench shell', () => {
     expect(wrapper.get('[data-testid="workbench-sidebar"]').classes()).toContain('min-h-0')
     expect(wrapper.get('[data-testid="workbench-request"]').classes()).toContain('min-h-0')
     expect(wrapper.get('[data-testid="workbench-response"]').classes()).toContain('min-h-0')
+  })
+
+  it('suppresses global context menus on unsupported surfaces while allowing whitelisted targets', async () => {
+    window.innerWidth = 1440
+    setRuntimeAdapter(createAdapter())
+
+    const wrapper = await mountApp()
+
+    const blockedEvent = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
+    wrapper.get('[data-testid="workbench-response"]').element.dispatchEvent(blockedEvent)
+    expect(blockedEvent.defaultPrevented).toBe(true)
+
+    const allowedEvent = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
+    wrapper.get('[data-testid="resource-context-surface"]').element.dispatchEvent(allowedEvent)
+    expect(allowedEvent.defaultPrevented).toBe(false)
+
+    const nativeInputEvent = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
+    wrapper.get('[data-testid="native-context-input"]').element.dispatchEvent(nativeInputEvent)
+    expect(nativeInputEvent.defaultPrevented).toBe(false)
   })
 
   it('restores stored response data when reopening an item from history', async () => {

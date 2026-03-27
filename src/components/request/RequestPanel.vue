@@ -3,9 +3,17 @@ import { computed, ref, watch } from 'vue'
 import { getMessages, localizeScratchPadName } from '@/lib/i18n'
 import { Button } from '@/components/ui/button'
 import { BusySurface } from '@/components/ui/busy-surface'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu'
 import RequestUrlBar from './RequestUrlBar.vue'
 import RequestParams from './RequestParams.vue'
 import { cloneAuth, cloneItems, cloneTests } from '@/lib/request-workspace'
+import { getContextMenuTestIdKey, shouldBypassResourceContextMenu } from '@/lib/resource-context-menu'
 import type {
   AppLocale,
   FormDataFieldSnapshot,
@@ -42,6 +50,7 @@ const emit = defineEmits<{
   (e: 'select-tab', id: string): void
   (e: 'close-tab', id: string): void
   (e: 'create-tab'): void
+  (e: 'save-tab', id: string): void
   (e: 'update-active-tab', payload: Partial<RequestTabState>): void
   (e: 'update-environment-variables', items: KeyValueItem[]): void
   (e: 'send', payload: SendRequestPayload): void
@@ -149,6 +158,12 @@ const handleSend = () => {
     tests: cloneTests(tests.value),
   })
 }
+
+const handleResourceContextMenuGuard = (event: MouseEvent) => {
+  if (shouldBypassResourceContextMenu(event.target)) {
+    event.stopPropagation()
+  }
+}
 </script>
 
 <template>
@@ -170,30 +185,54 @@ const handleSend = () => {
       </div>
 
       <div v-if="!props.collapsed" data-testid="request-panel-tabs" class="flex items-center gap-1.5 overflow-x-auto pb-3">
-        <div
+        <ContextMenu
           v-for="tab in tabs"
           :key="tab.id"
-          :class="[
-            'group flex min-w-[188px] items-center gap-2 rounded-md border px-2.5 py-2 text-left transition-colors',
-            tab.id === activeTabId
-              ? 'border-[var(--zr-accent-border)] bg-[var(--zr-accent-soft)]'
-              : 'border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] hover:bg-[var(--zr-soft-hover)]'
-          ]"
-          @click="emit('select-tab', tab.id)"
         >
-          <span class="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#ffb295]">{{ tab.method }}</span>
-          <div class="min-w-0 flex-1">
-            <div class="truncate text-sm font-medium text-[var(--zr-text-primary)]">{{ tab.name }}</div>
-            <div class="truncate text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">{{ localizeScratchPadName(tab.collectionName, props.locale) }}</div>
-          </div>
-          <button
-            class="inline-flex h-6 w-6 items-center justify-center rounded-full text-[var(--zr-text-muted)] transition-colors hover:bg-[var(--zr-soft-hover)] hover:text-[var(--zr-text-primary)]"
-            :disabled="tabs.length === 1"
-            @click.stop="emit('close-tab', tab.id)"
-          >
-            <X class="h-3.5 w-3.5" />
-          </button>
-        </div>
+          <ContextMenuTrigger as-child>
+            <div
+              :data-testid="`request-tab-${getContextMenuTestIdKey(tab.id)}`"
+              data-resource-context-menu-surface="true"
+              :class="[
+                'group flex min-w-[188px] items-center gap-2 rounded-md border px-2.5 py-2 text-left transition-colors',
+                tab.id === activeTabId
+                  ? 'border-[var(--zr-accent-border)] bg-[var(--zr-accent-soft)]'
+                  : 'border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] hover:bg-[var(--zr-soft-hover)]'
+              ]"
+              @click="emit('select-tab', tab.id)"
+              @contextmenu.capture="handleResourceContextMenuGuard"
+            >
+              <span class="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#ffb295]">{{ tab.method }}</span>
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-medium text-[var(--zr-text-primary)]">{{ tab.name }}</div>
+                <div class="truncate text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">{{ localizeScratchPadName(tab.collectionName, props.locale) }}</div>
+              </div>
+              <button
+                class="inline-flex h-6 w-6 items-center justify-center rounded-full text-[var(--zr-text-muted)] transition-colors hover:bg-[var(--zr-soft-hover)] hover:text-[var(--zr-text-primary)]"
+                :disabled="tabs.length === 1"
+                @click.stop="emit('close-tab', tab.id)"
+              >
+                <X class="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </ContextMenuTrigger>
+          <ContextMenuContent data-testid="request-tab-context-menu" class="zr-dropdown min-w-[180px]">
+            <ContextMenuItem
+              :data-testid="`request-tab-context-save-${getContextMenuTestIdKey(tab.id)}`"
+              @select="emit('save-tab', tab.id)"
+            >
+              {{ text.common.save }}
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem
+              :data-testid="`request-tab-context-close-${getContextMenuTestIdKey(tab.id)}`"
+              :disabled="tabs.length === 1"
+              @select="emit('close-tab', tab.id)"
+            >
+              {{ text.common.close }}
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
 
         <Button variant="ghost" size="icon-sm" class="zr-tool-button h-8 w-8 shrink-0 rounded-md" @click="emit('create-tab')">
           <Plus class="h-4 w-4" />

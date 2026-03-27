@@ -8,6 +8,7 @@ import { RequestPanel } from '@/components/request'
 import { ResponsePanel } from '@/components/response'
 import { defaultRequestPreset } from '@/data/request-presets'
 import { SCRATCH_PAD_NAME, getMessages } from '@/lib/i18n'
+import { isResourceContextMenuSurface, shouldBypassResourceContextMenu } from '@/lib/resource-context-menu'
 import { detectImportPackageMeta, runtimeClient } from '@/lib/tauri-client'
 import {
   HISTORY_LIMIT,
@@ -600,8 +601,10 @@ const handleDeleteEnvironment = () => {
   })
 }
 
-const handleSaveRequest = () => {
-  const tab = activeTab.value
+const handleSaveRequest = (tabId?: string) => {
+  const tab = tabId
+    ? openTabs.value.find((item) => item.id === tabId) ?? activeTab.value
+    : activeTab.value
   if (!tab) return
 
   openDialog({
@@ -1129,9 +1132,18 @@ const handleSystemThemeChange = (event: MediaQueryListEvent) => {
   systemPrefersDark.value = event.matches
 }
 
+const handleGlobalContextMenu = (event: MouseEvent) => {
+  if (shouldBypassResourceContextMenu(event.target) || isResourceContextMenuSurface(event.target)) {
+    return
+  }
+
+  event.preventDefault()
+}
+
 onMounted(() => {
   applyViewportLayout()
   window.addEventListener('resize', handleViewportResize)
+  document.addEventListener('contextmenu', handleGlobalContextMenu)
 
   if (window.matchMedia) {
     mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
@@ -1144,6 +1156,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleViewportResize)
+  document.removeEventListener('contextmenu', handleGlobalContextMenu)
   mediaQuery?.removeEventListener('change', handleSystemThemeChange)
   if (workspacePersistTimer !== null) {
     window.clearTimeout(workspacePersistTimer)
@@ -1363,6 +1376,7 @@ watch(isCompactLayout, async () => {
                     @select-tab="setActiveTab"
                     @close-tab="handleCloseTab"
                     @create-tab="handleCreateTab"
+                    @save-tab="handleSaveRequest"
                     @update-active-tab="handleUpdateActiveTab"
                     @update-environment-variables="handleUpdateEnvironmentVariables"
                     @send="handleSend"
@@ -1439,6 +1453,7 @@ watch(isCompactLayout, async () => {
                 @select-tab="setActiveTab"
                 @close-tab="handleCloseTab"
                 @create-tab="handleCreateTab"
+                @save-tab="handleSaveRequest"
                 @update-active-tab="handleUpdateActiveTab"
                 @update-environment-variables="handleUpdateEnvironmentVariables"
                 @send="handleSend"

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
-import { defineComponent } from 'vue'
+import { flushPromises, mount } from '@vue/test-utils'
+import { defineComponent, nextTick } from 'vue'
 
 import AppSidebar from './AppSidebar.vue'
 import type { HistoryItem, RequestCollection } from '@/types/request'
@@ -141,6 +141,7 @@ const createHistoryItem = (overrides: Partial<HistoryItem> = {}): HistoryItem =>
 const historyItems: HistoryItem[] = [createHistoryItem()]
 
 const mountSidebar = (props: Record<string, unknown> = {}) => mount(AppSidebar, {
+  attachTo: document.body,
   props: {
     locale: 'en',
     collections,
@@ -175,6 +176,7 @@ describe('AppSidebar', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    document.body.innerHTML = ''
   })
 
   it('shows collections messaging by default and keeps mode tabs ahead of search', () => {
@@ -269,5 +271,64 @@ describe('AppSidebar', () => {
 
     expect(row.attributes('aria-current')).toBe('true')
     expect(wrapper.get('[data-testid="request-search-context-request-orders-list"]').text()).toBe('Orders')
+  })
+
+  it('opens a collection context menu on right-click and routes actions to that collection', async () => {
+    vi.useRealTimers()
+    const wrapper = mountSidebar()
+
+    await wrapper.get('[data-testid="sidebar-collection-surface-orders"]').trigger('contextmenu')
+    await flushPromises()
+    await nextTick()
+
+    const renameItem = document.body.querySelector('[data-testid="collection-context-rename-orders"]')
+    expect(renameItem).not.toBeNull()
+
+    renameItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+    await nextTick()
+
+    expect(wrapper.emitted('rename-collection')?.at(-1)).toEqual(['Orders'])
+  })
+
+  it('opens a request context menu without selecting the request first', async () => {
+    vi.useRealTimers()
+    const wrapper = mountSidebar()
+
+    await wrapper.get('[data-testid="sidebar-request-surface-request-orders-list"]').trigger('contextmenu')
+    await flushPromises()
+    await nextTick()
+
+    expect(wrapper.emitted('select-request')).toBeUndefined()
+
+    const deleteItem = document.body.querySelector('[data-testid="request-context-delete-request-orders-list"]')
+    expect(deleteItem).not.toBeNull()
+
+    deleteItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+    await nextTick()
+
+    expect(wrapper.emitted('delete-request')?.at(-1)).toEqual([{ collectionName: 'Orders', requestId: 'request-orders-list' }])
+  })
+
+  it('does not open an application context menu on blank sidebar surfaces or text inputs', async () => {
+    vi.useRealTimers()
+    mountSidebar()
+
+    document.body.querySelector('[data-testid="sidebar-root"]')
+      ?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
+    await flushPromises()
+    await nextTick()
+
+    expect(document.body.querySelector('[data-testid="collection-context-menu"]')).toBeNull()
+    expect(document.body.querySelector('[data-testid="request-context-menu"]')).toBeNull()
+
+    document.body.querySelector('[data-testid="sidebar-search-input"]')
+      ?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
+    await flushPromises()
+    await nextTick()
+
+    expect(document.body.querySelector('[data-testid="collection-context-menu"]')).toBeNull()
+    expect(document.body.querySelector('[data-testid="request-context-menu"]')).toBeNull()
   })
 })
