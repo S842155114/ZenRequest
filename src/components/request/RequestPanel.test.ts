@@ -31,6 +31,12 @@ const RequestUrlBarCaptureStub = defineComponent({
   `,
 })
 
+const RequestUrlBarSendStub = defineComponent({
+  name: 'RequestUrlBarSendStub',
+  emits: ['send'],
+  template: '<button data-testid="request-url-bar-send" @click="$emit(\'send\')">Send</button>',
+})
+
 const createTab = (overrides: Partial<RequestTabState> = {}): RequestTabState => ({
   id: overrides.id ?? 'tab-1',
   name: '订单详情',
@@ -556,5 +562,77 @@ describe('RequestPanel i18n copy', () => {
     })
 
     expect(wrapper.get('[data-testid="request-url-bar-blockers"]').text()).toContain('Attach a binary payload')
+  })
+
+  it('reveals request row validation and prevents sending when send is triggered with invalid params rows', async () => {
+    const wrapper = mount(RequestPanel, {
+      props: {
+        locale: 'en',
+        tabs: [
+          createTab({
+            id: 'tab-invalid-param-row',
+            url: 'https://example.com/orders',
+            params: [
+              { key: '', value: '1', description: '', enabled: true },
+            ],
+            bodyType: 'json',
+            body: '{}',
+          }),
+        ],
+        activeTabId: 'tab-invalid-param-row',
+        activeEnvironmentName: 'Local',
+        activeEnvironmentVariables: [],
+        resolvedActiveUrl: 'https://example.com/orders',
+      },
+      global: {
+        stubs: {
+          RequestUrlBar: RequestUrlBarSendStub,
+        },
+      },
+    })
+
+    expect(wrapper.find('[data-testid="request-row-error-params-0"]').exists()).toBe(false)
+
+    await wrapper.get('[data-testid="request-url-bar-send"]').trigger('click')
+    await nextTick()
+
+    expect(wrapper.emitted('send')).toBeUndefined()
+    expect(wrapper.get('[data-testid="request-row-error-params-0"]').text()).toContain('Key is required')
+    expect(wrapper.get('[data-testid="request-section-invalid-params"]').text()).toContain('1')
+  })
+
+  it('allows sending when the only incomplete params row is disabled', async () => {
+    const wrapper = mount(RequestPanel, {
+      props: {
+        locale: 'en',
+        tabs: [
+          createTab({
+            id: 'tab-disabled-param-row',
+            url: 'https://example.com/orders',
+            params: [
+              { key: '', value: '1', description: '', enabled: false },
+            ],
+            bodyType: 'json',
+            body: '{}',
+          }),
+        ],
+        activeTabId: 'tab-disabled-param-row',
+        activeEnvironmentName: 'Local',
+        activeEnvironmentVariables: [],
+        resolvedActiveUrl: 'https://example.com/orders',
+      },
+      global: {
+        stubs: {
+          RequestUrlBar: RequestUrlBarSendStub,
+        },
+      },
+    })
+
+    await wrapper.get('[data-testid="request-url-bar-send"]').trigger('click')
+    await nextTick()
+
+    expect(wrapper.emitted('send')).toHaveLength(1)
+    expect(wrapper.find('[data-testid="request-row-error-params-0"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="request-section-invalid-params"]').exists()).toBe(false)
   })
 })

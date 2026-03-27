@@ -84,6 +84,7 @@ const normalizedTabs = computed(() => props.tabs.map((tab) => normalizeRequestTa
 const activeTab = computed(() => normalizedTabs.value.find((tab) => tab.id === props.activeTabId) ?? normalizedTabs.value[0] ?? null)
 const text = computed(() => getMessages(props.locale))
 const requestPanelBusy = computed(() => activeTab.value?.isSending ?? false)
+const requestParamsRef = ref<{ prepareForSubmit?: () => boolean } | null>(null)
 
 const method = ref('GET')
 const url = ref('')
@@ -157,6 +158,8 @@ watch(environmentVariables, (items) => {
 
 const handleSend = () => {
   if (!activeTab.value) return
+  const composeValidationPassed = requestParamsRef.value?.prepareForSubmit?.() ?? true
+  if (!composeValidationPassed) return
   if (requestReadiness.value.blockers.length > 0) return
 
   emit('send', {
@@ -511,6 +514,7 @@ const requestReadiness = computed<RequestReadinessState>(() => {
 
           <div data-testid="request-compose-body-host" class="flex min-h-0 flex-1 overflow-hidden">
             <RequestParams
+              ref="requestParamsRef"
               :locale="locale"
               v-model:params="params"
               v-model:headers="headers"
