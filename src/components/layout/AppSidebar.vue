@@ -4,6 +4,12 @@ import { getMessages } from '@/lib/i18n'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Separator } from '@/components/ui/separator'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import type { AppLocale, HistoryItem, RequestCollection, RequestPreset } from '@/types/request'
@@ -12,9 +18,9 @@ import {
   ChevronDown,
   ChevronRight,
   Clock3,
+  Ellipsis,
   FolderKanban,
   History,
-  Pencil,
   Plus,
   RotateCcw,
   Search,
@@ -120,7 +126,72 @@ const getStatusBadgeClass = (status: number) => (
     : 'border-rose-500/25 bg-rose-500/12 text-rose-300'
 )
 
+type HistoryGroupKey = 'today' | 'yesterday' | 'earlier'
+
+const getHistoryGroupKey = (executedAtEpochMs?: number): HistoryGroupKey => {
+  if (!executedAtEpochMs || executedAtEpochMs <= 0) return 'earlier'
+
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  const startOfYesterday = startOfToday - (24 * 60 * 60 * 1000)
+
+  if (executedAtEpochMs >= startOfToday) return 'today'
+  if (executedAtEpochMs >= startOfYesterday) return 'yesterday'
+  return 'earlier'
+}
+
+const getHistoryStatusMetaClass = (status: number) => (
+  status < 300
+    ? 'text-emerald-300/85'
+    : status < 400
+      ? 'text-amber-300/85'
+      : 'text-rose-300/85'
+)
+
+const getTestIdKey = (value: string) => value
+  .trim()
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/^-+|-+$/g, '')
+
 const text = computed(() => getMessages(props.locale))
+
+const activeSidebarMeta = computed(() => (
+  activeSidebarTab.value === 'collections'
+    ? {
+        title: text.value.sidebar.collections,
+        description: text.value.sidebar.collectionsDescription,
+        searchPlaceholder: text.value.sidebar.collectionsSearchPlaceholder,
+      }
+    : {
+        title: text.value.sidebar.history,
+        description: text.value.sidebar.historyDescription,
+        searchPlaceholder: text.value.sidebar.historySearchPlaceholder,
+      }
+))
+
+const isCollectionSearchActive = computed(() => props.searchQuery.trim().length > 0)
+
+const groupedHistoryItems = computed(() => {
+  const groups: Record<HistoryGroupKey, HistoryItem[]> = {
+    today: [],
+    yesterday: [],
+    earlier: [],
+  }
+
+  for (const item of filteredHistoryItems.value) {
+    groups[getHistoryGroupKey(item.executedAtEpochMs)].push(item)
+  }
+
+  const orderedKeys: HistoryGroupKey[] = ['today', 'yesterday', 'earlier']
+  return orderedKeys
+    .filter((key) => groups[key].length > 0)
+    .map((key) => ({
+      key,
+      label: text.value.sidebar.historyGroups[key],
+      items: groups[key],
+    }))
+})
 </script>
 
 <template>
@@ -132,8 +203,11 @@ const text = computed(() => getMessages(props.locale))
             <Sparkles class="h-3.5 w-3.5 text-[#ff8b5f]" />
             {{ text.header.openExplorer }}
           </div>
-          <div class="mt-0.5 text-[13px] font-semibold text-[var(--zr-text-primary)]">
-            {{ text.sidebar.collections }}
+          <div data-testid="sidebar-title" class="mt-1.5 text-[13px] font-semibold text-[var(--zr-text-primary)]">
+            {{ activeSidebarMeta.title }}
+          </div>
+          <div data-testid="sidebar-description" class="mt-1 text-[11px] leading-5 text-[var(--zr-text-secondary)]">
+            {{ activeSidebarMeta.description }}
           </div>
         </div>
         <Button
@@ -147,19 +221,10 @@ const text = computed(() => getMessages(props.locale))
         </Button>
       </div>
 
-      <div class="zr-search-bar flex items-center gap-2 rounded-md px-2.5">
-        <Search class="h-3.5 w-3.5 text-[var(--zr-text-muted)]" />
-        <input
-          :value="props.searchQuery"
-          class="w-full bg-transparent py-1.5 text-[13px] text-[var(--zr-text-primary)] outline-none placeholder:text-[var(--zr-text-muted)]"
-          :placeholder="text.sidebar.filterPlaceholder"
-          @input="emit('update:search-query', ($event.target as HTMLInputElement).value)"
-        >
-      </div>
-
-      <div class="mt-2.5 flex items-center gap-1.5">
+      <div data-testid="sidebar-mode-switcher" class="mt-2.5 flex items-center gap-1.5">
         <Button
           size="sm"
+          data-testid="sidebar-collections-tab"
           :class="[
             'zr-section-tab flex-1 rounded-lg',
             activeSidebarTab === 'collections' ? 'zr-section-tab-active' : 'zr-section-tab-idle'
@@ -171,6 +236,7 @@ const text = computed(() => getMessages(props.locale))
         </Button>
         <Button
           size="sm"
+          data-testid="sidebar-history-tab"
           :class="[
             'zr-section-tab flex-1 rounded-lg',
             activeSidebarTab === 'history' ? 'zr-section-tab-active' : 'zr-section-tab-idle'
@@ -180,6 +246,17 @@ const text = computed(() => getMessages(props.locale))
           <History class="h-3.5 w-3.5" />
           {{ text.sidebar.history }}
         </Button>
+      </div>
+
+      <div data-testid="sidebar-search" class="zr-search-bar mt-2.5 flex items-center gap-2 rounded-md px-2.5">
+        <Search class="h-3.5 w-3.5 text-[var(--zr-text-muted)]" />
+        <input
+          data-testid="sidebar-search-input"
+          :value="props.searchQuery"
+          class="w-full bg-transparent py-1.5 text-[13px] text-[var(--zr-text-primary)] outline-none placeholder:text-[var(--zr-text-muted)]"
+          :placeholder="activeSidebarMeta.searchPlaceholder"
+          @input="emit('update:search-query', ($event.target as HTMLInputElement).value)"
+        >
       </div>
     </div>
 
@@ -211,27 +288,49 @@ const text = computed(() => getMessages(props.locale))
           @update:open="toggleCollection(collection.name)"
         >
           <div class="px-2.5 py-2.5">
-            <CollapsibleTrigger class="flex w-full items-center gap-2.5 text-left">
-              <div class="zr-folder-icon">
-                <FolderKanban class="h-3.5 w-3.5" />
-              </div>
-              <div class="min-w-0 flex-1">
-                <div class="truncate text-[13px] font-medium text-[var(--zr-text-primary)]">{{ collection.name }}</div>
-                <div class="mt-0.5 text-[10px] text-[var(--zr-text-muted)]">{{ text.sidebar.requestsCount(collection.requests.length) }}</div>
-              </div>
-              <div class="flex items-center gap-1">
-                <Button variant="ghost" size="icon-sm" class="zr-tool-button h-6 w-6 rounded-md" @click.stop="emit('rename-collection', collection.name)">
-                  <Pencil class="h-3 w-3" />
-                </Button>
-                <Button variant="ghost" size="icon-sm" class="zr-tool-button h-6 w-6 rounded-md hover:text-rose-300" @click.stop="emit('delete-collection', collection.name)">
-                  <Trash2 class="h-3 w-3" />
-                </Button>
-              </div>
-              <component
-                :is="isCollectionExpanded(collection.name) || collection.expanded ? ChevronDown : ChevronRight"
-                class="h-4 w-4 shrink-0 text-[var(--zr-text-muted)]"
-              />
-            </CollapsibleTrigger>
+            <div class="flex items-center gap-2">
+              <CollapsibleTrigger class="flex min-w-0 flex-1 items-center gap-2.5 text-left">
+                <div class="zr-folder-icon">
+                  <FolderKanban class="h-3.5 w-3.5" />
+                </div>
+                <div class="min-w-0 flex-1">
+                  <div class="truncate text-[13px] font-medium text-[var(--zr-text-primary)]">{{ collection.name }}</div>
+                  <div class="mt-0.5 text-[10px] text-[var(--zr-text-muted)]">{{ text.sidebar.requestsCount(collection.requests.length) }}</div>
+                </div>
+                <component
+                  :is="isCollectionExpanded(collection.name) || collection.expanded ? ChevronDown : ChevronRight"
+                  class="h-4 w-4 shrink-0 text-[var(--zr-text-muted)]"
+                />
+              </CollapsibleTrigger>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger as-child>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    class="zr-toolbar-action-button h-7 w-7 rounded-md"
+                    :aria-label="text.sidebar.collectionActions"
+                    :data-testid="`collection-actions-${getTestIdKey(collection.name)}`"
+                  >
+                    <Ellipsis class="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" class="zr-dropdown min-w-[190px]">
+                  <DropdownMenuItem
+                    :data-testid="`collection-action-rename-${getTestIdKey(collection.name)}`"
+                    @select="emit('rename-collection', collection.name)"
+                  >
+                    {{ text.dialogs.renameCollection.title }}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    :data-testid="`collection-action-delete-${getTestIdKey(collection.name)}`"
+                    @select="emit('delete-collection', collection.name)"
+                  >
+                    {{ text.dialogs.deleteCollection.title }}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
 
           <CollapsibleContent>
@@ -240,6 +339,8 @@ const text = computed(() => getMessages(props.locale))
               <button
                 v-for="request in collection.requests"
                 :key="request.id"
+                :data-testid="`request-row-${getTestIdKey(request.id)}`"
+                :aria-current="props.activeRequestId === request.id ? 'true' : undefined"
                 :class="[
                   'zr-request-row group flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors',
                   props.activeRequestId === request.id
@@ -247,7 +348,7 @@ const text = computed(() => getMessages(props.locale))
                     : 'zr-request-row-idle'
                 ]"
                 @click="emit('select-request', request)"
-              >
+                >
                 <Badge
                   variant="outline"
                   :class="['mt-0.5 min-w-[2.8rem] justify-center rounded-md border text-[10px] font-semibold tracking-[0.16em]', getMethodBadgeClass(request.method)]"
@@ -255,6 +356,13 @@ const text = computed(() => getMessages(props.locale))
                   {{ request.method.substring(0, 3) }}
                 </Badge>
                 <div class="min-w-0 flex-1">
+                  <div
+                    v-if="isCollectionSearchActive"
+                    :data-testid="`request-search-context-${getTestIdKey(request.id)}`"
+                    class="zr-request-row-context mb-1 inline-flex max-w-full items-center rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em]"
+                  >
+                    {{ collection.name }}
+                  </div>
                   <div class="truncate text-[12px] font-medium text-[var(--zr-text-primary)]">{{ request.name }}</div>
                   <div v-if="request.description" class="mt-0.5 line-clamp-2 text-[10px] leading-4 text-[var(--zr-text-muted)]">
                     {{ request.description }}
@@ -292,7 +400,7 @@ const text = computed(() => getMessages(props.locale))
           </Button>
         </div>
 
-        <div v-if="filteredHistoryItems.length === 0" class="zr-sidebar-empty">
+        <div v-if="groupedHistoryItems.length === 0" class="zr-sidebar-empty">
           <div class="mx-auto flex h-8 w-8 items-center justify-center rounded-full border border-[var(--zr-border)] bg-[var(--zr-chip-bg)]">
             <Clock3 class="h-3.5 w-3.5 text-[var(--zr-text-muted)]" />
           </div>
@@ -301,43 +409,58 @@ const text = computed(() => getMessages(props.locale))
           </div>
         </div>
 
-        <button
-          v-for="item in filteredHistoryItems"
-          :key="item.id"
-          class="zr-history-row group flex w-full items-start gap-2.5 rounded-md px-2.5 py-2 text-left"
-          @click="emit('select-history', item)"
+        <section
+          v-for="group in groupedHistoryItems"
+          :key="group.key"
+          class="space-y-1.5"
         >
-          <div class="zr-history-icon">
-            <Clock3 class="h-3.5 w-3.5" />
-          </div>
-          <div class="min-w-0 flex-1">
-            <div class="flex items-center gap-2">
-              <Badge
-                variant="outline"
-                :class="['rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-[0.16em]', getMethodBadgeClass(item.method)]"
-              >
-                {{ item.method }}
-              </Badge>
-              <Badge
-                variant="outline"
-                :class="['rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-[0.16em]', getStatusBadgeClass(item.status)]"
-              >
-                {{ item.status }}
-              </Badge>
-            </div>
-            <div class="mt-1.5 truncate text-[13px] font-medium text-[var(--zr-text-primary)]">{{ item.name }}</div>
-            <div class="mt-0.5 truncate font-mono text-[10px] text-[var(--zr-text-muted)]">{{ item.url }}</div>
-            <div class="mt-0.5 text-[10px] text-[var(--zr-text-muted)]">{{ item.time }}</div>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            class="zr-tool-button h-6 w-6 rounded-md opacity-0 transition-opacity group-hover:opacity-100 hover:text-rose-300"
-            @click.stop="emit('remove-history', item.id)"
+          <div
+            :data-testid="`history-group-${group.key}`"
+            class="px-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--zr-text-muted)]"
           >
-            <Trash2 class="h-3 w-3" />
-          </Button>
-        </button>
+            {{ group.label }}
+          </div>
+
+          <button
+            v-for="item in group.items"
+            :key="item.id"
+            class="zr-history-row group flex w-full items-start gap-2.5 rounded-md px-2.5 py-2 text-left"
+            @click="emit('select-history', item)"
+          >
+            <div class="zr-history-icon">
+              <Clock3 class="h-3.5 w-3.5" />
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2">
+                <Badge
+                  variant="outline"
+                  :class="['rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-[0.16em]', getMethodBadgeClass(item.method)]"
+                >
+                  {{ item.method }}
+                </Badge>
+                <span
+                  :data-testid="`history-status-${item.id}`"
+                  :class="['text-[10px] font-medium', getHistoryStatusMetaClass(item.status)]"
+                >
+                  {{ item.status }}
+                </span>
+                <span class="text-[10px] text-[var(--zr-text-muted)]">
+                  {{ item.time }}
+                </span>
+              </div>
+              <div class="mt-1.5 truncate text-[13px] font-medium text-[var(--zr-text-primary)]">{{ item.name }}</div>
+              <div class="mt-0.5 truncate font-mono text-[10px] text-[var(--zr-text-muted)]">{{ item.url }}</div>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              class="zr-tool-button h-6 w-6 rounded-md opacity-0 transition-opacity group-hover:opacity-100 hover:text-rose-300"
+              @click.stop="emit('remove-history', item.id)"
+            >
+              <Trash2 class="h-3 w-3" />
+            </Button>
+          </button>
+        </section>
       </div>
     </ScrollArea>
   </aside>

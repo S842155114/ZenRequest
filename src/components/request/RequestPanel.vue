@@ -6,7 +6,14 @@ import { BusySurface } from '@/components/ui/busy-surface'
 import RequestUrlBar from './RequestUrlBar.vue'
 import RequestParams from './RequestParams.vue'
 import { cloneAuth, cloneItems, cloneTests } from '@/lib/request-workspace'
-import type { AppLocale, KeyValueItem, RequestTabState, RequestTestDefinition, SendRequestPayload } from '@/types/request'
+import type {
+  AppLocale,
+  FormDataFieldSnapshot,
+  KeyValueItem,
+  RequestTabState,
+  RequestTestDefinition,
+  SendRequestPayload,
+} from '@/types/request'
 import { ChevronDown, ChevronUp, Plus, X } from 'lucide-vue-next'
 
 defineOptions({
@@ -54,9 +61,15 @@ const params = ref<KeyValueItem[]>([])
 const headers = ref<KeyValueItem[]>([])
 const bodyContent = ref('')
 const bodyType = ref<'json' | 'formdata' | 'raw' | 'binary'>('json')
+const bodyContentType = ref('')
+const formDataFields = ref<FormDataFieldSnapshot[]>([])
+const binaryFileName = ref('')
+const binaryMimeType = ref('')
 const auth = ref(cloneAuth())
 const tests = ref<RequestTestDefinition[]>([])
 const environmentVariables = ref<KeyValueItem[]>([])
+
+const cloneFormDataFields = (fields?: FormDataFieldSnapshot[]) => (fields ?? []).map((field) => ({ ...field }))
 
 const applyTab = (tab: RequestTabState | null) => {
   if (!tab) return
@@ -66,6 +79,10 @@ const applyTab = (tab: RequestTabState | null) => {
   headers.value = cloneItems(tab.headers)
   bodyContent.value = tab.body
   bodyType.value = tab.bodyType
+  bodyContentType.value = tab.bodyContentType ?? ''
+  formDataFields.value = cloneFormDataFields(tab.formDataFields)
+  binaryFileName.value = tab.binaryFileName ?? ''
+  binaryMimeType.value = tab.binaryMimeType ?? ''
   auth.value = cloneAuth(tab.auth)
   tests.value = cloneTests(tab.tests)
 }
@@ -83,7 +100,7 @@ watch(() => props.activeEnvironmentName, () => {
 }, { immediate: true })
 
 watch(
-  [method, url, params, headers, bodyContent, bodyType, auth, tests],
+  [method, url, params, headers, bodyContent, bodyType, bodyContentType, formDataFields, binaryFileName, binaryMimeType, auth, tests],
   () => {
     if (!activeTab.value) return
     emit('update-active-tab', {
@@ -93,6 +110,10 @@ watch(
       headers: cloneItems(headers.value),
       body: bodyContent.value,
       bodyType: bodyType.value,
+      bodyContentType: bodyContentType.value || undefined,
+      formDataFields: cloneFormDataFields(formDataFields.value),
+      binaryFileName: binaryFileName.value || undefined,
+      binaryMimeType: binaryMimeType.value || undefined,
       auth: cloneAuth(auth.value),
       tests: cloneTests(tests.value),
     })
@@ -120,6 +141,10 @@ const handleSend = () => {
     headers: cloneItems(headers.value),
     body: bodyContent.value,
     bodyType: bodyType.value,
+    bodyContentType: bodyContentType.value || undefined,
+    formDataFields: cloneFormDataFields(formDataFields.value),
+    binaryFileName: binaryFileName.value || undefined,
+    binaryMimeType: binaryMimeType.value || undefined,
     auth: cloneAuth(auth.value),
     tests: cloneTests(tests.value),
   })
@@ -223,6 +248,10 @@ const handleSend = () => {
             v-model:headers="headers"
             v-model:body="bodyContent"
             v-model:body-type="bodyType"
+            v-model:body-content-type="bodyContentType"
+            v-model:form-data-fields="formDataFields"
+            v-model:binary-file-name="binaryFileName"
+            v-model:binary-mime-type="binaryMimeType"
             v-model:auth="auth"
             v-model:tests="tests"
             v-model:environment-variables="environmentVariables"

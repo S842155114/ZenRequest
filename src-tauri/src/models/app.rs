@@ -113,6 +113,10 @@ pub struct HistoryItemDto {
     pub content_type: String,
     #[serde(default)]
     pub truncated: bool,
+    #[serde(default)]
+    pub response_headers: Vec<ResponseHeaderItemDto>,
+    #[serde(default)]
+    pub response_preview: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_snapshot: Option<SendRequestPayloadDto>,
 }
