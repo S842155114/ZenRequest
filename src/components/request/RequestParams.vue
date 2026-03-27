@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { getMessages } from '@/lib/i18n'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -36,6 +36,18 @@ const auth = defineModel<AuthConfig>('auth', { default: () => defaultAuthConfig(
 const tests = defineModel<RequestTestDefinition[]>('tests', { default: () => [] })
 const environmentVariables = defineModel<KeyValueItem[]>('environmentVariables', { default: () => [] })
 
+type ComposeSection = 'params' | 'headers' | 'body' | 'auth' | 'tests' | 'env'
+type TableSection = 'params' | 'headers' | 'env' | 'formdata'
+
+const composeSections: ComposeSection[] = ['params', 'headers', 'body', 'auth', 'tests', 'env']
+const activeSection = ref<ComposeSection>('params')
+const revealedRows = ref<Record<TableSection, boolean[]>>({
+  params: [],
+  headers: [],
+  env: [],
+  formdata: [],
+})
+
 const createItem = (): KeyValueItem => ({
   key: '',
   value: '',
@@ -47,12 +59,14 @@ const toggleItem = (items: KeyValueItem[], index: number) => {
   items[index].enabled = !items[index].enabled
 }
 
-const removeItem = (items: KeyValueItem[], index: number) => {
+const removeItem = (items: KeyValueItem[], index: number, section: Exclude<TableSection, 'formdata'>) => {
   items.splice(index, 1)
+  revealedRows.value[section].splice(index, 1)
 }
 
-const addItem = (items: KeyValueItem[]) => {
+const addItem = (items: KeyValueItem[], section: Exclude<TableSection, 'formdata'>) => {
   items.push(createItem())
+  revealedRows.value[section].push(false)
 }
 
 const createFormDataField = (): FormDataFieldSnapshot => ({
@@ -67,10 +81,12 @@ const toggleFormDataField = (index: number) => {
 
 const removeFormDataField = (index: number) => {
   formDataFields.value.splice(index, 1)
+  revealedRows.value.formdata.splice(index, 1)
 }
 
 const addFormDataField = () => {
   formDataFields.value.push(createFormDataField())
+  revealedRows.value.formdata.push(false)
 }
 
 const setAuthType = (type: AuthConfig['type']) => {
@@ -85,6 +101,143 @@ const setApiKeyPlacement = (placement: NonNullable<AuthConfig['apiKeyPlacement']
     ...auth.value,
     apiKeyPlacement: placement,
   }
+}
+
+const trimValue = (value?: string) => value?.trim() ?? ''
+
+const hasKeyValueRowContent = (item: KeyValueItem) => (
+  trimValue(item.key).length > 0
+  || trimValue(item.value).length > 0
+  || trimValue(item.description).length > 0
+)
+
+const hasFormDataFieldContent = (field: FormDataFieldSnapshot) => (
+  trimValue(field.key).length > 0
+  || trimValue(field.value).length > 0
+  || trimValue(field.fileName).length > 0
+  || trimValue(field.mimeType).length > 0
+)
+
+const markRowRevealed = (section: TableSection, index: number) => {
+  revealedRows.value[section][index] = true
+}
+
+const syncRevealedRows = (section: TableSection, length: number) => {
+  revealedRows.value[section] = Array.from({ length }, () => false)
+}
+
+watch(() => params.value, (items) => {
+  syncRevealedRows('params', items.length)
+}, { immediate: true })
+
+watch(() => headers.value, (items) => {
+  syncRevealedRows('headers', items.length)
+}, { immediate: true })
+
+watch(() => environmentVariables.value, (items) => {
+  syncRevealedRows('env', items.length)
+}, { immediate: true })
+
+watch(() => formDataFields.value, (items) => {
+  syncRevealedRows('formdata', items.length)
+}, { immediate: true })
+
+const isKeyValueRowInvalid = (section: Exclude<TableSection, 'formdata'>, item: KeyValueItem, index: number) => (
+  item.enabled
+  && revealedRows.value[section][index]
+  && hasKeyValueRowContent(item)
+  && trimValue(item.key).length === 0
+)
+
+const isFormDataRowInvalid = (field: FormDataFieldSnapshot, index: number) => (
+  field.enabled
+  && revealedRows.value.formdata[index]
+  && hasFormDataFieldContent(field)
+  && trimValue(field.key).length === 0
+)
+
+const reconcileKeyValueSection = (section: Exclude<TableSection, 'formdata'>, items: KeyValueItem[]) => {
+  const nextItems: KeyValueItem[] = []
+  const nextRevealed: boolean[] = []
+
+  items.forEach((item) => {
+    if (!hasKeyValueRowContent(item)) return
+
+    nextItems.push(item)
+    nextRevealed.push(true)
+  })
+
+  items.splice(0, items.length, ...nextItems)
+  revealedRows.value[section] = nextRevealed
+}
+
+const reconcileFormDataSection = () => {
+  const nextFields: FormDataFieldSnapshot[] = []
+  const nextRevealed: boolean[] = []
+
+  formDataFields.value.forEach((field) => {
+    if (!hasFormDataFieldContent(field)) return
+
+    nextFields.push(field)
+    nextRevealed.push(true)
+  })
+
+  formDataFields.value.splice(0, formDataFields.value.length, ...nextFields)
+  revealedRows.value.formdata = nextRevealed
+}
+
+const reconcileSection = (section: ComposeSection | TableSection) => {
+  switch (section) {
+    case 'params':
+      reconcileKeyValueSection('params', params.value)
+      break
+    case 'headers':
+      reconcileKeyValueSection('headers', headers.value)
+      break
+    case 'env':
+      reconcileKeyValueSection('env', environmentVariables.value)
+      break
+    case 'body':
+    case 'formdata':
+      if (bodyType.value === 'formdata') {
+        reconcileFormDataSection()
+      }
+      break
+    default:
+      break
+  }
+}
+
+const prepareForSubmit = () => {
+  reconcileKeyValueSection('params', params.value)
+  reconcileKeyValueSection('headers', headers.value)
+  reconcileKeyValueSection('env', environmentVariables.value)
+
+  if (bodyType.value === 'formdata') {
+    reconcileFormDataSection()
+  }
+
+  return invalidParamsCount.value + invalidHeadersCount.value + invalidEnvironmentVariablesCount.value + bodyInvalidCount.value === 0
+}
+
+const isComposeSection = (value: string): value is ComposeSection => composeSections.includes(value as ComposeSection)
+
+const handleSectionChange = (nextSection: string | number) => {
+  if (typeof nextSection !== 'string') return
+  if (!isComposeSection(nextSection) || nextSection === activeSection.value) return
+
+  reconcileSection(activeSection.value)
+  activeSection.value = nextSection
+}
+
+const setBodyType = (nextType: RequestBodyType) => {
+  if (bodyType.value === nextType) return
+
+  if (bodyType.value === 'formdata' && nextType !== 'formdata') {
+    reconcileSection('formdata')
+  }
+
+  bodyType.value = nextType
 }
 
 const addTest = () => {
@@ -142,7 +295,7 @@ watch([bodyType, bodyContent], ([nextBodyType, nextBody]) => {
 
   const parsedFields = parseFormDataBody(nextBody)
   if (parsedFields.length === 0) {
-    if (formDataFields.value.length === 0) {
+    if (formDataFields.value.length === 0 && activeSection.value === 'body') {
       formDataFields.value = [createFormDataField()]
     }
     return
@@ -179,6 +332,10 @@ const enabledParamsCount = computed(() => params.value.filter((item) => item.ena
 const enabledHeadersCount = computed(() => headers.value.filter((item) => item.enabled).length)
 const enabledEnvironmentVariablesCount = computed(() => environmentVariables.value.filter((item) => item.enabled).length)
 const enabledFormDataCount = computed(() => formDataFields.value.filter((field) => field.enabled && field.key.trim()).length)
+const invalidParamsCount = computed(() => params.value.filter((item, index) => isKeyValueRowInvalid('params', item, index)).length)
+const invalidHeadersCount = computed(() => headers.value.filter((item, index) => isKeyValueRowInvalid('headers', item, index)).length)
+const invalidEnvironmentVariablesCount = computed(() => environmentVariables.value.filter((item, index) => isKeyValueRowInvalid('env', item, index)).length)
+const invalidFormDataCount = computed(() => formDataFields.value.filter((field, index) => isFormDataRowInvalid(field, index)).length)
 const bodyConfiguredCount = computed(() => {
   if (bodyType.value === 'formdata') {
     return enabledFormDataCount.value
@@ -191,6 +348,7 @@ const bodyConfiguredCount = computed(() => {
   return 0
 })
 const authConfiguredCount = computed(() => (auth.value.type === 'none' ? 0 : 1))
+const bodyInvalidCount = computed(() => (bodyType.value === 'formdata' ? invalidFormDataCount.value : 0))
 
 const bytesToBase64 = (value: Uint8Array) => {
   let output = ''
@@ -216,22 +374,55 @@ const handleBinaryFileChange = async (event: Event) => {
 }
 
 const text = computed(() => getMessages(props.locale))
+
+defineExpose({
+  prepareForSubmit,
+})
 </script>
 
 <template>
-  <Tabs data-testid="request-compose-body" default-value="params" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+  <Tabs
+    data-testid="request-compose-body"
+    :model-value="activeSection"
+    class="flex min-h-0 flex-1 flex-col overflow-hidden"
+    @update:model-value="handleSectionChange"
+  >
     <TabsList class="zr-input mx-3 mt-3 w-fit shrink-0 rounded-lg p-0.5">
       <TabsTrigger value="params" data-testid="request-section-trigger-params" class="zr-tab-trigger">
         {{ text.request.params }}
         <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ enabledParamsCount }}</Badge>
+        <Badge
+          v-if="invalidParamsCount > 0"
+          data-testid="request-section-invalid-params"
+          variant="secondary"
+          class="ml-1 rounded-full border border-rose-500/25 bg-rose-500/10 px-1.5 py-0 text-[9px] text-rose-700 dark:text-rose-300"
+        >
+          {{ invalidParamsCount }}
+        </Badge>
       </TabsTrigger>
       <TabsTrigger value="headers" data-testid="request-section-trigger-headers" class="zr-tab-trigger">
         {{ text.request.headers }}
         <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ enabledHeadersCount }}</Badge>
+        <Badge
+          v-if="invalidHeadersCount > 0"
+          data-testid="request-section-invalid-headers"
+          variant="secondary"
+          class="ml-1 rounded-full border border-rose-500/25 bg-rose-500/10 px-1.5 py-0 text-[9px] text-rose-700 dark:text-rose-300"
+        >
+          {{ invalidHeadersCount }}
+        </Badge>
       </TabsTrigger>
       <TabsTrigger value="body" data-testid="request-section-trigger-body" class="zr-tab-trigger">
         {{ text.request.body }}
         <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ bodyConfiguredCount }}</Badge>
+        <Badge
+          v-if="bodyInvalidCount > 0"
+          data-testid="request-section-invalid-body"
+          variant="secondary"
+          class="ml-1 rounded-full border border-rose-500/25 bg-rose-500/10 px-1.5 py-0 text-[9px] text-rose-700 dark:text-rose-300"
+        >
+          {{ bodyInvalidCount }}
+        </Badge>
       </TabsTrigger>
       <span class="mx-1 h-5 w-px self-center bg-[color:var(--zr-border)]" />
       <TabsTrigger value="auth" data-testid="request-section-trigger-auth" data-request-secondary="true" class="zr-tab-trigger opacity-80">
@@ -245,6 +436,14 @@ const text = computed(() => getMessages(props.locale))
       <TabsTrigger value="env" data-testid="request-section-trigger-env" data-request-secondary="true" class="zr-tab-trigger opacity-80">
         {{ text.request.env }}
         <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ enabledEnvironmentVariablesCount }}</Badge>
+        <Badge
+          v-if="invalidEnvironmentVariablesCount > 0"
+          data-testid="request-section-invalid-env"
+          variant="secondary"
+          class="ml-1 rounded-full border border-rose-500/25 bg-rose-500/10 px-1.5 py-0 text-[9px] text-rose-700 dark:text-rose-300"
+        >
+          {{ invalidEnvironmentVariablesCount }}
+        </Badge>
       </TabsTrigger>
     </TabsList>
 
@@ -263,45 +462,64 @@ const text = computed(() => getMessages(props.locale))
             </thead>
             <tbody>
               <tr v-for="(param, idx) in params" :key="idx" class="group border-b border-[color:var(--zr-border-soft)] last:border-b-0">
-                <td class="text-center">
-                  <button
-                    :data-testid="`request-row-toggle-params-${idx}`"
-                    :data-state="param.enabled ? 'on' : 'off'"
-                    class="zr-toggle-badge"
-                    type="button"
-                    @click="toggleItem(params, idx)"
+                <td class="py-1.5 align-top text-center">
+                  <div class="flex h-9 items-center justify-center">
+                    <button
+                      :data-testid="`request-row-toggle-params-${idx}`"
+                      :data-state="param.enabled ? 'on' : 'off'"
+                      class="zr-toggle-badge"
+                      type="button"
+                      @click="toggleItem(params, idx)"
+                    >
+                      <span class="zr-toggle-dot" aria-hidden="true" />
+                    </button>
+                  </div>
+                </td>
+                <td class="py-1.5 align-top">
+                  <Input
+                    v-model="param.key"
+                    :aria-invalid="isKeyValueRowInvalid('params', param, idx)"
+                    :class="[
+                      'zr-input h-9 rounded-lg text-xs font-mono shadow-none',
+                      !param.enabled && 'opacity-50',
+                      isKeyValueRowInvalid('params', param, idx) && 'border-rose-500/35 bg-rose-500/5',
+                    ]"
+                    @update:model-value="markRowRevealed('params', idx)"
+                  />
+                  <div
+                    v-if="isKeyValueRowInvalid('params', param, idx)"
+                    :data-testid="`request-row-error-params-${idx}`"
+                    class="mt-1 text-[10px] text-rose-700 dark:text-rose-300"
                   >
-                    <span class="zr-toggle-dot" aria-hidden="true" />
-                  </button>
+                    {{ text.request.rowKeyRequired }}
+                  </div>
                 </td>
-                <td class="py-1.5">
-                  <Input 
-                    v-model="param.key" 
+                <td class="py-1.5 align-top">
+                  <Input
+                    v-model="param.value"
                     :class="['zr-input h-9 rounded-lg text-xs font-mono shadow-none', !param.enabled && 'opacity-50']"
+                    @update:model-value="markRowRevealed('params', idx)"
                   />
                 </td>
-                <td class="py-1.5">
-                  <Input 
-                    v-model="param.value" 
-                    :class="['zr-input h-9 rounded-lg text-xs font-mono shadow-none', !param.enabled && 'opacity-50']"
-                  />
-                </td>
-                <td class="py-1.5">
-                  <Input 
-                    v-model="param.description" 
+                <td class="py-1.5 align-top">
+                  <Input
+                    v-model="param.description"
                     :class="['zr-input h-9 rounded-lg text-xs shadow-none', !param.enabled && 'opacity-50']"
+                    @update:model-value="markRowRevealed('params', idx)"
                   />
                 </td>
-                <td>
-                  <button class="opacity-0 transition-all text-[var(--zr-text-muted)] group-hover:opacity-100 hover:text-rose-300" @click="removeItem(params, idx)">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>
-                  </button>
+                <td class="py-1.5 align-top">
+                  <div class="flex h-9 items-center justify-center">
+                    <button class="opacity-0 transition-all text-[var(--zr-text-muted)] group-hover:opacity-100 hover:text-rose-300" @click="removeItem(params, idx, 'params')">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
-        <Button variant="ghost" size="sm" class="zr-dashed-button mt-2.5 rounded-lg text-xs" @click="addItem(params)">
+        <Button variant="ghost" size="sm" class="zr-dashed-button mt-2.5 rounded-lg text-xs" @click="addItem(params, 'params')">
           {{ text.request.addParameter }}
         </Button>
       </TabsContent>
@@ -319,49 +537,67 @@ const text = computed(() => getMessages(props.locale))
             </thead>
             <tbody>
               <tr v-for="(header, idx) in headers" :key="idx" class="group border-b border-[color:var(--zr-border-soft)] last:border-b-0">
-                <td class="text-center">
-                  <button
-                    :data-testid="`request-row-toggle-headers-${idx}`"
-                    :data-state="header.enabled ? 'on' : 'off'"
-                    class="zr-toggle-badge"
-                    type="button"
-                    @click="toggleItem(headers, idx)"
+                <td class="py-1.5 align-top text-center">
+                  <div class="flex h-9 items-center justify-center">
+                    <button
+                      :data-testid="`request-row-toggle-headers-${idx}`"
+                      :data-state="header.enabled ? 'on' : 'off'"
+                      class="zr-toggle-badge"
+                      type="button"
+                      @click="toggleItem(headers, idx)"
+                    >
+                      <span class="zr-toggle-dot" aria-hidden="true" />
+                    </button>
+                  </div>
+                </td>
+                <td class="py-1.5 align-top">
+                  <Input
+                    v-model="header.key"
+                    :aria-invalid="isKeyValueRowInvalid('headers', header, idx)"
+                    :class="[
+                      'zr-input h-9 rounded-lg text-xs font-mono shadow-none',
+                      !header.enabled && 'opacity-50',
+                      isKeyValueRowInvalid('headers', header, idx) && 'border-rose-500/35 bg-rose-500/5',
+                    ]"
+                    @update:model-value="markRowRevealed('headers', idx)"
+                  />
+                  <div
+                    v-if="isKeyValueRowInvalid('headers', header, idx)"
+                    :data-testid="`request-row-error-headers-${idx}`"
+                    class="mt-1 text-[10px] text-rose-700 dark:text-rose-300"
                   >
-                    <span class="zr-toggle-dot" aria-hidden="true" />
-                  </button>
+                    {{ text.request.rowKeyRequired }}
+                  </div>
                 </td>
-                <td class="py-1.5">
-                  <Input 
-                    v-model="header.key" 
+                <td class="py-1.5 align-top">
+                  <Input
+                    v-model="header.value"
                     :class="['zr-input h-9 rounded-lg text-xs font-mono shadow-none', !header.enabled && 'opacity-50']"
+                    @update:model-value="markRowRevealed('headers', idx)"
                   />
                 </td>
-                <td class="py-1.5">
-                  <Input 
-                    v-model="header.value" 
-                    :class="['zr-input h-9 rounded-lg text-xs font-mono shadow-none', !header.enabled && 'opacity-50']"
-                  />
-                </td>
-                <td>
-                  <button class="opacity-0 transition-all text-[var(--zr-text-muted)] group-hover:opacity-100 hover:text-rose-300" @click="removeItem(headers, idx)">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>
-                  </button>
+                <td class="py-1.5 align-top">
+                  <div class="flex h-9 items-center justify-center">
+                    <button class="opacity-0 transition-all text-[var(--zr-text-muted)] group-hover:opacity-100 hover:text-rose-300" @click="removeItem(headers, idx, 'headers')">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
-        <Button variant="ghost" size="sm" class="zr-dashed-button mt-2.5 rounded-lg text-xs" @click="addItem(headers)">
+        <Button variant="ghost" size="sm" class="zr-dashed-button mt-2.5 rounded-lg text-xs" @click="addItem(headers, 'headers')">
           {{ text.request.addHeader }}
         </Button>
       </TabsContent>
 
       <TabsContent value="body" data-testid="request-section-content-body" class="mt-2.5 px-3 pb-3">
       <div class="mb-2.5 flex items-center gap-1.5">
-        <Button variant="ghost" size="sm" :class="['h-7 rounded-lg px-2.5 text-[10px]', bodyType === 'json' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="bodyType = 'json'">{{ text.request.json }}</Button>
-        <Button variant="ghost" size="sm" :class="['h-7 rounded-lg px-2.5 text-[10px]', bodyType === 'formdata' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="bodyType = 'formdata'">{{ text.request.formData }}</Button>
-        <Button variant="ghost" size="sm" :class="['h-7 rounded-lg px-2.5 text-[10px]', bodyType === 'raw' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="bodyType = 'raw'">{{ text.request.raw }}</Button>
-        <Button variant="ghost" size="sm" :class="['h-7 rounded-lg px-2.5 text-[10px]', bodyType === 'binary' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="bodyType = 'binary'">{{ text.request.binary }}</Button>
+        <Button variant="ghost" size="sm" :class="['h-7 rounded-lg px-2.5 text-[10px]', bodyType === 'json' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="setBodyType('json')">{{ text.request.json }}</Button>
+        <Button variant="ghost" size="sm" :class="['h-7 rounded-lg px-2.5 text-[10px]', bodyType === 'formdata' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="setBodyType('formdata')">{{ text.request.formData }}</Button>
+        <Button variant="ghost" size="sm" :class="['h-7 rounded-lg px-2.5 text-[10px]', bodyType === 'raw' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="setBodyType('raw')">{{ text.request.raw }}</Button>
+        <Button variant="ghost" size="sm" :class="['h-7 rounded-lg px-2.5 text-[10px]', bodyType === 'binary' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="setBodyType('binary')">{{ text.request.binary }}</Button>
       </div>
       <div class="zr-code-panel flex min-h-[18rem] flex-col overflow-hidden rounded-lg">
         <div class="flex items-center justify-between border-b border-[color:var(--zr-border)] px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">
@@ -386,33 +622,51 @@ const text = computed(() => getMessages(props.locale))
                       :key="idx"
                       class="group border-t border-[color:var(--zr-border-soft)] first:border-t-0"
                     >
-                      <td class="px-3 text-center">
-                        <button
-                          :data-testid="`request-row-toggle-formdata-${idx}`"
-                          :data-state="field.enabled ? 'on' : 'off'"
-                          class="zr-toggle-badge"
-                          type="button"
-                          @click="toggleFormDataField(idx)"
-                        >
-                          <span class="zr-toggle-dot" aria-hidden="true" />
-                        </button>
+                      <td class="px-3 py-1.5 align-top text-center">
+                        <div class="flex h-9 items-center justify-center">
+                          <button
+                            :data-testid="`request-row-toggle-formdata-${idx}`"
+                            :data-state="field.enabled ? 'on' : 'off'"
+                            class="zr-toggle-badge"
+                            type="button"
+                            @click="toggleFormDataField(idx)"
+                          >
+                            <span class="zr-toggle-dot" aria-hidden="true" />
+                          </button>
+                        </div>
                       </td>
-                      <td class="px-3 py-1.5">
+                      <td class="px-3 py-1.5 align-top">
                         <Input
                           v-model="field.key"
-                          :class="['zr-input h-9 rounded-lg text-xs font-mono shadow-none', !field.enabled && 'opacity-50']"
+                          :aria-invalid="isFormDataRowInvalid(field, idx)"
+                          :class="[
+                            'zr-input h-9 rounded-lg text-xs font-mono shadow-none',
+                            !field.enabled && 'opacity-50',
+                            isFormDataRowInvalid(field, idx) && 'border-rose-500/35 bg-rose-500/5',
+                          ]"
+                          @update:model-value="markRowRevealed('formdata', idx)"
                         />
+                        <div
+                          v-if="isFormDataRowInvalid(field, idx)"
+                          :data-testid="`request-row-error-formdata-${idx}`"
+                          class="mt-1 text-[10px] text-rose-700 dark:text-rose-300"
+                        >
+                          {{ text.request.rowKeyRequired }}
+                        </div>
                       </td>
-                      <td class="px-3 py-1.5">
+                      <td class="px-3 py-1.5 align-top">
                         <Input
                           v-model="field.value"
                           :class="['zr-input h-9 rounded-lg text-xs font-mono shadow-none', !field.enabled && 'opacity-50']"
+                          @update:model-value="markRowRevealed('formdata', idx)"
                         />
                       </td>
-                      <td class="px-3">
-                        <button class="opacity-0 transition-all text-[var(--zr-text-muted)] group-hover:opacity-100 hover:text-rose-300" @click="removeFormDataField(idx)">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>
-                        </button>
+                      <td class="px-3 py-1.5 align-top">
+                        <div class="flex h-9 items-center justify-center">
+                          <button class="opacity-0 transition-all text-[var(--zr-text-muted)] group-hover:opacity-100 hover:text-rose-300" @click="removeFormDataField(idx)">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   </tbody>
@@ -487,7 +741,7 @@ const text = computed(() => getMessages(props.locale))
           />
           <div
             v-if="bodyType === 'json' && jsonBodyError"
-            class="border-t border-rose-500/20 bg-rose-500/8 px-3 py-2 text-xs text-rose-200"
+            class="border-t border-rose-500/20 bg-rose-500/8 px-3 py-2 text-xs text-rose-700 dark:text-rose-300"
           >
             {{ text.request.jsonInvalid }}: {{ jsonBodyError }}
           </div>
@@ -634,36 +888,56 @@ const text = computed(() => getMessages(props.locale))
             </thead>
             <tbody>
               <tr v-for="(variable, idx) in environmentVariables" :key="idx" class="group border-b border-[color:var(--zr-border-soft)] last:border-b-0">
-                <td class="text-center">
-                  <button
-                    :data-testid="`request-row-toggle-env-${idx}`"
-                    :data-state="variable.enabled ? 'on' : 'off'"
-                    class="zr-toggle-badge"
-                    type="button"
-                    @click="toggleItem(environmentVariables, idx)"
+                <td class="py-1.5 align-top text-center">
+                  <div class="flex h-9 items-center justify-center">
+                    <button
+                      :data-testid="`request-row-toggle-env-${idx}`"
+                      :data-state="variable.enabled ? 'on' : 'off'"
+                      class="zr-toggle-badge"
+                      type="button"
+                      @click="toggleItem(environmentVariables, idx)"
+                    >
+                      <span class="zr-toggle-dot" aria-hidden="true" />
+                    </button>
+                  </div>
+                </td>
+                <td class="py-1.5 align-top">
+                  <Input
+                    v-model="variable.key"
+                    :aria-invalid="isKeyValueRowInvalid('env', variable, idx)"
+                    :class="[
+                      'zr-input h-9 rounded-lg text-xs font-mono shadow-none',
+                      !variable.enabled && 'opacity-50',
+                      isKeyValueRowInvalid('env', variable, idx) && 'border-rose-500/35 bg-rose-500/5',
+                    ]"
+                    @update:model-value="markRowRevealed('env', idx)"
+                  />
+                  <div
+                    v-if="isKeyValueRowInvalid('env', variable, idx)"
+                    :data-testid="`request-row-error-env-${idx}`"
+                    class="mt-1 text-[10px] text-rose-700 dark:text-rose-300"
                   >
-                    <span class="zr-toggle-dot" aria-hidden="true" />
-                  </button>
+                    {{ text.request.rowKeyRequired }}
+                  </div>
                 </td>
-                <td class="py-1.5">
-                  <Input v-model="variable.key" :class="['zr-input h-9 rounded-lg text-xs font-mono shadow-none', !variable.enabled && 'opacity-50']" />
+                <td class="py-1.5 align-top">
+                  <Input v-model="variable.value" :class="['zr-input h-9 rounded-lg text-xs font-mono shadow-none', !variable.enabled && 'opacity-50']" @update:model-value="markRowRevealed('env', idx)" />
                 </td>
-                <td class="py-1.5">
-                  <Input v-model="variable.value" :class="['zr-input h-9 rounded-lg text-xs font-mono shadow-none', !variable.enabled && 'opacity-50']" />
+                <td class="py-1.5 align-top">
+                  <Input v-model="variable.description" :class="['zr-input h-9 rounded-lg text-xs shadow-none', !variable.enabled && 'opacity-50']" @update:model-value="markRowRevealed('env', idx)" />
                 </td>
-                <td class="py-1.5">
-                  <Input v-model="variable.description" :class="['zr-input h-9 rounded-lg text-xs shadow-none', !variable.enabled && 'opacity-50']" />
-                </td>
-                <td>
-                  <button class="opacity-0 transition-all text-[var(--zr-text-muted)] group-hover:opacity-100 hover:text-rose-300" @click="removeItem(environmentVariables, idx)">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>
-                  </button>
+                <td class="py-1.5 align-top">
+                  <div class="flex h-9 items-center justify-center">
+                    <button class="opacity-0 transition-all text-[var(--zr-text-muted)] group-hover:opacity-100 hover:text-rose-300" @click="removeItem(environmentVariables, idx, 'env')">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
-        <Button variant="ghost" size="sm" class="zr-dashed-button mt-2.5 rounded-lg text-xs" @click="addItem(environmentVariables)">
+        <Button variant="ghost" size="sm" class="zr-dashed-button mt-2.5 rounded-lg text-xs" @click="addItem(environmentVariables, 'env')">
           {{ text.request.addVariable }}
         </Button>
       </TabsContent>
