@@ -9,12 +9,7 @@ import {
 } from "reka-ui"
 import { cn } from "@/lib/utils"
 
-const props = withDefaults(
-  defineProps<ContextMenuContentProps & { class?: HTMLAttributes["class"] }>(),
-  {
-    sideOffset: 4,
-  },
-)
+const props = defineProps<ContextMenuContentProps & { class?: HTMLAttributes["class"] }>()
 const emits = defineEmits<ContextMenuContentEmits>()
 
 const delegatedProps = reactiveOmit(props, "class")

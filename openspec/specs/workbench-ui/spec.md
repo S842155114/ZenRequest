@@ -1,7 +1,7 @@
 # workbench-ui Specification
 
 ## Purpose
-TBD - created by archiving change redesign-workbench-ui-postman-inspired. Update Purpose after archive.
+Define the desktop and compact workbench shell as a coherent professional console for local API engineering, including its visual hierarchy, connected panel structure, and supporting interaction surfaces.
 ## Requirements
 ### Requirement: Frontend shell uses one coherent API-client workbench hierarchy
 The system SHALL present the primary desktop frontend as a unified API-client workbench with clearly separated navigation/explorer, request authoring, and response inspection regions so users can browse, edit, and inspect without losing context.
@@ -11,25 +11,40 @@ The system SHALL present the primary desktop frontend as a unified API-client wo
 - **THEN** the shell shows persistent workbench regions for navigation/explorer, request authoring, and response inspection at the same time
 
 ### Requirement: Frontend visual language aligns across primary and supporting surfaces
-The system SHALL apply one consistent Postman-inspired visual hierarchy across the main workbench and supporting frontend surfaces including dialogs, menus, and utility controls.
+The system SHALL apply one consistent professional-console visual hierarchy across the main workbench and supporting frontend surfaces so the product reads as a precise local API engineering tool instead of a generic productivity shell.
+
+#### Scenario: User opens the workbench on desktop width
+- **WHEN** the user opens the main workbench shell in a standard desktop-width window
+- **THEN** the primary surfaces use a shared professional-console visual language built from disciplined neutral materials, restrained brand emphasis, and consistent interaction feedback
 
 #### Scenario: User opens a supporting UI surface
-- **WHEN** the user opens a dialog, menu, or supporting control surface from the frontend shell
-- **THEN** the surface uses the same visual system and interaction hierarchy as the rest of the workbench instead of appearing as an unrelated local style
+- **WHEN** the user opens a dialog, menu, sheet, dropdown, or context menu from the frontend shell
+- **THEN** the surface uses the same visual system, control hierarchy, and state language as the rest of the workbench instead of appearing like an unrelated local style
 
 ### Requirement: Explorer surface supports dense request browsing
-The system SHALL provide a compact explorer surface for workspace context, collection browsing, history access, search/filter actions, and request creation actions without forcing the user to leave the main workbench.
+The system SHALL present the explorer surface as a resource browser with clear hierarchy, active-state emphasis, and collection/request identity so users can scan saved assets quickly without losing the sense of working inside a professional console.
 
 #### Scenario: User browses saved requests
 - **WHEN** the user opens the explorer surface
-- **THEN** the system shows workspace-aware browsing controls, request collections, history access, and request creation actions in the same shell region
+- **THEN** the system shows collections, requests, history, search, and creation controls with visual treatment that emphasizes hierarchy, scanability, and current selection instead of a flat list of generic controls
 
 ### Requirement: Request authoring controls remain visually primary
-The system SHALL keep method selection, request URL editing, send action, and request detail sections visually prominent within the workbench so the active request remains the focal task.
+The system SHALL present the request authoring surface as the main command workspace so method selection, URL editing, send actions, and request detail tools remain the most visually actionable elements in the workbench.
 
 #### Scenario: Active request is being edited
 - **WHEN** the user focuses on the active request tab
-- **THEN** the shell emphasizes the method, URL, send action, and request detail sections over surrounding navigation chrome
+- **THEN** the request builder reads as the primary construction surface with a clear action axis, stronger emphasis on the active tab and send path, and secondary tools visually subordinated beneath that primary flow
+
+### Requirement: Workbench zones read as connected console segments
+The system SHALL present the sidebar, request, and response zones as docked console segments seated inside one shared workbench carrier so the desktop shell reads as one professional device instead of several floating cards.
+
+#### Scenario: User views the desktop workbench shell
+- **WHEN** the user views the workbench in desktop width with sidebar, request, and response visible
+- **THEN** the three zones retain distinct local shells but are visually connected through aligned edges, narrow seams, and restrained splitter feedback instead of wide card gaps
+
+#### Scenario: User views the compact stacked workbench shell
+- **WHEN** the user views the workbench in compact layout with request and response stacked vertically
+- **THEN** the stacked zones preserve the same docked-segment visual language so they still read as connected parts of one console
 
 ### Requirement: Constrained widths use temporary secondary panels
 The system SHALL adapt the workbench for constrained window widths by converting secondary navigation/explorer surfaces into temporary overlay or drawer-style panels while keeping request authoring and response inspection accessible.
@@ -89,7 +104,7 @@ The system SHALL present a request-body editing surface that matches the selecte
 - **THEN** the request authoring region provides a text-oriented editing surface appropriate for that mode
 
 ### Requirement: Response inspection communicates lifecycle state explicitly
-The system SHALL distinguish idle, pending, completed, and failed response states in the response inspection region so users can interpret the current result without inferring state from stale content.
+The system SHALL present the response inspection surface as a diagnostic view that distinguishes result state, transport metadata, and inspection modes through a stable professional-console hierarchy.
 
 #### Scenario: User has not sent the active request yet
 - **WHEN** the active request tab has no completed send result
@@ -102,6 +117,13 @@ The system SHALL distinguish idle, pending, completed, and failed response state
 #### Scenario: Request send returns an error
 - **WHEN** the active request send fails with an HTTP or transport error
 - **THEN** the response inspection region presents an explicit error-oriented state while preserving access to the relevant response details that are available
+
+### Requirement: Shared interaction tokens distinguish priority and runtime feedback consistently
+The system SHALL use one consistent interaction-token language for primary actions, secondary actions, active selections, hover states, focus states, and runtime status indicators across the workbench.
+
+#### Scenario: User scans actions and statuses across workbench surfaces
+- **WHEN** the user compares buttons, tabs, badges, state pills, and runtime indicators across header, explorer, request, and response surfaces
+- **THEN** the interface expresses priority and feedback through a consistent set of materials, contrast rules, and accent usage instead of each surface inventing its own visual semantics
 
 ### Requirement: Request and response pane collapse behaves as a layout state
 The system SHALL treat request-pane and response-pane collapse as layout states with compact summaries and predictable restore behavior, not only as local content toggles.
@@ -155,11 +177,11 @@ The system SHALL preserve native context-menu behavior for editable controls ins
 - **THEN** the system does not open a resource context menu and allows the native editing context menu to remain available
 
 ### Requirement: Header shell separates brand, context, and utility controls
-The system SHALL present the top workbench header as distinct brand/navigation, context-switching, and utility zones so users can identify shell identity, active workbench context, and global utilities without scanning one undifferentiated toolbar.
+The system SHALL present the top workbench header as a professional control bar with distinct brand/navigation, context-switching, and utility zones so users can read shell identity and active runtime context at a glance.
 
 #### Scenario: User views the workbench header on desktop width
 - **WHEN** the user views the main workbench shell in a standard desktop-width window
-- **THEN** the header shows separate visual regions for brand/navigation, workspace-and-environment context controls, and utility actions
+- **THEN** the header reads as a compact top control bar whose brand, workspace/environment context, and utility actions are visually separated without feeling like a generic website navigation strip
 
 ### Requirement: Header keeps workspace and environment context visible across supported widths
 The system SHALL keep both the active workspace control and the active environment control visible from the header across supported desktop, medium, and compact layouts, using progressively denser presentation instead of removing either control at narrower widths.
@@ -196,4 +218,3 @@ The system SHALL keep unrelated header zones interactive during async operations
 #### Scenario: User switches workspaces
 - **WHEN** the user changes the active workspace and the app begins reloading workspace state
 - **THEN** the header disables the workspace and environment context controls while leaving brand/navigation and settings access available
-

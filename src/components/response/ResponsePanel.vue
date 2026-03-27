@@ -80,27 +80,27 @@ const stateMeta = computed(() => {
     case 'idle':
       return {
         icon: Clock3,
-        iconClass: 'text-slate-400',
-        badgeClass: 'border-slate-500/25 bg-slate-500/10 text-slate-200',
+        iconClass: 'text-slate-600 dark:text-slate-400',
+        badgeClass: 'border-slate-500/25 bg-slate-500/10 text-slate-700 dark:text-slate-200',
       }
     case 'pending':
       return {
         icon: Clock3,
-        iconClass: 'text-amber-300',
-        badgeClass: 'border-amber-500/25 bg-amber-500/10 text-amber-200',
+        iconClass: 'text-amber-600 dark:text-amber-300',
+        badgeClass: 'border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-200',
       }
     case 'http-error':
     case 'transport-error':
       return {
         icon: XCircle,
-        iconClass: 'text-rose-300',
-        badgeClass: 'border-rose-500/25 bg-rose-500/12 text-rose-200',
+        iconClass: 'text-rose-600 dark:text-rose-300',
+        badgeClass: 'border-rose-500/25 bg-rose-500/12 text-rose-700 dark:text-rose-200',
       }
     default:
       return {
         icon: CheckCircle2,
-        iconClass: 'text-emerald-400',
-        badgeClass: 'border-emerald-500/25 bg-emerald-500/12 text-emerald-300',
+        iconClass: 'text-emerald-600 dark:text-emerald-400',
+        badgeClass: 'border-emerald-500/25 bg-emerald-500/12 text-emerald-700 dark:text-emerald-300',
       }
   }
 })
@@ -161,8 +161,12 @@ const downloadCurrentContent = () => {
 </script>
 
 <template>
-  <section class="zr-panel zr-response-shell flex h-full min-h-0 flex-col overflow-hidden rounded-[0.7rem]">
-    <div class="border-b border-[color:var(--zr-border)] bg-[var(--zr-response-accent)] p-2.5">
+  <section
+    data-testid="response-panel-root"
+    :data-response-state="activeState"
+    class="zr-panel zr-response-shell zr-response-diagnostic flex h-full min-h-0 flex-col overflow-hidden rounded-[0.7rem]"
+  >
+    <div class="zr-response-header border-b border-[color:var(--zr-border)] bg-[var(--zr-response-accent)] p-2.5">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center gap-2">
           <span class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-[var(--zr-text-muted)]">
@@ -180,7 +184,7 @@ const downloadCurrentContent = () => {
             v-if="props.stale"
             data-testid="response-stale-badge"
             variant="outline"
-            class="rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold tracking-[0.16em] text-amber-200"
+            class="rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold tracking-[0.16em] text-amber-700 dark:text-amber-200"
           >
             {{ text.response.stale }}
           </Badge>
@@ -192,9 +196,9 @@ const downloadCurrentContent = () => {
           <component :is="props.collapsed ? ChevronDown : ChevronUp" class="h-4 w-4" />
         </button>
       </div>
-      <div class="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
+      <div class="zr-response-meta-strip mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
         <span class="zr-chip inline-flex max-w-[320px] items-center gap-1.5 rounded-full px-1.5 py-0.5 text-[var(--zr-text-secondary)]">
-          <span class="font-semibold text-[#ffb295]">{{ requestMethod }}</span>
+          <span class="font-semibold text-orange-700 dark:text-orange-300">{{ requestMethod }}</span>
           <span class="truncate font-mono text-[var(--zr-text-primary)]">{{ requestUrl }}</span>
         </span>
         <span class="zr-chip inline-flex items-center gap-1.5 rounded-full px-1.5 py-0.5 text-[var(--zr-text-secondary)]">
@@ -209,7 +213,10 @@ const downloadCurrentContent = () => {
     </div>
 
     <template v-if="!props.collapsed">
-      <div class="flex items-center gap-0.5 border-b border-[color:var(--zr-border-soft)] bg-[var(--zr-elevated)] px-2.5 py-1.5">
+      <div
+        data-testid="response-panel-tabs"
+        class="zr-response-tab-strip flex items-center gap-0.5 border-b border-[color:var(--zr-border-soft)] bg-[var(--zr-elevated)] px-2.5 py-1.5"
+      >
         <Button variant="ghost" size="sm" :class="['h-7 rounded-md px-2.5 text-[10px]', activeTab === 'body' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="activeTab = 'body'">{{ text.response.body }}</Button>
         <Button variant="ghost" size="sm" :class="['h-7 rounded-md px-2.5 text-[10px]', activeTab === 'headers' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="activeTab = 'headers'">{{ text.response.headers }}</Button>
         <Button variant="ghost" size="sm" :class="['h-7 rounded-md px-2.5 text-[10px]', activeTab === 'cookies' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="activeTab = 'cookies'">{{ text.response.cookies }}</Button>
@@ -225,7 +232,7 @@ const downloadCurrentContent = () => {
 
       <template v-if="activeTab === 'body'">
         <div class="min-h-0 flex-1 p-2.5">
-          <div class="zr-code-panel flex h-full min-h-0 flex-col rounded-lg p-2.5 pb-3 shadow-none">
+          <div class="zr-code-panel zr-response-panel-surface flex h-full min-h-0 flex-col rounded-lg p-2.5 pb-3 shadow-none">
             <div class="mb-1.5 flex flex-wrap items-center justify-between gap-1.5 text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">
               <div class="flex flex-wrap items-center gap-1.5">
                 <span class="zr-chip rounded-full px-2 py-1">{{ contentType || 'text/plain' }}</span>
@@ -290,7 +297,7 @@ const downloadCurrentContent = () => {
         </div>
       </template>
       <ScrollArea v-else class="min-h-0 flex-1 p-2.5">
-        <div class="zr-code-panel rounded-lg p-2.5 pb-3 shadow-none">
+        <div class="zr-code-panel zr-response-panel-surface rounded-lg p-2.5 pb-3 shadow-none">
           <div class="mb-1.5 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">
             <span class="zr-chip rounded-full px-2 py-1">{{ contentType || 'text/plain' }}</span>
             <span>
@@ -314,7 +321,7 @@ const downloadCurrentContent = () => {
                 </thead>
                 <tbody>
                   <tr v-for="header in headers" :key="header.key" class="border-t border-[color:var(--zr-border-soft)] align-top">
-                    <td class="px-3 py-2.5 font-mono text-xs text-[#ffb295]">{{ header.key }}</td>
+                    <td class="px-3 py-2.5 font-mono text-xs text-orange-700 dark:text-orange-300">{{ header.key }}</td>
                     <td class="px-3 py-2.5 font-mono text-xs text-[var(--zr-text-primary)]">{{ header.value }}</td>
                   </tr>
                   <tr v-if="headers.length === 0">
@@ -335,7 +342,7 @@ const downloadCurrentContent = () => {
                 </thead>
                 <tbody>
                   <tr v-for="(header, index) in cookieHeaders" :key="`${header.key}-${index}`" class="border-t border-[color:var(--zr-border-soft)] align-top">
-                    <td class="px-3 py-2.5 font-mono text-xs text-[#ffb295]">{{ header.value.split('=')[0] || text.response.cookieFallback(index + 1) }}</td>
+                    <td class="px-3 py-2.5 font-mono text-xs text-orange-700 dark:text-orange-300">{{ header.value.split('=')[0] || text.response.cookieFallback(index + 1) }}</td>
                     <td class="px-3 py-2.5 font-mono text-xs break-all text-[var(--zr-text-primary)]">{{ header.value }}</td>
                   </tr>
                   <tr v-if="cookieHeaders.length === 0">
@@ -374,8 +381,8 @@ const downloadCurrentContent = () => {
               <div
                 v-for="result in testResults"
                 :key="result.id"
-                class="rounded-lg border px-3 py-2.5"
-                :class="result.passed ? 'border-emerald-500/20 bg-emerald-500/8' : 'border-rose-500/20 bg-rose-500/8'"
+                class="zr-response-test-card rounded-lg border px-3 py-2.5"
+                :class="result.passed ? 'zr-response-test-card-pass' : 'zr-response-test-card-fail'"
               >
                 <div class="flex items-start gap-2.5">
                   <component :is="result.passed ? CheckCircle2 : XCircle" :class="result.passed ? 'mt-0.5 h-4 w-4 text-emerald-400' : 'mt-0.5 h-4 w-4 text-rose-300'" />
@@ -391,7 +398,7 @@ const downloadCurrentContent = () => {
       </ScrollArea>
     </template>
 
-    <div v-else class="grid grid-cols-3 gap-1.5 px-3 py-3">
+    <div v-else class="zr-response-summary-grid grid grid-cols-3 gap-1.5 px-3 py-3">
       <div class="zr-summary-card px-3 py-2">
         <div class="text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">{{ text.response.summaryStatus }}</div>
         <div class="mt-1 text-sm font-semibold text-[var(--zr-text-primary)]">{{ status }} {{ statusText }}</div>
