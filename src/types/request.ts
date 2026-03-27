@@ -12,6 +12,7 @@ export type RequestBodyType = 'json' | 'formdata' | 'raw' | 'binary'
 export type AuthType = 'none' | 'bearer' | 'basic' | 'apiKey'
 export type RequestTestSource = 'status' | 'header' | 'body'
 export type RequestTestOperator = 'equals' | 'contains' | 'exists'
+export type ResponseLifecycleState = 'idle' | 'pending' | 'success' | 'http-error' | 'transport-error'
 
 export interface FormDataFieldSnapshot {
   key: string
@@ -72,6 +73,10 @@ export interface RequestPreset {
   headers?: KeyValueItem[]
   body?: string
   bodyType?: RequestBodyType
+  bodyContentType?: string
+  formDataFields?: FormDataFieldSnapshot[]
+  binaryFileName?: string
+  binaryMimeType?: string
   auth?: Partial<AuthConfig>
   tests?: RequestTestDefinition[]
 }
@@ -97,6 +102,8 @@ export interface HistoryItem {
   sizeBytes?: number
   contentType?: string
   truncated?: boolean
+  responseHeaders?: ResponseHeaderItem[]
+  responsePreview?: string
   requestSnapshot?: HistoryRequestSnapshot
 }
 
@@ -116,6 +123,8 @@ export interface ResponseState {
   requestMethod: string
   requestUrl: string
   testResults: RequestTestResult[]
+  state?: ResponseLifecycleState
+  stale?: boolean
 }
 
 export interface EnvironmentPreset {
@@ -138,6 +147,10 @@ export interface RequestTabState {
   headers: KeyValueItem[]
   body: string
   bodyType: RequestBodyType
+  bodyContentType?: string
+  formDataFields?: FormDataFieldSnapshot[]
+  binaryFileName?: string
+  binaryMimeType?: string
   auth: AuthConfig
   tests: RequestTestDefinition[]
   response: ResponseState
@@ -158,6 +171,10 @@ export interface SendRequestPayload {
   headers: KeyValueItem[]
   body: string
   bodyType: RequestBodyType
+  bodyContentType?: string
+  formDataFields?: FormDataFieldSnapshot[]
+  binaryFileName?: string
+  binaryMimeType?: string
   auth: AuthConfig
   tests: RequestTestDefinition[]
 }

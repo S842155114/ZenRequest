@@ -8,7 +8,7 @@ import ResponseCodeViewer from './ResponseCodeViewer.vue'
 import ResponseHtmlPreview from './ResponseHtmlPreview.vue'
 import { CheckCircle2, ChevronDown, ChevronUp, Clock3, Copy, Download, HardDrive, XCircle } from 'lucide-vue-next'
 import { prepareResponseCodeView } from '@/lib/response-code-viewer'
-import type { AppLocale, RequestTestResult, ResponseHeaderItem, ResolvedTheme } from '@/types/request'
+import type { AppLocale, RequestTestResult, ResponseHeaderItem, ResolvedTheme, ResponseLifecycleState } from '@/types/request'
 
 defineOptions({
   name: 'ResponsePanel'
@@ -28,6 +28,8 @@ const props = withDefaults(defineProps<{
   requestMethod?: string
   requestUrl?: string
   theme?: ResolvedTheme
+  state?: ResponseLifecycleState
+  stale?: boolean
   collapsed?: boolean
 }>(), {
   responseBody: `{
@@ -47,6 +49,8 @@ const props = withDefaults(defineProps<{
   requestMethod: 'GET',
   requestUrl: 'https://jsonplaceholder.typicode.com/todos/1',
   theme: 'dark',
+  state: 'success',
+  stale: false,
   collapsed: false,
 })
 
@@ -64,6 +68,44 @@ const text = computed(() => getMessages(props.locale))
 const preparedResponseView = computed(() => prepareResponseCodeView(props.responseBody, props.contentType))
 const canPreviewHtml = computed(() => preparedResponseView.value.canPreviewAsHtml)
 const isHtmlPreviewMode = computed(() => canPreviewHtml.value && bodyViewMode.value === 'preview')
+const activeState = computed<ResponseLifecycleState>(() => props.state)
+const stateBadgeLabel = computed(() => {
+  if (activeState.value === 'idle') return text.value.response.ready
+  if (activeState.value === 'pending') return text.value.response.pending
+  if (!props.status || props.status <= 0) return props.statusText
+  return `${props.status} ${props.statusText}`.trim()
+})
+const stateMeta = computed(() => {
+  switch (activeState.value) {
+    case 'idle':
+      return {
+        icon: Clock3,
+        iconClass: 'text-slate-400',
+        badgeClass: 'border-slate-500/25 bg-slate-500/10 text-slate-200',
+      }
+    case 'pending':
+      return {
+        icon: Clock3,
+        iconClass: 'text-amber-300',
+        badgeClass: 'border-amber-500/25 bg-amber-500/10 text-amber-200',
+      }
+    case 'http-error':
+    case 'transport-error':
+      return {
+        icon: XCircle,
+        iconClass: 'text-rose-300',
+        badgeClass: 'border-rose-500/25 bg-rose-500/12 text-rose-200',
+      }
+    default:
+      return {
+        icon: CheckCircle2,
+        iconClass: 'text-emerald-400',
+        badgeClass: 'border-emerald-500/25 bg-emerald-500/12 text-emerald-300',
+      }
+  }
+})
+const showIdleState = computed(() => activeTab.value === 'body' && activeState.value === 'idle')
+const showPendingState = computed(() => activeTab.value === 'body' && activeState.value === 'pending' && !props.stale)
 
 watch(canPreviewHtml, (value) => {
   if (!value) {
@@ -124,11 +166,23 @@ const downloadCurrentContent = () => {
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center gap-2">
           <span class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-[var(--zr-text-muted)]">
-            <CheckCircle2 class="h-4 w-4 text-emerald-400" />
+            <component :is="stateMeta.icon" :class="['h-4 w-4', stateMeta.iconClass]" />
             {{ text.response.title }}
           </span>
-          <Badge variant="outline" class="rounded-full border border-emerald-500/25 bg-emerald-500/12 px-2 py-0.5 text-[10px] font-semibold tracking-[0.16em] text-emerald-300">
-            {{ status }} {{ statusText }}
+          <Badge
+            data-testid="response-state-badge"
+            variant="outline"
+            :class="['rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-[0.16em]', stateMeta.badgeClass]"
+          >
+            {{ stateBadgeLabel }}
+          </Badge>
+          <Badge
+            v-if="props.stale"
+            data-testid="response-stale-badge"
+            variant="outline"
+            class="rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold tracking-[0.16em] text-amber-200"
+          >
+            {{ text.response.stale }}
           </Badge>
         </div>
         <button
@@ -201,8 +255,28 @@ const downloadCurrentContent = () => {
                 </Button>
               </div>
             </div>
+            <div
+              v-if="showIdleState"
+              data-testid="response-idle-state"
+              class="flex min-h-0 flex-1 items-center justify-center rounded-lg border border-dashed border-[color:var(--zr-border)] bg-[var(--zr-soft-bg)] px-5 text-center"
+            >
+              <div class="space-y-1.5">
+                <div class="text-sm font-medium text-[var(--zr-text-primary)]">{{ text.response.idleTitle }}</div>
+                <div class="text-xs leading-5 text-[var(--zr-text-muted)]">{{ text.response.idleDescription }}</div>
+              </div>
+            </div>
+            <div
+              v-else-if="showPendingState"
+              data-testid="response-pending-state"
+              class="flex min-h-0 flex-1 items-center justify-center rounded-lg border border-dashed border-amber-500/25 bg-amber-500/8 px-5 text-center"
+            >
+              <div class="space-y-1.5">
+                <div class="text-sm font-medium text-[var(--zr-text-primary)]">{{ text.response.pendingTitle }}</div>
+                <div class="text-xs leading-5 text-[var(--zr-text-muted)]">{{ text.response.pendingDescription }}</div>
+              </div>
+            </div>
             <ResponseCodeViewer
-              v-if="!isHtmlPreviewMode"
+              v-else-if="!isHtmlPreviewMode"
               :content="preparedResponseView.content"
               :language="preparedResponseView.language"
               :theme="theme"

@@ -10,7 +10,7 @@ import type {
   WorkspaceImportResult,
   WorkspaceSaveResult,
 } from './tauri-client'
-import { detectImportPackageMeta, runtimeClient, setRuntimeAdapter } from './tauri-client'
+import { detectImportPackageMeta, runtimeClient, setRuntimeAdapter, toRequestBodyDto } from './tauri-client'
 import type {
   EnvironmentPreset,
   RequestCollection,
@@ -126,5 +126,38 @@ describe('runtimeClient export scope forwarding', () => {
     await runtimeClient.exportWorkspace('workspace-1', 'application')
 
     expect(exportWorkspace).toHaveBeenCalledWith('workspace-1', 'application')
+  })
+})
+
+describe('toRequestBodyDto', () => {
+  it('prefers structured form-data fields when provided by the request editor', () => {
+    expect(toRequestBodyDto({
+      body: 'legacy=ignored',
+      bodyType: 'formdata',
+      formDataFields: [
+        { key: 'alpha', value: '1', enabled: true },
+        { key: 'beta', value: '2', enabled: false },
+      ],
+    } as any)).toEqual({
+      kind: 'formData',
+      fields: [
+        { key: 'alpha', value: '1', enabled: true },
+        { key: 'beta', value: '2', enabled: false },
+      ],
+    })
+  })
+
+  it('forwards binary metadata alongside the encoded payload', () => {
+    expect(toRequestBodyDto({
+      body: 'ZmFrZS1ieXRlcw==',
+      bodyType: 'binary',
+      binaryFileName: 'demo.bin',
+      binaryMimeType: 'application/octet-stream',
+    } as any)).toEqual({
+      kind: 'binary',
+      bytesBase64: 'ZmFrZS1ieXRlcw==',
+      fileName: 'demo.bin',
+      mimeType: 'application/octet-stream',
+    })
   })
 })

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { BusySurface } from '@/components/ui/busy-surface'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
@@ -20,6 +20,7 @@ import {
   cloneItems,
   clonePreset,
   cloneResponse,
+  createResponseStateFromHistoryItem,
   cloneTests,
   cloneTab,
   createBlankRequestTab,
@@ -31,6 +32,7 @@ import {
   formatBytes,
   readWorkspaceSnapshot,
   resolveTemplate,
+  resolveResponseStateFromStatus,
   resolveVariablesMap,
 } from '@/lib/request-workspace'
 import type {
@@ -140,6 +142,19 @@ const responsePanelCollapsed = ref(false)
 const isCompactLayout = ref(false)
 const mobileExplorerOpen = ref(false)
 
+interface PanelController {
+  collapse: () => void
+  expand: () => void
+  resize: (size: number) => void
+}
+
+const requestWorkbenchPanel = ref<PanelController | null>(null)
+const responseWorkbenchPanel = ref<PanelController | null>(null)
+const requestDesktopExpandedSize = ref(52)
+const responseDesktopExpandedSize = ref(48)
+const requestCompactExpandedSize = ref(54)
+const responseCompactExpandedSize = ref(46)
+
 const activeWorkspace = computed(() => workspaces.value.find((item) => item.id === activeWorkspaceId.value) ?? workspaces.value[0])
 const activeTab = computed(() => openTabs.value.find((tab) => tab.id === activeTabId.value) ?? openTabs.value[0])
 const activeEnvironment = computed(() => environments.value.find((item) => item.id === activeEnvironmentId.value) ?? environments.value[0])
@@ -156,6 +171,59 @@ const resolvedActiveUrl = computed(() => {
 })
 const isStartupReady = computed(() => startupState.value === 'ready')
 const isStartupLoading = computed(() => startupState.value === 'loading')
+
+const getRequestExpandedSize = () => (isCompactLayout.value ? requestCompactExpandedSize.value : requestDesktopExpandedSize.value)
+const getResponseExpandedSize = () => (isCompactLayout.value ? responseCompactExpandedSize.value : responseDesktopExpandedSize.value)
+
+const syncWorkbenchPanelStates = () => {
+  if (requestWorkbenchPanel.value) {
+    if (requestPanelCollapsed.value) {
+      requestWorkbenchPanel.value.collapse()
+    } else {
+      requestWorkbenchPanel.value.expand()
+      requestWorkbenchPanel.value.resize(getRequestExpandedSize())
+    }
+  }
+
+  if (responseWorkbenchPanel.value) {
+    if (responsePanelCollapsed.value) {
+      responseWorkbenchPanel.value.collapse()
+    } else {
+      responseWorkbenchPanel.value.expand()
+      responseWorkbenchPanel.value.resize(getResponseExpandedSize())
+    }
+  }
+}
+
+const handleRequestPanelResize = (size: number) => {
+  if (requestPanelCollapsed.value) return
+  if (isCompactLayout.value) {
+    requestCompactExpandedSize.value = size
+    return
+  }
+  requestDesktopExpandedSize.value = size
+}
+
+const handleResponsePanelResize = (size: number) => {
+  if (responsePanelCollapsed.value) return
+  if (isCompactLayout.value) {
+    responseCompactExpandedSize.value = size
+    return
+  }
+  responseDesktopExpandedSize.value = size
+}
+
+const toggleRequestPanelCollapsed = async () => {
+  requestPanelCollapsed.value = !requestPanelCollapsed.value
+  await nextTick()
+  syncWorkbenchPanelStates()
+}
+
+const toggleResponsePanelCollapsed = async () => {
+  responsePanelCollapsed.value = !responsePanelCollapsed.value
+  await nextTick()
+  syncWorkbenchPanelStates()
+}
 
 const parseTags = (value: string) => value
   .split(',')
@@ -440,30 +508,30 @@ const handleDeleteRequest = async (payload: { collectionName: string; requestId:
 }
 
 const handleSelectHistory = (item: HistoryItem) => {
+  const snapshot = item.requestSnapshot as HistoryRequestSnapshot | undefined
   const requestFromCollection = item.requestId
     ? collections.value.flatMap((collection) => collection.requests).find((request) => request.id === item.requestId)
     : undefined
-
-  if (requestFromCollection) {
-    handleSelectRequest(clonePreset(requestFromCollection))
-    return
-  }
-
-  const snapshot = item.requestSnapshot as HistoryRequestSnapshot | undefined
+  const fallbackPreset = requestFromCollection ? clonePreset(requestFromCollection) : undefined
   const newTab = snapshot
     ? createRequestTabFromHistorySnapshot(snapshot, item.name)
-    : createBlankRequestTab()
+    : fallbackPreset
+      ? createRequestTabFromPreset(fallbackPreset)
+      : createBlankRequestTab()
 
-  newTab.name = snapshot?.name || item.name
-  newTab.description = snapshot?.description || text.value.toasts.recoveredFromHistory(item.time)
-  newTab.tags = snapshot?.tags?.length ? [...snapshot.tags] : [text.value.toasts.historyTag]
-  newTab.method = snapshot?.method || item.method
-  newTab.url = snapshot?.url || item.url
-  newTab.response = cloneResponse({
-    ...newTab.response,
-    requestMethod: snapshot?.method || item.method,
-    requestUrl: snapshot?.url || item.url,
-  })
+  const resolvedMethod = snapshot?.method || fallbackPreset?.method || item.method
+  const resolvedUrl = snapshot?.url || fallbackPreset?.url || item.url
+
+  newTab.name = snapshot?.name || fallbackPreset?.name || item.name
+  newTab.description = snapshot?.description || fallbackPreset?.description || text.value.toasts.recoveredFromHistory(item.time)
+  newTab.tags = snapshot?.tags?.length
+    ? [...snapshot.tags]
+    : fallbackPreset?.tags?.length
+      ? [...fallbackPreset.tags]
+      : [text.value.toasts.historyTag]
+  newTab.method = resolvedMethod
+  newTab.url = resolvedUrl
+  newTab.response = cloneResponse(createResponseStateFromHistoryItem(item, resolvedMethod, resolvedUrl))
   openTabs.value = [...openTabs.value, newTab]
   activeTabId.value = newTab.id
 }
@@ -900,6 +968,16 @@ const resolvePayloadTemplates = (payload: SendRequestPayload, variables: Record<
     value: resolveTemplate(item.value, variables),
   })),
   body: resolveTemplate(payload.body, variables),
+  bodyContentType: payload.bodyContentType ? resolveTemplate(payload.bodyContentType, variables) : undefined,
+  formDataFields: payload.formDataFields?.map((field) => ({
+    ...field,
+    key: resolveTemplate(field.key, variables),
+    value: resolveTemplate(field.value, variables),
+    fileName: field.fileName ? resolveTemplate(field.fileName, variables) : undefined,
+    mimeType: field.mimeType ? resolveTemplate(field.mimeType, variables) : undefined,
+  })),
+  binaryFileName: payload.binaryFileName ? resolveTemplate(payload.binaryFileName, variables) : undefined,
+  binaryMimeType: payload.binaryMimeType ? resolveTemplate(payload.binaryMimeType, variables) : undefined,
   auth: {
     ...cloneAuth(payload.auth),
     bearerToken: resolveTemplate(payload.auth.bearerToken, variables),
@@ -932,9 +1010,18 @@ const handleSend = async (payload: SendRequestPayload) => {
     headers: cloneItems(payload.headers),
     body: payload.body,
     bodyType: payload.bodyType,
+    bodyContentType: payload.bodyContentType,
+    formDataFields: payload.formDataFields?.map((field) => ({ ...field })) ?? [],
+    binaryFileName: payload.binaryFileName,
+    binaryMimeType: payload.binaryMimeType,
     auth: cloneAuth(payload.auth),
     tests: cloneTests(payload.tests),
     isSending: true,
+    response: cloneResponse({
+      ...tab.response,
+      state: 'pending',
+      stale: tab.response.state !== 'idle',
+    }),
   }))
 
   try {
@@ -963,6 +1050,8 @@ const handleSend = async (payload: SendRequestPayload) => {
           headers: response.data!.headers,
           responseBody: response.data!.responseBody || '',
         }),
+        state: resolveResponseStateFromStatus(response.data!.status),
+        stale: false,
       },
     }))
 
@@ -987,6 +1076,8 @@ const handleSend = async (payload: SendRequestPayload) => {
         requestMethod: payload.method,
         requestUrl: fallbackUrl,
         testResults: [],
+        state: 'transport-error',
+        stale: false,
       },
     }))
   }
@@ -1085,6 +1176,11 @@ watch([activeEnvironmentId, openTabs, activeTabId], () => {
     workspacePersistTimer = null
   }, 400)
 }, { deep: true })
+
+watch(isCompactLayout, async () => {
+  await nextTick()
+  syncWorkbenchPanelStates()
+})
 </script>
 
 <template>
@@ -1161,7 +1257,6 @@ watch([activeEnvironmentId, openTabs, activeTabId], () => {
         :can-delete-workspace="workspaces.length > 1"
         :environments="environments"
         :active-environment-id="activeEnvironmentId"
-        :open-tab-count="openTabs.length"
         :is-compact-layout="isCompactLayout"
         @update:locale="locale = $event"
         @update:theme-mode="themeMode = $event"
@@ -1258,7 +1353,17 @@ watch([activeEnvironmentId, openTabs, activeTabId], () => {
 
           <ResizablePanel :default-size="80" class="h-full min-h-0 min-w-0">
             <ResizablePanelGroup direction="vertical" class="h-full min-h-0 gap-1">
-              <ResizablePanel :default-size="52" :min-size="30" class="min-h-0">
+              <ResizablePanel
+                ref="requestWorkbenchPanel"
+                :default-size="requestDesktopExpandedSize"
+                :min-size="30"
+                :collapsed-size="12"
+                collapsible
+                class="min-h-0"
+                @resize="handleRequestPanelResize"
+                @collapse="requestPanelCollapsed = true"
+                @expand="requestPanelCollapsed = false"
+              >
                 <div data-testid="workbench-request" class="h-full min-h-0">
                   <RequestPanel
                     :locale="locale"
@@ -1278,7 +1383,7 @@ watch([activeEnvironmentId, openTabs, activeTabId], () => {
                     @save-request="handleSaveRequest"
                     @import-workspace="handleImportWorkspaceClick"
                     @export-workspace="handleExportWorkspace"
-                    @toggle-collapsed="requestPanelCollapsed = !requestPanelCollapsed"
+                    @toggle-collapsed="toggleRequestPanelCollapsed"
                   />
                 </div>
               </ResizablePanel>
@@ -1287,7 +1392,17 @@ watch([activeEnvironmentId, openTabs, activeTabId], () => {
                 class="h-1 rounded-full bg-transparent transition-colors before:bg-[var(--zr-handle-bg)] hover:before:bg-[var(--zr-handle-active)]"
               />
 
-              <ResizablePanel :default-size="48" :min-size="10" class="min-h-0">
+              <ResizablePanel
+                ref="responseWorkbenchPanel"
+                :default-size="responseDesktopExpandedSize"
+                :min-size="10"
+                :collapsed-size="12"
+                collapsible
+                class="min-h-0"
+                @resize="handleResponsePanelResize"
+                @collapse="responsePanelCollapsed = true"
+                @expand="responsePanelCollapsed = false"
+              >
                 <div data-testid="workbench-response" class="h-full min-h-0">
                   <ResponsePanel
                     :locale="locale"
@@ -1302,9 +1417,11 @@ watch([activeEnvironmentId, openTabs, activeTabId], () => {
                     :content-type="activeTab?.response.contentType"
                     :request-method="activeTab?.response.requestMethod"
                     :request-url="activeTab?.response.requestUrl"
+                    :state="activeTab?.response.state"
+                    :stale="activeTab?.response.stale"
                     :theme="resolvedTheme"
                     :collapsed="responsePanelCollapsed"
-                    @toggle-collapsed="responsePanelCollapsed = !responsePanelCollapsed"
+                    @toggle-collapsed="toggleResponsePanelCollapsed"
                   />
                 </div>
               </ResizablePanel>
@@ -1313,7 +1430,17 @@ watch([activeEnvironmentId, openTabs, activeTabId], () => {
         </ResizablePanelGroup>
 
         <ResizablePanelGroup v-else direction="vertical" class="relative h-full min-h-0 gap-1">
-          <ResizablePanel :default-size="54" :min-size="32" class="min-h-0">
+          <ResizablePanel
+            ref="requestWorkbenchPanel"
+            :default-size="requestCompactExpandedSize"
+            :min-size="32"
+            :collapsed-size="18"
+            collapsible
+            class="min-h-0"
+            @resize="handleRequestPanelResize"
+            @collapse="requestPanelCollapsed = true"
+            @expand="requestPanelCollapsed = false"
+          >
             <div data-testid="workbench-request" class="h-full min-h-0">
               <RequestPanel
                 :locale="locale"
@@ -1333,7 +1460,7 @@ watch([activeEnvironmentId, openTabs, activeTabId], () => {
                 @save-request="handleSaveRequest"
                 @import-workspace="handleImportWorkspaceClick"
                 @export-workspace="handleExportWorkspace"
-                @toggle-collapsed="requestPanelCollapsed = !requestPanelCollapsed"
+                @toggle-collapsed="toggleRequestPanelCollapsed"
               />
             </div>
           </ResizablePanel>
@@ -1342,7 +1469,17 @@ watch([activeEnvironmentId, openTabs, activeTabId], () => {
             class="h-1 rounded-full bg-transparent transition-colors before:bg-[var(--zr-handle-bg)] hover:before:bg-[var(--zr-handle-active)]"
           />
 
-          <ResizablePanel :default-size="46" :min-size="14" class="min-h-0">
+          <ResizablePanel
+            ref="responseWorkbenchPanel"
+            :default-size="responseCompactExpandedSize"
+            :min-size="14"
+            :collapsed-size="18"
+            collapsible
+            class="min-h-0"
+            @resize="handleResponsePanelResize"
+            @collapse="responsePanelCollapsed = true"
+            @expand="responsePanelCollapsed = false"
+          >
             <div data-testid="workbench-response" class="h-full min-h-0">
               <ResponsePanel
                 :locale="locale"
@@ -1357,9 +1494,11 @@ watch([activeEnvironmentId, openTabs, activeTabId], () => {
                 :content-type="activeTab?.response.contentType"
                 :request-method="activeTab?.response.requestMethod"
                 :request-url="activeTab?.response.requestUrl"
+                :state="activeTab?.response.state"
+                :stale="activeTab?.response.stale"
                 :theme="resolvedTheme"
                 :collapsed="responsePanelCollapsed"
-                @toggle-collapsed="responsePanelCollapsed = !responsePanelCollapsed"
+                @toggle-collapsed="toggleResponsePanelCollapsed"
               />
             </div>
           </ResizablePanel>

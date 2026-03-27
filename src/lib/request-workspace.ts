@@ -5,6 +5,7 @@ import type {
   HistoryItem,
   KeyValueItem,
   RequestCollection,
+  ResponseLifecycleState,
   RequestPreset,
   RequestTestDefinition,
   RequestTestResult,
@@ -46,7 +47,7 @@ export const defaultResponseState = (overrides?: Partial<ResponseState>): Respon
   "message": "Ready to send",
   "hint": "Select a request from the sidebar or edit the current one."
 }`,
-  status: 200,
+  status: 0,
   statusText: 'READY',
   time: '0 ms',
   size: '0 B',
@@ -55,6 +56,8 @@ export const defaultResponseState = (overrides?: Partial<ResponseState>): Respon
   requestMethod: 'GET',
   requestUrl: '',
   testResults: [],
+  state: 'idle',
+  stale: false,
   ...overrides,
 })
 
@@ -86,12 +89,20 @@ export const cloneAuth = (auth?: Partial<AuthConfig>): AuthConfig => ({
   ...auth,
 })
 
-export const cloneResponse = (response?: Partial<ResponseState>): ResponseState => ({
-  ...defaultResponseState(),
-  ...response,
-  headers: (response?.headers ?? []).map((header) => ({ ...header })),
-  testResults: (response?.testResults ?? []).map((result) => ({ ...result })),
-})
+export const cloneResponse = (response?: Partial<ResponseState>): ResponseState => {
+  const merged = {
+    ...defaultResponseState(),
+    ...response,
+  }
+
+  return {
+    ...merged,
+    state: response?.state ?? resolveResponseStateFromStatus(merged.status),
+    stale: response?.stale ?? false,
+    headers: (response?.headers ?? []).map((header) => ({ ...header })),
+    testResults: (response?.testResults ?? []).map((result) => ({ ...result })),
+  }
+}
 
 export const cloneEnvironment = (environment: EnvironmentPreset): EnvironmentPreset => ({
   ...environment,
@@ -104,6 +115,7 @@ export const clonePreset = (preset: RequestPreset): RequestPreset => ({
   tags: [...(preset.tags ?? [])],
   params: cloneItems(preset.params),
   headers: cloneItems(preset.headers),
+  formDataFields: (preset.formDataFields ?? []).map((field) => ({ ...field })),
   auth: cloneAuth(preset.auth),
   tests: cloneTests(preset.tests),
 })
@@ -130,6 +142,10 @@ export const createRequestTabFromPreset = (preset: RequestPreset): RequestTabSta
   headers: cloneItems(preset.headers),
   body: preset.body ?? '',
   bodyType: preset.bodyType ?? 'json',
+  bodyContentType: preset.bodyContentType,
+  formDataFields: (preset.formDataFields ?? []).map((field) => ({ ...field })),
+  binaryFileName: preset.binaryFileName,
+  binaryMimeType: preset.binaryMimeType,
   auth: cloneAuth(preset.auth),
   tests: cloneTests(preset.tests),
   response: defaultResponseState({
@@ -156,6 +172,7 @@ export const createBlankRequestTab = (): RequestTabState => ({
   ],
   body: '',
   bodyType: 'json',
+  formDataFields: [],
   auth: defaultAuthConfig(),
   tests: [],
   response: defaultResponseState({
@@ -174,6 +191,7 @@ export const cloneTab = (tab: RequestTabState): RequestTabState => ({
   headers: cloneItems(tab.headers),
   auth: cloneAuth(tab.auth),
   tests: cloneTests(tab.tests),
+  formDataFields: (tab.formDataFields ?? []).map((field) => ({ ...field })),
   response: cloneResponse(tab.response),
   isDirty: tab.isDirty ?? false,
 })
@@ -191,9 +209,19 @@ export const createPresetFromTab = (tab: RequestTabState): RequestPreset => ({
   headers: cloneItems(tab.headers),
   body: tab.body,
   bodyType: tab.bodyType,
+  bodyContentType: tab.bodyContentType,
+  formDataFields: (tab.formDataFields ?? []).map((field) => ({ ...field })),
+  binaryFileName: tab.binaryFileName,
+  binaryMimeType: tab.binaryMimeType,
   auth: cloneAuth(tab.auth),
   tests: cloneTests(tab.tests),
 })
+
+export const resolveResponseStateFromStatus = (status: number): ResponseLifecycleState => {
+  if (status >= 400) return 'http-error'
+  if (status > 0) return 'success'
+  return 'idle'
+}
 
 export const formatBytes = (value: number) => {
   if (value < 1024) return `${value} B`
@@ -276,7 +304,11 @@ const requestBodyDtoToTabBody = (payload: HistoryRequestSnapshot['body']) => {
   }
 
   if (payload.kind === 'raw') {
-    return { body: payload.value, bodyType: 'raw' as const }
+    return {
+      body: payload.value,
+      bodyType: 'raw' as const,
+      bodyContentType: payload.contentType,
+    }
   }
 
   if (payload.kind === 'formData') {
@@ -286,10 +318,16 @@ const requestBodyDtoToTabBody = (payload: HistoryRequestSnapshot['body']) => {
         .map((field) => `${field.key}=${field.value}`)
         .join('\n'),
       bodyType: 'formdata' as const,
+      formDataFields: payload.fields.map((field) => ({ ...field })),
     }
   }
 
-  return { body: payload.bytesBase64, bodyType: 'binary' as const }
+  return {
+    body: payload.bytesBase64,
+    bodyType: 'binary' as const,
+    binaryFileName: payload.fileName,
+    binaryMimeType: payload.mimeType,
+  }
 }
 
 export const createRequestTabFromHistorySnapshot = (
@@ -312,6 +350,10 @@ export const createRequestTabFromHistorySnapshot = (
     headers: cloneItems(snapshot.headers),
     body: body.body,
     bodyType: snapshot.bodyType ?? body.bodyType,
+    bodyContentType: 'bodyContentType' in body ? body.bodyContentType : undefined,
+    formDataFields: 'formDataFields' in body ? body.formDataFields : [],
+    binaryFileName: 'binaryFileName' in body ? body.binaryFileName : undefined,
+    binaryMimeType: 'binaryMimeType' in body ? body.binaryMimeType : undefined,
     auth: cloneAuth(snapshot.auth),
     tests: cloneTests(snapshot.tests),
     response: defaultResponseState({
@@ -322,6 +364,24 @@ export const createRequestTabFromHistorySnapshot = (
     isDirty: true,
   }
 }
+
+export const createResponseStateFromHistoryItem = (
+  item: HistoryItem,
+  requestMethod: string,
+  requestUrl: string,
+): ResponseState => defaultResponseState({
+  responseBody: item.responsePreview || defaultResponseState().responseBody,
+  status: item.status,
+  statusText: item.statusText || 'OK',
+  time: item.elapsedMs !== undefined ? `${item.elapsedMs} ms` : item.time,
+  size: item.sizeBytes !== undefined ? formatBytes(item.sizeBytes) : defaultResponseState().size,
+  headers: (item.responseHeaders ?? []).map((header) => ({ ...header })),
+  contentType: item.contentType || 'text/plain',
+  requestMethod,
+  requestUrl,
+  state: resolveResponseStateFromStatus(item.status),
+  stale: false,
+})
 
 export const resolveVariablesMap = (variables: KeyValueItem[]) => {
   const output: Record<string, string> = {}
