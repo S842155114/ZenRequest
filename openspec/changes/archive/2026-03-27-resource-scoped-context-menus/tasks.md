@@ -12,4 +12,4 @@
 ## 3. Verification
 
 - [x] 3.1 Add or update frontend tests covering supported right-click triggers, unsupported no-op zones, non-active resource targeting, and native editable-control behavior.
-- [ ] 3.2 Run `pnpm test` plus targeted manual UX verification for sidebar resources, request tabs, blank workbench regions, and editable controls.
+- [x] 3.2 Run `pnpm test` plus targeted manual UX verification for sidebar resources, request tabs, blank workbench regions, and editable controls.
