@@ -5,13 +5,19 @@ import { mount } from '@vue/test-utils'
 import RequestParams from './RequestParams.vue'
 
 const tabsStubs = {
-  Tabs: defineComponent({ template: '<div><slot /></div>' }),
+  Tabs: defineComponent({
+    inheritAttrs: false,
+    template: '<div v-bind="$attrs"><slot /></div>',
+  }),
   TabsList: defineComponent({ template: '<div role="tablist"><slot /></div>' }),
   TabsTrigger: defineComponent({
     inheritAttrs: false,
     template: '<button v-bind="$attrs"><slot /></button>',
   }),
-  TabsContent: defineComponent({ template: '<div><slot /></div>' }),
+  TabsContent: defineComponent({
+    inheritAttrs: false,
+    template: '<div v-bind="$attrs"><slot /></div>',
+  }),
 }
 
 describe('RequestParams compact chrome', () => {
@@ -30,15 +36,26 @@ describe('RequestParams compact chrome', () => {
     )
   })
 
-  it('keeps the tab workspace shrinkable so overflowing sections can scroll vertically', () => {
+  it('keeps the compose body as the shrinkable scroll boundary for request sections', () => {
     const wrapper = mount(RequestParams, {
       props: {
         locale: 'zh-CN',
         environmentName: '本地环境',
       },
+      global: {
+        stubs: tabsStubs,
+      },
     })
 
-    expect(wrapper.classes()).toContain('min-h-0')
+    expect(wrapper.get('[data-testid="request-compose-body"]').classes()).toEqual(
+      expect.arrayContaining(['flex', 'min-h-0', 'flex-1', 'flex-col', 'overflow-hidden']),
+    )
+    expect(wrapper.get('[data-testid="request-compose-scroll-area"]').classes()).toEqual(
+      expect.arrayContaining(['min-h-0', 'flex-1', 'overflow-y-auto']),
+    )
+    expect(wrapper.findAll('[data-testid="request-compose-scroll-area"]')).toHaveLength(1)
+    expect(wrapper.get('[data-testid="request-section-content-params"]').classes()).not.toContain('flex-1')
+    expect(wrapper.get('[data-testid="request-section-content-params"]').classes()).not.toContain('overflow-hidden')
   })
 
   it('switches the body editor to a structured form-data surface instead of a generic textarea', async () => {

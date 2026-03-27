@@ -117,6 +117,7 @@ import type {
   HistoryItem,
   RequestCollection,
   RequestPreset,
+  ThemeMode,
   WorkspaceSessionSnapshot,
   WorkspaceSummary,
 } from '@/types/request'
@@ -232,6 +233,22 @@ const createBootstrapPayload = (): AppBootstrapPayload => ({
     ],
   },
 })
+
+const createStoredSnapshot = (themeMode: ThemeMode = 'light') => {
+  const payload = createBootstrapPayload()
+  const session = payload.session!
+
+  return {
+    locale: payload.settings.locale,
+    themeMode,
+    activeEnvironmentId: session.activeEnvironmentId,
+    environments: payload.environments,
+    collections: payload.collections,
+    historyItems: payload.history,
+    openTabs: session.openTabs,
+    activeTabId: session.activeTabId,
+  }
+}
 
 const createAdapter = (
   bootstrapPayload: AppBootstrapPayload = createBootstrapPayload(),
@@ -554,14 +571,37 @@ const getActiveRequestPanelTab = (wrapper: Awaited<ReturnType<typeof mountApp>>)
 }
 
 beforeEach(() => {
+  const storage = new Map<string, string>()
+
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     value: matchMediaStub,
   })
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        storage.set(key, value)
+      },
+      removeItem: (key: string) => {
+        storage.delete(key)
+      },
+      clear: () => {
+        storage.clear()
+      },
+    },
+  })
+  window.localStorage.clear()
+  delete document.documentElement.dataset.theme
+  delete document.documentElement.dataset.startupTheme
 })
 
 afterEach(() => {
   setRuntimeAdapter(createAdapter())
+  window.localStorage.clear()
+  delete document.documentElement.dataset.theme
+  delete document.documentElement.dataset.startupTheme
   document.body.innerHTML = ''
 })
 
@@ -591,11 +631,15 @@ describe('App workbench shell', () => {
     expect(wrapper.find('[data-testid="workbench-request"]').exists()).toBe(true)
   })
 
-  it('removes the static launch placeholder when the app takes over startup rendering', async () => {
+  it('keeps the static launch placeholder until runtime theme alignment completes', async () => {
     window.innerWidth = 1440
 
     const pendingBootstrap = deferred<ApiEnvelope<AppBootstrapPayload>>()
-    setRuntimeAdapter(createAdapter(createBootstrapPayload(), {
+    const lightPayload = createBootstrapPayload()
+    lightPayload.settings.themeMode = 'light'
+    window.localStorage.setItem('zenrequest.workspace', JSON.stringify(createStoredSnapshot('light')))
+
+    setRuntimeAdapter(createAdapter(lightPayload, {
       bootstrapApp: async () => pendingBootstrap.promise,
     }))
 
@@ -605,12 +649,19 @@ describe('App workbench shell', () => {
 
     const wrapper = await mountApp()
 
-    expect(document.getElementById('startup-launch-screen')).toBeNull()
+    expect(document.documentElement.dataset.theme).toBe('light')
+    expect(document.documentElement.dataset.startupTheme).toBe('light')
+    expect(document.getElementById('startup-launch-screen')).not.toBeNull()
     expect(wrapper.find('[data-testid="startup-screen"]').exists()).toBe(true)
 
-    pendingBootstrap.resolve(ok(createBootstrapPayload()))
+    pendingBootstrap.resolve(ok(lightPayload))
     await flushPromises()
     await nextTick()
+
+    expect(document.documentElement.dataset.theme).toBe('light')
+    expect(document.documentElement.dataset.startupTheme).toBe('light')
+    expect(document.getElementById('startup-launch-screen')).toBeNull()
+    expect(wrapper.find('[data-testid="workbench-request"]').exists()).toBe(true)
   })
 
   it('shows a startup failure screen and retries bootstrap in place', async () => {
@@ -627,11 +678,16 @@ describe('App workbench shell', () => {
       bootstrapApp,
     }))
 
+    const launchScreen = document.createElement('div')
+    launchScreen.id = 'startup-launch-screen'
+    document.body.appendChild(launchScreen)
+
     const wrapper = await mountApp()
 
     expect(wrapper.get('[data-testid="startup-screen"]').text()).toContain('Unable to start ZenRequest')
     expect(wrapper.get('[data-testid="startup-retry"]').text()).toContain('Retry startup')
     expect(wrapper.find('[data-testid="workbench-request"]').exists()).toBe(false)
+    expect(document.getElementById('startup-launch-screen')).toBeNull()
 
     await wrapper.get('[data-testid="startup-retry"]').trigger('click')
     await flushPromises()

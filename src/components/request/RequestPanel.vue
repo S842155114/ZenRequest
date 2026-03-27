@@ -487,7 +487,7 @@ const requestReadiness = computed<RequestReadinessState>(() => {
         overlay-test-id="request-panel-busy-overlay"
         class="flex min-h-0 flex-1 flex-col overflow-hidden"
       >
-        <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div data-testid="request-compose-shell" class="flex h-full min-h-0 flex-col overflow-hidden">
           <RequestUrlBar
             :locale="locale"
             :method="method"
@@ -509,21 +509,23 @@ const requestReadiness = computed<RequestReadinessState>(() => {
             @export-workspace="emit('export-workspace')"
           />
 
-          <RequestParams
-            :locale="locale"
-            v-model:params="params"
-            v-model:headers="headers"
-            v-model:body="bodyContent"
-            v-model:body-type="bodyType"
-            v-model:body-content-type="bodyContentType"
-            v-model:form-data-fields="formDataFields"
-            v-model:binary-file-name="binaryFileName"
-            v-model:binary-mime-type="binaryMimeType"
-            v-model:auth="auth"
-            v-model:tests="tests"
-            v-model:environment-variables="environmentVariables"
-            :environment-name="activeEnvironmentName"
-          />
+          <div data-testid="request-compose-body-host" class="flex min-h-0 flex-1 overflow-hidden">
+            <RequestParams
+              :locale="locale"
+              v-model:params="params"
+              v-model:headers="headers"
+              v-model:body="bodyContent"
+              v-model:body-type="bodyType"
+              v-model:body-content-type="bodyContentType"
+              v-model:form-data-fields="formDataFields"
+              v-model:binary-file-name="binaryFileName"
+              v-model:binary-mime-type="binaryMimeType"
+              v-model:auth="auth"
+              v-model:tests="tests"
+              v-model:environment-variables="environmentVariables"
+              :environment-name="activeEnvironmentName"
+            />
+          </div>
         </div>
       </BusySurface>
     </template>

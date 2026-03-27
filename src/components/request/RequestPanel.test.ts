@@ -175,6 +175,34 @@ describe('RequestPanel i18n copy', () => {
     expect(busySurface.find('[data-testid="request-panel-tabs"]').exists()).toBe(false)
   })
 
+  it('keeps the request compose shell shrinkable beneath the fixed command surfaces', () => {
+    const wrapper = mount(RequestPanel, {
+      props: {
+        locale: 'en',
+        tabs: [createTab({ id: 'tab-orders', name: 'Orders Lookup' })],
+        activeTabId: 'tab-orders',
+        activeEnvironmentName: 'Local',
+        activeEnvironmentVariables: [],
+        resolvedActiveUrl: 'https://example.com/orders',
+      },
+      global: {
+        stubs: {
+          RequestUrlBar: defineComponent({ template: '<div data-testid="request-url-bar-stub" />' }),
+          RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
+        },
+      },
+    })
+
+    expect(wrapper.get('[data-testid="request-compose-shell"]').classes()).toEqual(
+      expect.arrayContaining(['h-full', 'min-h-0', 'overflow-hidden']),
+    )
+    expect(wrapper.get('[data-testid="request-compose-body-host"]').classes()).toEqual(
+      expect.arrayContaining(['flex', 'min-h-0', 'flex-1', 'overflow-hidden']),
+    )
+    expect(wrapper.find('[data-testid="request-url-bar-stub"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="request-params-stub"]').exists()).toBe(true)
+  })
+
   it('does not duplicate the active request title in expanded header chrome', () => {
     const wrapper = mount(RequestPanel, {
       props: {
