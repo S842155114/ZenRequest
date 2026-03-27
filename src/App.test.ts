@@ -476,11 +476,17 @@ const WorkspaceDialogStub = defineComponent({
   name: 'WorkspaceDialog',
   props: {
     open: { type: Boolean, default: false },
+    title: { type: String, default: '' },
+    description: { type: String, default: '' },
+    confirmText: { type: String, default: '' },
     nameValue: { type: String, default: '' },
     detailsValue: { type: String, default: '' },
     tagsValue: { type: String, default: '' },
     selectValue: { type: String, default: '' },
     secondaryActionText: { type: String, default: '' },
+    variant: { type: String, default: 'default' },
+    highlightLabel: { type: String, default: '' },
+    contextBadges: { type: Array, default: () => [] },
   },
   emits: ['submit', 'close', 'secondary-action'],
   setup(props, { emit }) {
@@ -503,8 +509,14 @@ const WorkspaceDialogStub = defineComponent({
     return () => h('div', {
       'data-testid': 'dialog-stub',
       'data-open': props.open ? 'true' : 'false',
+      'data-title': props.title,
+      'data-description': props.description,
+      'data-confirm-text': props.confirmText,
       'data-details-value': localDetails.value,
       'data-secondary-action-text': props.secondaryActionText,
+      'data-variant': props.variant,
+      'data-highlight-label': props.highlightLabel,
+      'data-context-badges': JSON.stringify(props.contextBadges),
     }, [
       h('input', {
         'data-testid': 'dialog-name-input',
@@ -1561,7 +1573,12 @@ describe('App workbench shell', () => {
     await nextTick()
 
     expect(wrapper.get('[data-testid="dialog-stub"]').attributes('data-open')).toBe('true')
-    expect(wrapper.get('[data-testid="dialog-stub"]').attributes('data-secondary-action-text')).toBe('Discard')
+    expect(wrapper.get('[data-testid="dialog-stub"]').attributes('data-confirm-text')).toBe('Save and Close')
+    expect(wrapper.get('[data-testid="dialog-stub"]').attributes('data-secondary-action-text')).toBe("Don't Save")
+    expect(wrapper.get('[data-testid="dialog-stub"]').attributes('data-variant')).toBe('dirty-close')
+    expect(wrapper.get('[data-testid="dialog-stub"]').attributes('data-highlight-label')).toBe('Before Closing')
+    expect(wrapper.get('[data-testid="dialog-stub"]').attributes('data-context-badges')).toContain('POST')
+    expect(wrapper.get('[data-testid="dialog-stub"]').attributes('data-context-badges')).toContain('Draft')
     expect(getRequestPanelTabs(wrapper).map((tab) => tab.id)).toEqual(['tab-dirty', 'tab-clean'])
   })
 
