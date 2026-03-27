@@ -192,4 +192,37 @@ describe('ResponsePanel i18n copy', () => {
     expect(wrapper.find('[data-testid="response-body-mode-preview"]').exists()).toBe(false)
     expect(wrapper.get('[data-testid="response-code-viewer"]').attributes('data-language')).toBe('json')
   })
+
+  it('renders an explicit idle empty state instead of presenting the response as successful by default', () => {
+    const wrapper = mount(ResponsePanel, {
+      props: {
+        locale: 'en',
+        state: 'idle',
+        status: 0,
+        statusText: 'READY',
+        responseBody: '',
+      } as any,
+    })
+
+    expect(wrapper.get('[data-testid="response-state-badge"]').text()).toContain('Ready')
+    expect(wrapper.get('[data-testid="response-idle-state"]').text()).toContain('No response yet')
+  })
+
+  it('shows a stale marker when a new response is pending over retained content', () => {
+    const wrapper = mount(ResponsePanel, {
+      props: {
+        locale: 'en',
+        state: 'pending',
+        stale: true,
+        status: 201,
+        statusText: 'Created',
+        responseBody: '{"ok":true}',
+        contentType: 'application/json',
+      } as any,
+    })
+
+    expect(wrapper.get('[data-testid="response-state-badge"]').text()).toContain('Pending')
+    expect(wrapper.get('[data-testid="response-stale-badge"]').text()).toContain('Stale')
+    expect(wrapper.get('[data-testid="response-code-viewer"]').attributes('data-language')).toBe('json')
+  })
 })

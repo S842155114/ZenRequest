@@ -1350,7 +1350,7 @@ fn load_history_item_with_connection(
 ) -> Result<HistoryItemDto, AppError> {
     connection
         .query_row(
-            "SELECT id, request_id, request_name, request_method, request_url, request_snapshot_json, status, status_text, elapsed_ms, size_bytes, content_type, truncated, executed_at_epoch_ms
+            "SELECT id, request_id, request_name, request_method, request_url, request_snapshot_json, status, status_text, elapsed_ms, size_bytes, content_type, response_headers_json, response_preview, truncated, executed_at_epoch_ms
              FROM history_items
              WHERE id = ?1",
             params![history_id],
@@ -1365,7 +1365,7 @@ fn load_history_with_connection(
 ) -> Result<Vec<HistoryItemDto>, AppError> {
     let mut statement = connection
         .prepare(
-            "SELECT id, request_id, request_name, request_method, request_url, request_snapshot_json, status, status_text, elapsed_ms, size_bytes, content_type, truncated, executed_at_epoch_ms
+            "SELECT id, request_id, request_name, request_method, request_url, request_snapshot_json, status, status_text, elapsed_ms, size_bytes, content_type, response_headers_json, response_preview, truncated, executed_at_epoch_ms
              FROM history_items
              WHERE workspace_id = ?1
              ORDER BY executed_at_epoch_ms DESC",
@@ -1433,7 +1433,8 @@ fn load_history_export_with_connection(
 
 fn map_history_row(row: &Row<'_>) -> rusqlite::Result<HistoryItemDto> {
     let request_snapshot_json: String = row.get(5)?;
-    let executed_at_epoch_ms: i64 = row.get(12)?;
+    let response_headers_json: String = row.get(11)?;
+    let executed_at_epoch_ms: i64 = row.get(14)?;
     Ok(HistoryItemDto {
         id: row.get(0)?,
         request_id: row.get(1)?,
@@ -1446,7 +1447,9 @@ fn map_history_row(row: &Row<'_>) -> rusqlite::Result<HistoryItemDto> {
         elapsed_ms: row.get::<_, i64>(8)? as u64,
         size_bytes: row.get::<_, i64>(9)? as usize,
         content_type: row.get(10)?,
-        truncated: row.get::<_, i64>(11)? != 0,
+        response_headers: serde_json::from_str(&response_headers_json).unwrap_or_default(),
+        response_preview: row.get(12)?,
+        truncated: row.get::<_, i64>(13)? != 0,
         executed_at_epoch_ms: executed_at_epoch_ms as u64,
         time: format_history_time(executed_at_epoch_ms),
     })

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, h, nextTick } from 'vue'
+import { defineComponent, h, nextTick, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
 vi.mock('@/components/ui/resizable', () => {
@@ -9,7 +9,40 @@ vi.mock('@/components/ui/resizable', () => {
   })
   const ResizablePanel = defineComponent({
     name: 'ResizablePanel',
-    template: '<div data-testid="resizable-panel" v-bind="$attrs"><slot /></div>',
+    props: {
+      defaultSize: { type: Number, default: undefined },
+      collapsedSize: { type: Number, default: undefined },
+      collapsible: { type: Boolean, default: false },
+    },
+    emits: ['collapse', 'expand', 'resize'],
+    setup(props, { expose, slots, attrs, emit }) {
+      const collapsed = ref(false)
+      const size = ref<number | undefined>(props.defaultSize)
+
+      const collapse = () => {
+        collapsed.value = true
+        emit('collapse')
+      }
+
+      const expand = () => {
+        collapsed.value = false
+        emit('expand')
+        emit('resize', size.value ?? props.defaultSize ?? 0, props.collapsedSize)
+      }
+
+      const resize = (nextSize: number) => {
+        size.value = nextSize
+        emit('resize', nextSize, undefined)
+      }
+
+      expose({ collapse, expand, resize })
+
+      return () => h('div', {
+        ...attrs,
+        'data-testid': 'resizable-panel',
+        'data-state': props.collapsible ? (collapsed.value ? 'collapsed' : 'expanded') : undefined,
+      }, slots.default?.())
+    },
   })
   const ResizableHandle = defineComponent({
     name: 'ResizableHandle',
@@ -81,6 +114,7 @@ import type {
 } from '@/lib/tauri-client'
 import type {
   EnvironmentPreset,
+  HistoryItem,
   RequestCollection,
   RequestPreset,
   WorkspaceSessionSnapshot,
@@ -243,9 +277,12 @@ const createAdapter = (
 
 const AppHeaderStub = defineComponent({
   name: 'AppHeader',
+  props: {
+    workspaceBusy: { type: Boolean, default: false },
+  },
   emits: ['toggle-navigation', 'update:active-workspace-id'],
   template: `
-    <div data-testid="header-stub">
+    <div data-testid="header-stub" :data-workspace-busy="workspaceBusy ? 'true' : 'false'">
       <button data-testid="header-nav-toggle" @click="$emit('toggle-navigation')">toggle</button>
       <button data-testid="header-switch-workspace" @click="$emit('update:active-workspace-id', 'workspace-2')">switch-workspace</button>
     </div>
@@ -254,7 +291,28 @@ const AppHeaderStub = defineComponent({
 
 const AppSidebarStub = defineComponent({
   name: 'AppSidebar',
-  template: '<div data-testid="sidebar-stub">sidebar</div>',
+  props: {
+    historyItems: { type: Array, required: false, default: () => [] },
+  },
+  emits: ['select-history'],
+  setup(props, { emit }) {
+    return () => h('div', { 'data-testid': 'sidebar-stub' }, [
+      'sidebar',
+      h('div', {
+        'data-testid': 'resource-context-surface',
+        'data-resource-context-menu-surface': 'true',
+      }, 'resource-surface'),
+      h('button', {
+        'data-testid': 'sidebar-select-history',
+        onClick: () => {
+          const first = (props.historyItems as HistoryItem[])[0]
+          if (first) {
+            emit('select-history', first)
+          }
+        },
+      }, 'select-history'),
+    ])
+  },
 })
 
 const RequestPanelStub = defineComponent({
@@ -262,18 +320,90 @@ const RequestPanelStub = defineComponent({
   props: {
     activeTabId: { type: String, required: false, default: '' },
     tabs: { type: Array, required: false, default: () => [] },
+    collapsed: { type: Boolean, required: false, default: false },
   },
-  setup(props) {
+  emits: ['send', 'toggle-collapsed'],
+  setup(props, { emit }) {
+    const baseAuth = {
+      type: 'none',
+      bearerToken: '',
+      username: '',
+      password: '',
+      apiKeyKey: '',
+      apiKeyValue: '',
+      apiKeyPlacement: 'header' as const,
+    }
+
     return () => {
-      const current = (props.tabs as Array<{ id: string; name: string }>).find((tab) => tab.id === props.activeTabId)
-      return h('div', { 'data-testid': 'request-panel-stub' }, current?.name ?? 'no-active-tab')
+      const current = (props.tabs as Array<{ id: string; name: string; method?: string; url?: string }>).find((tab) => tab.id === props.activeTabId)
+
+      return h('div', { 'data-testid': 'request-panel-stub' }, [
+        current?.name ?? 'no-active-tab',
+        h('div', { 'data-testid': 'request-panel-collapsed-state' }, props.collapsed ? 'collapsed' : 'expanded'),
+        h('input', {
+          'data-testid': 'native-context-input',
+          'data-native-context-menu': 'true',
+        }),
+        h('button', {
+          'data-testid': 'request-panel-send',
+          onClick: () => {
+            if (!current) return
+            emit('send', {
+              tabId: current.id,
+              name: current.name,
+              description: '',
+              tags: [],
+              collectionName: 'Scratch Pad',
+              method: current.method ?? 'GET',
+              url: current.url ?? 'https://example.com/health',
+              params: [],
+              headers: [],
+              body: '',
+              bodyType: 'json',
+              auth: baseAuth,
+              tests: [],
+            })
+          },
+        }, 'send'),
+        h('button', {
+          'data-testid': 'request-panel-toggle-collapse',
+          onClick: () => emit('toggle-collapsed'),
+        }, 'toggle-collapse'),
+      ])
     }
   },
 })
 
 const ResponsePanelStub = defineComponent({
   name: 'ResponsePanel',
-  template: '<div data-testid="response-panel-stub">response</div>',
+  props: {
+    responseBody: { type: String, required: false, default: '' },
+    status: { type: Number, required: false, default: 0 },
+    requestMethod: { type: String, required: false, default: '' },
+    requestUrl: { type: String, required: false, default: '' },
+    headers: { type: Array, required: false, default: () => [] },
+    state: { type: String, required: false, default: 'idle' },
+    stale: { type: Boolean, required: false, default: false },
+    collapsed: { type: Boolean, required: false, default: false },
+  },
+  setup(props) {
+    return () => h('div', {
+      'data-testid': 'response-panel-stub',
+      'data-state': props.state,
+      'data-stale': props.stale ? 'true' : 'false',
+      'data-collapsed': props.collapsed ? 'true' : 'false',
+    }, [
+      props.status,
+      ' ',
+      props.requestMethod,
+      ' ',
+      props.requestUrl,
+      ' ',
+      props.responseBody,
+      ' ',
+      JSON.stringify(props.headers),
+    ])
+  },
 })
 
 const WorkspaceDialogStub = defineComponent({
@@ -288,6 +418,7 @@ const AppToastListStub = defineComponent({
 
 const mountApp = async () => {
   const wrapper = mount(App, {
+    attachTo: document.body,
     global: {
       stubs: {
         AppHeader: AppHeaderStub,
@@ -314,6 +445,7 @@ beforeEach(() => {
 
 afterEach(() => {
   setRuntimeAdapter(createAdapter())
+  document.body.innerHTML = ''
 })
 
 describe('App workbench shell', () => {
@@ -444,6 +576,76 @@ describe('App workbench shell', () => {
     expect(wrapper.find('[data-testid="workbench-busy-overlay"]').exists()).toBe(false)
   })
 
+  it('keeps the header interactive while a request is sending', async () => {
+    window.innerWidth = 1440
+
+    const requestDeferred = deferred<ApiEnvelope<{
+      requestMethod: string
+      requestUrl: string
+      status: number
+      statusText: string
+      elapsedMs: number
+      sizeBytes: number
+      contentType: string
+      responseBody: string
+      headers: Array<{ key: string; value: string }>
+      truncated: boolean
+    }>>()
+
+    setRuntimeAdapter(createAdapter(createBootstrapPayload(), {
+      sendRequest: async () => requestDeferred.promise,
+    }))
+
+    const wrapper = await mountApp()
+
+    await wrapper.get('[data-testid="request-panel-send"]').trigger('click')
+    await nextTick()
+
+    expect(wrapper.get('[data-testid="header-stub"]').attributes('data-workspace-busy')).toBe('false')
+    expect(wrapper.find('[data-testid="workbench-busy-overlay"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="response-panel-stub"]').attributes('data-state')).toBe('pending')
+    expect(wrapper.get('[data-testid="response-panel-stub"]').attributes('data-stale')).toBe('true')
+
+    requestDeferred.resolve(ok({
+      requestMethod: 'POST',
+      requestUrl: 'https://example.com/orders',
+      status: 200,
+      statusText: 'OK',
+      elapsedMs: 18,
+      sizeBytes: 64,
+      contentType: 'application/json',
+      responseBody: '{"ok":true}',
+      headers: [],
+      truncated: false,
+    }))
+    await flushPromises()
+    await nextTick()
+
+    expect(wrapper.get('[data-testid="header-stub"]').attributes('data-workspace-busy')).toBe('false')
+  })
+
+  it('collapses the request pane as a layout state and restores it on the next toggle', async () => {
+    window.innerWidth = 1440
+    setRuntimeAdapter(createAdapter())
+
+    const wrapper = await mountApp()
+    const panels = () => wrapper.findAll('[data-testid="resizable-panel"]')
+
+    expect(panels()[2]?.attributes('data-state')).toBe('expanded')
+
+    await wrapper.get('[data-testid="request-panel-toggle-collapse"]').trigger('click')
+    await nextTick()
+
+    expect(panels()[2]?.attributes('data-state')).toBe('collapsed')
+    expect(wrapper.get('[data-testid="request-panel-collapsed-state"]').text()).toBe('collapsed')
+
+    await wrapper.get('[data-testid="request-panel-toggle-collapse"]').trigger('click')
+    await nextTick()
+
+    expect(panels()[2]?.attributes('data-state')).toBe('expanded')
+    expect(wrapper.get('[data-testid="request-panel-collapsed-state"]').text()).toBe('expanded')
+  })
+
   it('renders distinct desktop workbench regions after bootstrap', async () => {
     window.innerWidth = 1440
     setRuntimeAdapter(createAdapter())
@@ -512,5 +714,84 @@ describe('App workbench shell', () => {
     expect(wrapper.get('[data-testid="workbench-sidebar"]').classes()).toContain('min-h-0')
     expect(wrapper.get('[data-testid="workbench-request"]').classes()).toContain('min-h-0')
     expect(wrapper.get('[data-testid="workbench-response"]').classes()).toContain('min-h-0')
+  })
+
+  it('suppresses global context menus on unsupported surfaces while allowing whitelisted targets', async () => {
+    window.innerWidth = 1440
+    setRuntimeAdapter(createAdapter())
+
+    const wrapper = await mountApp()
+
+    const blockedEvent = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
+    wrapper.get('[data-testid="workbench-response"]').element.dispatchEvent(blockedEvent)
+    expect(blockedEvent.defaultPrevented).toBe(true)
+
+    const allowedEvent = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
+    wrapper.get('[data-testid="resource-context-surface"]').element.dispatchEvent(allowedEvent)
+    expect(allowedEvent.defaultPrevented).toBe(false)
+
+    const nativeInputEvent = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
+    wrapper.get('[data-testid="native-context-input"]').element.dispatchEvent(nativeInputEvent)
+    expect(nativeInputEvent.defaultPrevented).toBe(false)
+  })
+
+  it('restores stored response data when reopening an item from history', async () => {
+    window.innerWidth = 1440
+
+    const payload = createBootstrapPayload()
+    payload.history = [{
+      id: 'history-response-1',
+      name: 'Orders Lookup',
+      method: 'POST',
+      status: 201,
+      time: '20 ms',
+      url: 'https://example.com/orders',
+      requestId: undefined,
+      executedAtEpochMs: 1_774_961_200_000,
+      statusText: 'Created',
+      elapsedMs: 20,
+      sizeBytes: 2048,
+      contentType: 'application/json',
+      truncated: false,
+      requestSnapshot: {
+        workspaceId: 'workspace-1',
+        tabId: 'tab-history-1',
+        requestId: undefined,
+        name: 'Orders Lookup',
+        description: 'Recovered from history',
+        tags: ['history'],
+        collectionName: 'Scratch Pad',
+        method: 'POST',
+        url: 'https://example.com/orders',
+        params: [],
+        headers: [],
+        body: { kind: 'json', value: '{"orderId":1}' },
+        bodyType: 'json',
+        auth: {
+          type: 'none',
+          bearerToken: '',
+          username: '',
+          password: '',
+          apiKeyKey: '',
+          apiKeyValue: '',
+          apiKeyPlacement: 'header',
+        },
+        tests: [],
+      },
+      responsePreview: '{"ok":true,"source":"history"}',
+      responseHeaders: [{ key: 'content-type', value: 'application/json' }],
+    } as unknown as HistoryItem]
+
+    setRuntimeAdapter(createAdapter(payload))
+
+    const wrapper = await mountApp()
+
+    await wrapper.get('[data-testid="sidebar-select-history"]').trigger('click')
+    await nextTick()
+
+    expect(wrapper.get('[data-testid="request-panel-stub"]').text()).toContain('Orders Lookup')
+    expect(wrapper.get('[data-testid="response-panel-stub"]').text()).toContain('201 POST https://example.com/orders')
+    expect(wrapper.get('[data-testid="response-panel-stub"]').text()).toContain('{"ok":true,"source":"history"}')
+    expect(wrapper.get('[data-testid="response-panel-stub"]').text()).toContain('"content-type"')
   })
 })

@@ -1,15 +1,18 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Separator } from '@/components/ui/separator'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import {
   Tooltip,
   TooltipContent,
@@ -20,13 +23,9 @@ import { getMessages } from '@/lib/i18n'
 import type { AppLocale, EnvironmentPreset, ThemeMode, WorkspaceSummary } from '@/types/request'
 import {
   Ellipsis,
-  Languages,
-  Laptop,
   Menu,
-  MoonStar,
   PanelsTopLeft,
   Settings2,
-  SunMedium,
   Workflow,
 } from 'lucide-vue-next'
 
@@ -34,7 +33,7 @@ defineOptions({
   name: 'AppHeader',
 })
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   locale: AppLocale
   themeMode: ThemeMode
   workspaces: WorkspaceSummary[]
@@ -42,10 +41,12 @@ const props = defineProps<{
   canDeleteWorkspace: boolean
   environments: EnvironmentPreset[]
   activeEnvironmentId: string
-  openTabCount: number
   isCompactLayout?: boolean
   workspaceBusy?: boolean
-}>()
+}>(), {
+  isCompactLayout: false,
+  workspaceBusy: false,
+})
 
 const emit = defineEmits<{
   (e: 'update:locale', value: AppLocale): void
@@ -60,11 +61,7 @@ const emit = defineEmits<{
   (e: 'toggle-navigation'): void
 }>()
 
-const activeThemeIcon = computed(() => {
-  if (props.themeMode === 'light') return SunMedium
-  if (props.themeMode === 'system') return Laptop
-  return MoonStar
-})
+const settingsSheetOpen = ref(false)
 
 const text = computed(() => getMessages(props.locale))
 
@@ -72,57 +69,108 @@ const activeWorkspaceName = computed(() => (
   props.workspaces.find((workspace) => workspace.id === props.activeWorkspaceId)?.name
   ?? text.value.header.localWorkspace
 ))
+
+const countEnabledVariables = (environment?: EnvironmentPreset) => (environment?.variables ?? [])
+  .filter((item) => item.enabled && item.key.trim().length > 0)
+  .length
+
+const activeEnvironment = computed(() => (
+  props.environments.find((environment) => environment.id === props.activeEnvironmentId)
+  ?? props.environments[0]
+))
+
+const activeEnvironmentName = computed(() => (
+  activeEnvironment.value?.name
+  ?? text.value.common.environment
+))
+
+const activeEnvironmentVariableCount = computed(() => countEnabledVariables(activeEnvironment.value))
+const workspaceContextDisabled = computed(() => Boolean(props.workspaceBusy))
+
+watch(() => props.isCompactLayout, (isCompactLayout) => {
+  if (!isCompactLayout) {
+    settingsSheetOpen.value = false
+  }
+})
 </script>
 
 <template>
   <TooltipProvider>
-    <header class="zr-shell-header relative z-10 mx-1.5 mt-1.5 flex h-12 items-center gap-2 rounded-[0.625rem] px-2.5 md:px-3">
-      <div class="flex min-w-0 items-center gap-2.5">
-        <Tooltip v-if="isCompactLayout">
-          <TooltipTrigger as-child>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              class="zr-tool-button h-8 w-8 rounded-md"
-              :aria-label="text.header.openExplorer"
-              @click="emit('toggle-navigation')"
-            >
-              <Menu class="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{{ text.header.openExplorer }}</TooltipContent>
-        </Tooltip>
+    <Sheet :open="settingsSheetOpen" @update:open="settingsSheetOpen = $event">
+      <header
+        class="zr-shell-header relative z-10 mx-1.5 mt-1.5 flex h-12 items-center gap-2 overflow-hidden rounded-[0.625rem] px-2.5 md:px-3"
+      >
+        <div data-testid="header-brand-zone" class="flex min-w-0 shrink-0 items-center gap-2.5">
+          <Tooltip v-if="isCompactLayout">
+            <TooltipTrigger as-child>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                class="zr-tool-button h-8 w-8 rounded-md"
+                :aria-label="text.header.openExplorer"
+                data-testid="header-nav-toggle"
+                @click="emit('toggle-navigation')"
+              >
+                <Menu class="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{{ text.header.openExplorer }}</TooltipContent>
+          </Tooltip>
 
-        <div class="zr-brand-badge">ZR</div>
+          <div class="zr-brand-badge">ZR</div>
 
-        <div class="hidden min-w-0 sm:block">
-          <div class="truncate text-[13px] font-semibold leading-none tracking-[0.01em] text-[var(--zr-text-primary)]">
-            {{ text.header.appName }}
-          </div>
-          <div class="mt-0.5 truncate text-[9px] uppercase tracking-[0.14em] text-[var(--zr-text-muted)]">
-            {{ activeWorkspaceName }}
+          <div v-if="!isCompactLayout" class="min-w-0">
+            <div class="truncate text-[13px] font-semibold leading-none tracking-[0.01em] text-[var(--zr-text-primary)]">
+              {{ text.header.appName }}
+            </div>
+            <div class="mt-0.5 hidden truncate text-[9px] uppercase tracking-[0.14em] text-[var(--zr-text-muted)] xl:block">
+              {{ activeWorkspaceName }}
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="ml-auto flex min-w-0 items-center gap-2">
-        <div class="hidden items-center gap-2 lg:flex">
-          <div class="zr-toolbar-chip flex items-center gap-1.5 rounded-md px-1.5">
-            <PanelsTopLeft class="h-3.5 w-3.5 text-[#ff8b5f]" />
-            <Select :model-value="activeWorkspaceId" :disabled="workspaceBusy" @update:model-value="emit('update:active-workspace-id', String($event))">
-              <SelectTrigger :disabled="workspaceBusy" class="h-7 min-w-[132px] border-0 bg-transparent px-1 text-[11px] font-medium text-[var(--zr-text-primary)] shadow-none focus:ring-0">
-                <SelectValue />
+        <div
+          data-testid="header-context-zone"
+          class="flex min-w-0 flex-1 items-center justify-end gap-1.5 md:justify-center md:gap-2"
+        >
+          <div data-testid="header-workspace-switcher" class="zr-toolbar-chip flex min-w-0 items-center gap-1 rounded-md px-1.5">
+            <PanelsTopLeft class="h-3.5 w-3.5 shrink-0 text-[#ff8b5f]" />
+            <Select
+              :model-value="activeWorkspaceId"
+              :disabled="workspaceContextDisabled"
+              @update:model-value="emit('update:active-workspace-id', String($event))"
+            >
+              <SelectTrigger
+                :disabled="workspaceContextDisabled"
+                data-testid="header-workspace-trigger"
+                :class="[
+                  'h-7 min-w-0 border-0 bg-transparent px-1 text-[11px] font-medium text-[var(--zr-text-primary)] shadow-none focus:ring-0',
+                  isCompactLayout ? 'max-w-[8.5rem]' : 'max-w-[13rem] md:max-w-[14rem] xl:max-w-[16rem]',
+                ]"
+              >
+                <div class="flex min-w-0 items-center gap-1.5">
+                  <span class="hidden text-[9px] uppercase tracking-[0.14em] text-[var(--zr-text-muted)] xl:block">
+                    {{ text.header.workspace }}
+                  </span>
+                  <span class="truncate">{{ activeWorkspaceName }}</span>
+                </div>
               </SelectTrigger>
-              <SelectContent class="zr-dropdown">
+              <SelectContent class="zr-dropdown min-w-[220px]">
                 <SelectItem v-for="workspace in workspaces" :key="workspace.id" :value="workspace.id">
-                  {{ workspace.name }}
+                  <span class="block truncate">{{ workspace.name }}</span>
                 </SelectItem>
               </SelectContent>
             </Select>
-            <Separator orientation="vertical" class="h-5 bg-[var(--zr-border)]" />
             <DropdownMenu>
               <DropdownMenuTrigger as-child>
-                <Button variant="ghost" size="icon-sm" class="zr-tool-button h-7 w-7 rounded-md" :disabled="workspaceBusy">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  class="zr-toolbar-action-button ml-0.5 h-7 w-7 rounded-[0.55rem]"
+                  :aria-label="text.header.workspaceActions"
+                  :disabled="workspaceContextDisabled"
+                  data-testid="header-workspace-actions"
+                >
                   <Ellipsis class="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -138,26 +186,60 @@ const activeWorkspaceName = computed(() => (
             </DropdownMenu>
           </div>
 
-          <div class="zr-toolbar-chip flex items-center gap-1.5 rounded-md px-1.5">
-            <Workflow class="h-3.5 w-3.5 text-[#ff8b5f]" />
-            <Select :model-value="activeEnvironmentId" @update:model-value="emit('update:active-environment-id', String($event))">
-              <SelectTrigger class="h-7 min-w-[128px] border-0 bg-transparent px-1 text-[11px] font-medium text-[var(--zr-text-primary)] shadow-none focus:ring-0">
-                <SelectValue />
+          <div data-testid="header-environment-switcher" class="zr-toolbar-chip flex min-w-0 items-center gap-1 rounded-md px-1.5">
+            <Workflow class="h-3.5 w-3.5 shrink-0 text-[#ff8b5f]" />
+            <Select
+              :model-value="activeEnvironmentId"
+              :disabled="workspaceContextDisabled"
+              @update:model-value="emit('update:active-environment-id', String($event))"
+            >
+              <SelectTrigger
+                :disabled="workspaceContextDisabled"
+                data-testid="header-environment-trigger"
+                :class="[
+                  'h-7 min-w-0 border-0 bg-transparent px-1 text-[11px] font-medium text-[var(--zr-text-primary)] shadow-none focus:ring-0',
+                  isCompactLayout ? 'max-w-[10.5rem]' : 'max-w-[14rem] md:max-w-[15rem] xl:max-w-[18rem]',
+                ]"
+              >
+                <div class="flex min-w-0 items-center gap-1.5">
+                  <span class="hidden text-[9px] uppercase tracking-[0.14em] text-[var(--zr-text-muted)] xl:block">
+                    {{ text.common.environment }}
+                  </span>
+                  <span class="truncate">{{ activeEnvironmentName }}</span>
+                  <span class="shrink-0 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] leading-4 text-[var(--zr-text-secondary)]">
+                    {{ text.header.vars(activeEnvironmentVariableCount) }}
+                  </span>
+                </div>
               </SelectTrigger>
-              <SelectContent class="zr-dropdown">
-                <SelectItem v-for="environment in environments" :key="environment.id" :value="environment.id">
-                  {{ environment.name }}
+              <SelectContent class="zr-dropdown min-w-[240px]">
+                <SelectItem
+                  v-for="environment in environments"
+                  :key="environment.id"
+                  :value="environment.id"
+                >
+                  <div class="flex min-w-0 items-center justify-between gap-3">
+                    <span class="truncate">{{ environment.name }}</span>
+                    <span class="shrink-0 text-[10px] text-[var(--zr-text-muted)]">
+                      {{ text.header.vars(countEnabledVariables(environment)) }}
+                    </span>
+                  </div>
                 </SelectItem>
               </SelectContent>
             </Select>
-            <Separator orientation="vertical" class="h-5 bg-[var(--zr-border)]" />
             <DropdownMenu>
               <DropdownMenuTrigger as-child>
-                <Button variant="ghost" size="icon-sm" class="zr-tool-button h-7 w-7 rounded-md">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  class="zr-toolbar-action-button ml-0.5 h-7 w-7 rounded-[0.55rem]"
+                  :aria-label="text.header.environmentActions"
+                  :disabled="workspaceContextDisabled"
+                  data-testid="header-environment-actions"
+                >
                   <Ellipsis class="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" class="zr-dropdown min-w-[190px]">
+              <DropdownMenuContent align="end" class="zr-dropdown min-w-[200px]">
                 <DropdownMenuItem @select="emit('create-environment')">
                   {{ text.dialogs.createEnvironment.title }}
                 </DropdownMenuItem>
@@ -173,48 +255,171 @@ const activeWorkspaceName = computed(() => (
           </div>
         </div>
 
-        <!-- <div class="zr-toolbar-chip hidden items-center gap-2 rounded-md px-2.5 md:flex">
-          <span class="text-[10px] uppercase tracking-[0.14em] text-[var(--zr-text-muted)]">
-            {{ text.header.tabs(openTabCount) }}
-          </span>
-        </div> -->
+        <div data-testid="header-utilities-zone" class="flex shrink-0 items-center gap-1.5">
+          <template v-if="!isCompactLayout">
+            <DropdownMenu>
+              <DropdownMenuTrigger as-child>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  class="zr-tool-button h-8 w-8 rounded-md"
+                  :aria-label="text.header.openSettings"
+                  data-testid="header-settings-trigger"
+                >
+                  <Settings2 class="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                class="zr-dropdown w-[240px] p-1"
+                data-testid="header-settings-menu"
+              >
+                <DropdownMenuLabel class="px-2 py-1.5 text-xs font-semibold text-[var(--zr-text-primary)]">
+                  {{ text.header.settings }}
+                </DropdownMenuLabel>
+                <div class="px-2 pb-2 text-[11px] leading-5 text-[var(--zr-text-muted)]">
+                  {{ text.header.settingsDescription }}
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel class="px-2 py-1.5 text-[10px] uppercase tracking-[0.14em] text-[var(--zr-text-muted)]">
+                  {{ text.header.languageLabel }}
+                </DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  :model-value="locale"
+                  @update:model-value="emit('update:locale', $event as AppLocale)"
+                >
+                  <DropdownMenuRadioItem value="en">
+                    {{ text.header.language.english }}
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="zh-CN">
+                    {{ text.header.language.chinese }}
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel class="px-2 py-1.5 text-[10px] uppercase tracking-[0.14em] text-[var(--zr-text-muted)]">
+                  {{ text.header.themeLabel }}
+                </DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  :model-value="themeMode"
+                  @update:model-value="emit('update:theme-mode', $event as ThemeMode)"
+                >
+                  <DropdownMenuRadioItem value="dark">
+                    {{ text.header.theme.dark }}
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="light">
+                    {{ text.header.theme.light }}
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="system">
+                    {{ text.header.theme.system }}
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </template>
 
-        <Select :model-value="locale" @update:model-value="emit('update:locale', $event as AppLocale)">
-          <SelectTrigger class="zr-select-shell h-8 w-[98px] rounded-md px-2.5 text-[11px] font-medium text-[var(--zr-text-primary)]">
-            <div class="flex items-center gap-2">
-              <Languages class="h-3 w-3 text-[#ff8b5f]" />
-              <SelectValue />
-            </div>
-          </SelectTrigger>
-          <SelectContent class="zr-dropdown">
-            <SelectItem value="en">{{ text.header.language.english }}</SelectItem>
-            <SelectItem value="zh-CN">{{ text.header.language.chinese }}</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select :model-value="themeMode" @update:model-value="emit('update:theme-mode', $event as ThemeMode)">
-          <SelectTrigger class="zr-select-shell h-8 w-[104px] rounded-md px-2.5 text-[11px] font-medium text-[var(--zr-text-primary)]">
-            <div class="flex items-center gap-2">
-              <component :is="activeThemeIcon" class="h-3 w-3 text-[#ff8b5f]" />
-              <SelectValue />
-            </div>
-          </SelectTrigger>
-          <SelectContent class="zr-dropdown">
-            <SelectItem value="dark">{{ text.header.theme.dark }}</SelectItem>
-            <SelectItem value="light">{{ text.header.theme.light }}</SelectItem>
-            <SelectItem value="system">{{ text.header.theme.system }}</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Tooltip>
-          <TooltipTrigger as-child>
-            <Button variant="ghost" size="icon-sm" class="zr-tool-button h-8 w-8 rounded-md">
+          <template v-else>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              class="zr-tool-button h-8 w-8 rounded-md"
+              :aria-label="text.header.openSettings"
+              data-testid="header-settings-trigger"
+              @click="settingsSheetOpen = true"
+            >
               <Settings2 class="h-3.5 w-3.5" />
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>{{ text.header.settings }}</TooltipContent>
-        </Tooltip>
-      </div>
-    </header>
+          </template>
+        </div>
+      </header>
+
+      <SheetContent
+        v-if="isCompactLayout && settingsSheetOpen"
+        side="right"
+        class="w-[min(92vw,320px)] border-[var(--zr-border)] bg-[var(--zr-panel-bg)] p-0 text-[var(--zr-text-primary)]"
+        data-testid="header-settings-sheet"
+      >
+        <SheetHeader class="border-b border-[var(--zr-border)] px-4 py-4 text-left">
+          <SheetTitle class="text-base font-semibold text-[var(--zr-text-primary)]">
+            {{ text.header.settings }}
+          </SheetTitle>
+          <SheetDescription class="text-sm text-[var(--zr-text-muted)]">
+            {{ text.header.settingsDescription }}
+          </SheetDescription>
+        </SheetHeader>
+
+        <div class="space-y-5 px-4 py-4">
+          <section>
+            <div class="text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">
+              {{ text.header.languageLabel }}
+            </div>
+            <div class="mt-2 grid grid-cols-2 gap-2">
+              <Button
+                data-testid="header-settings-locale-en"
+                :variant="locale === 'en' ? 'secondary' : 'ghost'"
+                :class="[
+                  'h-9 rounded-md text-xs',
+                  locale === 'en' ? 'zr-tab-button-active' : 'zr-tool-button',
+                ]"
+                @click="emit('update:locale', 'en')"
+              >
+                {{ text.header.language.english }}
+              </Button>
+              <Button
+                data-testid="header-settings-locale-zh-CN"
+                :variant="locale === 'zh-CN' ? 'secondary' : 'ghost'"
+                :class="[
+                  'h-9 rounded-md text-xs',
+                  locale === 'zh-CN' ? 'zr-tab-button-active' : 'zr-tool-button',
+                ]"
+                @click="emit('update:locale', 'zh-CN')"
+              >
+                {{ text.header.language.chinese }}
+              </Button>
+            </div>
+          </section>
+
+          <section>
+            <div class="text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">
+              {{ text.header.themeLabel }}
+            </div>
+            <div class="mt-2 grid grid-cols-3 gap-2">
+              <Button
+                data-testid="header-settings-theme-dark"
+                :variant="themeMode === 'dark' ? 'secondary' : 'ghost'"
+                :class="[
+                  'h-9 rounded-md text-xs',
+                  themeMode === 'dark' ? 'zr-tab-button-active' : 'zr-tool-button',
+                ]"
+                @click="emit('update:theme-mode', 'dark')"
+              >
+                {{ text.header.theme.dark }}
+              </Button>
+              <Button
+                data-testid="header-settings-theme-light"
+                :variant="themeMode === 'light' ? 'secondary' : 'ghost'"
+                :class="[
+                  'h-9 rounded-md text-xs',
+                  themeMode === 'light' ? 'zr-tab-button-active' : 'zr-tool-button',
+                ]"
+                @click="emit('update:theme-mode', 'light')"
+              >
+                {{ text.header.theme.light }}
+              </Button>
+              <Button
+                data-testid="header-settings-theme-system"
+                :variant="themeMode === 'system' ? 'secondary' : 'ghost'"
+                :class="[
+                  'h-9 rounded-md text-xs',
+                  themeMode === 'system' ? 'zr-tab-button-active' : 'zr-tool-button',
+                ]"
+                @click="emit('update:theme-mode', 'system')"
+              >
+                {{ text.header.theme.system }}
+              </Button>
+            </div>
+          </section>
+        </div>
+      </SheetContent>
+    </Sheet>
   </TooltipProvider>
 </template>

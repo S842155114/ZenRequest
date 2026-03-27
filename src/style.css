@@ -303,6 +303,27 @@
     color: var(--zr-text-secondary);
   }
 
+  .zr-toolbar-action-button {
+    border: 1px solid transparent;
+    background: color-mix(in srgb, var(--zr-chip-bg) 82%, transparent);
+    color: var(--zr-text-muted);
+    box-shadow: none;
+    transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+  }
+
+  .zr-toolbar-action-button:hover {
+    border-color: color-mix(in srgb, var(--zr-accent-border) 72%, transparent);
+    background: color-mix(in srgb, var(--zr-soft-hover) 84%, transparent);
+    color: var(--zr-text-primary);
+  }
+
+  .zr-toolbar-action-button:disabled {
+    border-color: transparent;
+    background: color-mix(in srgb, var(--zr-chip-bg) 48%, transparent);
+    color: var(--zr-text-muted);
+    box-shadow: none;
+  }
+
   .zr-select-shell {
     border: 1px solid var(--zr-border);
     background: var(--zr-elevated);
@@ -399,6 +420,13 @@
   .zr-request-row-active {
     border-color: var(--zr-accent-border);
     background: var(--zr-accent-soft);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--zr-accent-border) 55%, transparent);
+  }
+
+  .zr-request-row-context {
+    border: 1px solid color-mix(in srgb, var(--zr-border) 78%, transparent);
+    background: color-mix(in srgb, var(--zr-chip-bg) 88%, transparent);
+    color: var(--zr-text-muted);
   }
 
   .zr-sidebar-empty {

@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import type {
   EnvironmentPreset,
+  FormDataFieldSnapshot,
   HistoryItem,
   RequestCollection,
   RequestPreset,
@@ -188,16 +189,32 @@ const parseFormDataBody = (raw: string): FormDataFieldDto[] => raw
   })
   .filter((item) => item.key.length > 0)
 
-export const toRequestBodyDto = (payload: Pick<SendRequestPayload, 'body' | 'bodyType'>): RequestBodyDto => {
+export const toRequestBodyDto = (
+  payload: Pick<SendRequestPayload, 'body' | 'bodyType' | 'bodyContentType' | 'formDataFields' | 'binaryFileName' | 'binaryMimeType'>,
+): RequestBodyDto => {
   switch (payload.bodyType) {
     case 'json':
       return { kind: 'json', value: payload.body }
     case 'raw':
-      return { kind: 'raw', value: payload.body }
+      return {
+        kind: 'raw',
+        value: payload.body,
+        contentType: payload.bodyContentType?.trim() || undefined,
+      }
     case 'formdata':
-      return { kind: 'formData', fields: parseFormDataBody(payload.body) }
+      return {
+        kind: 'formData',
+        fields: (payload.formDataFields?.length
+          ? payload.formDataFields
+          : parseFormDataBody(payload.body)) as FormDataFieldDto[],
+      }
     case 'binary':
-      return { kind: 'binary', bytesBase64: payload.body }
+      return {
+        kind: 'binary',
+        bytesBase64: payload.body,
+        fileName: payload.binaryFileName?.trim() || undefined,
+        mimeType: payload.binaryMimeType?.trim() || undefined,
+      }
     default:
       return { kind: 'raw', value: payload.body }
   }
