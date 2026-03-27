@@ -16,4 +16,4 @@
 ## 4. Verification
 
 - [x] 4.1 Add or update frontend tests covering header zone rendering, responsive workspace/environment visibility, settings-hosted language/theme access, environment metadata visibility, and scoped disabled-state behavior.
-- [ ] 4.2 Run `pnpm test` plus targeted manual verification of desktop, medium, and compact header behavior to confirm both context controls stay visible, settings owns language/theme, and request sending leaves the header interactive.
+- [x] 4.2 Run `pnpm test` plus targeted manual verification of desktop, medium, and compact header behavior to confirm both context controls stay visible, settings owns language/theme, and request sending leaves the header interactive.
