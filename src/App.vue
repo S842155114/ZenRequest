@@ -87,6 +87,9 @@ interface DialogState {
   description?: string
   confirmText: string
   secondaryActionText?: string
+  variant?: 'default' | 'dirty-close'
+  highlightLabel?: string
+  contextBadges?: string[]
   destructive?: boolean
   nameLabel?: string
   namePlaceholder?: string
@@ -414,6 +417,15 @@ const handleCloseTab = (tabId: string) => {
       description: text.value.dialogs.closeDirtyTab.description(targetTab.name),
       confirmText: text.value.dialogs.closeDirtyTab.confirm,
       secondaryActionText: text.value.dialogs.closeDirtyTab.secondary,
+      variant: 'dirty-close',
+      highlightLabel: text.value.dialogs.closeDirtyTab.eyebrow,
+      contextBadges: [
+        targetTab.method,
+        targetTab.persistenceState === 'unbound'
+          ? text.value.request.unbound
+          : text.value.dialogs.closeDirtyTab.draftBadge,
+        text.value.dialogs.closeDirtyTab.unsavedBadge,
+      ],
       contextName: tabId,
     })
     return
@@ -1668,6 +1680,9 @@ watch(isCompactLayout, async () => {
         :description="dialogState?.description ?? ''"
         :confirm-text="dialogState?.confirmText ?? text.common.save"
         :cancel-text="text.common.cancel"
+        :variant="dialogState?.variant ?? 'default'"
+        :highlight-label="dialogState?.highlightLabel ?? ''"
+        :context-badges="dialogState?.contextBadges ?? []"
         :destructive="dialogState?.destructive ?? false"
         :name-label="dialogState?.nameLabel ?? ''"
         :name-placeholder="dialogState?.namePlaceholder ?? ''"

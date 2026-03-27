@@ -308,8 +308,11 @@ const messages = {
       closeDirtyTab: {
         title: 'Unsaved Request',
         description: (name: string) => `Save "${name}" before closing this tab?`,
-        confirm: 'Save',
-        secondary: 'Discard',
+        eyebrow: 'Before Closing',
+        confirm: 'Save and Close',
+        secondary: "Don't Save",
+        draftBadge: 'Draft',
+        unsavedBadge: 'Unsaved Changes',
       },
       createEnvironment: {
         title: 'Create Environment',
@@ -766,8 +769,11 @@ const messages = {
       closeDirtyTab: {
         title: '请求尚未保存',
         description: (name: string) => `关闭“${name}”前，是否先保存当前更改？`,
-        confirm: '保存',
+        eyebrow: '关闭前确认',
+        confirm: '保存并关闭',
         secondary: '不保存',
+        draftBadge: '草稿',
+        unsavedBadge: '未保存更改',
       },
       createEnvironment: {
         title: '创建环境',
