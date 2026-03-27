@@ -32,6 +32,17 @@ The system SHALL present the request authoring surface as the main command works
 - **WHEN** the user focuses on the active request tab
 - **THEN** the request builder reads as the primary construction surface with a clear action axis, stronger emphasis on the active tab and send path, and secondary tools visually subordinated beneath that primary flow
 
+### Requirement: Workbench zones read as connected console segments
+The system SHALL present the sidebar, request, and response zones as docked console segments seated inside one shared workbench carrier so the desktop shell reads as one professional device instead of several floating cards.
+
+#### Scenario: User views the desktop workbench shell
+- **WHEN** the user views the workbench in desktop width with sidebar, request, and response visible
+- **THEN** the three zones retain distinct local shells but are visually connected through aligned edges, narrow seams, and restrained splitter feedback instead of wide card gaps
+
+#### Scenario: User views the compact stacked workbench shell
+- **WHEN** the user views the workbench in compact layout with request and response stacked vertically
+- **THEN** the stacked zones preserve the same docked-segment visual language so they still read as connected parts of one console
+
 ### Requirement: Response inspection communicates lifecycle state explicitly
 The system SHALL present the response inspection surface as a diagnostic view that distinguishes result state, transport metadata, and inspection modes through a stable professional-console hierarchy.
 

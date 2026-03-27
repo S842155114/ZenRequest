@@ -164,11 +164,25 @@ const handleResourceContextMenuGuard = (event: MouseEvent) => {
     event.stopPropagation()
   }
 }
+
+const getTabMethodClass = (value: string) => {
+  switch (value) {
+    case 'GET': return 'text-emerald-700 dark:text-emerald-300'
+    case 'POST': return 'text-orange-700 dark:text-orange-300'
+    case 'PUT': return 'text-sky-700 dark:text-sky-300'
+    case 'DELETE': return 'text-rose-700 dark:text-rose-300'
+    case 'PATCH': return 'text-cyan-700 dark:text-cyan-300'
+    default: return 'text-[var(--zr-text-secondary)]'
+  }
+}
 </script>
 
 <template>
-  <section class="zr-panel zr-editor-shell flex h-full min-h-0 flex-col overflow-hidden rounded-[0.7rem]">
-    <div class="border-b border-[color:var(--zr-border)] px-3 pt-3">
+  <section
+    data-testid="request-panel-root"
+    class="zr-panel zr-editor-shell zr-request-shell flex h-full min-h-0 flex-col overflow-hidden rounded-[0.7rem]"
+  >
+    <div data-testid="request-panel-header" class="zr-request-shell-header border-b border-[color:var(--zr-border)] px-3 pt-3">
       <div class="mb-2.5 flex items-center justify-between gap-2.5">
         <div class="min-w-0">
           <div class="text-[11px] uppercase tracking-[0.22em] text-[var(--zr-text-muted)]">{{ text.request.workspaceTitle }}</div>
@@ -184,7 +198,11 @@ const handleResourceContextMenuGuard = (event: MouseEvent) => {
         </button>
       </div>
 
-      <div v-if="!props.collapsed" data-testid="request-panel-tabs" class="flex items-center gap-1.5 overflow-x-auto pb-3">
+      <div
+        v-if="!props.collapsed"
+        data-testid="request-panel-tabs"
+        class="zr-request-tab-strip flex items-center gap-1.5 overflow-x-auto pb-3"
+      >
         <ContextMenu
           v-for="tab in tabs"
           :key="tab.id"
@@ -194,15 +212,13 @@ const handleResourceContextMenuGuard = (event: MouseEvent) => {
               :data-testid="`request-tab-${getContextMenuTestIdKey(tab.id)}`"
               data-resource-context-menu-surface="true"
               :class="[
-                'group flex min-w-[188px] items-center gap-2 rounded-md border px-2.5 py-2 text-left transition-colors',
-                tab.id === activeTabId
-                  ? 'border-[var(--zr-accent-border)] bg-[var(--zr-accent-soft)]'
-                  : 'border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] hover:bg-[var(--zr-soft-hover)]'
+                'zr-request-tab group flex min-w-[188px] items-center gap-2 rounded-md border px-2.5 py-2 text-left transition-colors',
+                tab.id === activeTabId ? 'zr-request-tab-active' : 'zr-request-tab-idle',
               ]"
               @click="emit('select-tab', tab.id)"
               @contextmenu.capture="handleResourceContextMenuGuard"
             >
-              <span class="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#ffb295]">{{ tab.method }}</span>
+              <span :class="['text-[10px] font-semibold uppercase tracking-[0.18em]', getTabMethodClass(tab.method)]">{{ tab.method }}</span>
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-medium text-[var(--zr-text-primary)]">{{ tab.name }}</div>
                 <div class="truncate text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">{{ localizeScratchPadName(tab.collectionName, props.locale) }}</div>
@@ -239,7 +255,7 @@ const handleResourceContextMenuGuard = (event: MouseEvent) => {
         </Button>
       </div>
 
-      <div v-else class="grid grid-cols-3 gap-1.5 pb-3">
+      <div v-else class="zr-request-summary-grid grid grid-cols-3 gap-1.5 pb-3">
         <div class="zr-summary-card px-3 py-2">
           <div class="text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">{{ text.request.summaryMethod }}</div>
           <div class="mt-1 text-sm font-semibold text-[var(--zr-text-primary)]">{{ activeTab?.method ?? method }}</div>

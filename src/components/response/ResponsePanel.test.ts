@@ -81,6 +81,11 @@ describe('ResponsePanel i18n copy', () => {
       },
     })
 
+    expect(wrapper.get('[data-testid="response-panel-root"]').classes()).toEqual(
+      expect.arrayContaining(['zr-response-shell', 'zr-response-diagnostic']),
+    )
+    expect(wrapper.get('[data-testid="response-panel-tabs"]').classes()).toContain('zr-response-tab-strip')
+
     const tabLabels: string[] = [
       text.response.body,
       text.response.headers,
@@ -204,6 +209,7 @@ describe('ResponsePanel i18n copy', () => {
       } as any,
     })
 
+    expect(wrapper.get('[data-testid="response-panel-root"]').attributes('data-response-state')).toBe('idle')
     expect(wrapper.get('[data-testid="response-state-badge"]').text()).toContain('Ready')
     expect(wrapper.get('[data-testid="response-idle-state"]').text()).toContain('No response yet')
   })
@@ -221,6 +227,7 @@ describe('ResponsePanel i18n copy', () => {
       } as any,
     })
 
+    expect(wrapper.get('[data-testid="response-panel-root"]').attributes('data-response-state')).toBe('pending')
     expect(wrapper.get('[data-testid="response-state-badge"]').text()).toContain('Pending')
     expect(wrapper.get('[data-testid="response-stale-badge"]').text()).toContain('Stale')
     expect(wrapper.get('[data-testid="response-code-viewer"]').attributes('data-language')).toBe('json')

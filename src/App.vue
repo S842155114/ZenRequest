@@ -1323,186 +1323,220 @@ watch(isCompactLayout, async () => {
         surface-test-id="workbench-busy-surface"
         overlay-test-id="workbench-busy-overlay"
       >
-        <ResizablePanelGroup v-if="!isCompactLayout" direction="horizontal" class="relative h-full min-h-0 gap-1">
-          <ResizablePanel :default-size="20" :min-size="16" class="h-full min-h-0 min-w-[252px]">
-            <div data-testid="workbench-sidebar" class="h-full min-h-0">
-              <AppSidebar
-                :locale="locale"
-                :collections="collections"
-                :history-items="historyItems"
-                :active-request-id="activeTab?.requestId"
-                :search-query="searchQuery"
-                :runtime-ready="runtimeReady"
-                @select-request="handleSelectRequest"
-                @create-request="handleCreateTab"
-                @create-collection="handleCreateCollection"
-                @rename-collection="handleRenameCollection"
-                @delete-collection="handleDeleteCollection"
-                @delete-request="handleDeleteRequest"
-                @select-history="handleSelectHistory"
-                @remove-history="handleRemoveHistory"
-                @clear-history="handleClearHistory"
-                @update:search-query="searchQuery = $event"
-              />
-            </div>
-          </ResizablePanel>
-
-          <ResizableHandle
-            class="w-1 rounded-full bg-transparent transition-colors before:bg-[var(--zr-handle-bg)] hover:before:bg-[var(--zr-handle-active)]"
-          />
-
-          <ResizablePanel :default-size="80" class="h-full min-h-0 min-w-0">
-            <ResizablePanelGroup direction="vertical" class="h-full min-h-0 gap-1">
-              <ResizablePanel
-                ref="requestWorkbenchPanel"
-                :default-size="requestDesktopExpandedSize"
-                :min-size="30"
-                :collapsed-size="12"
-                collapsible
-                class="min-h-0"
-                @resize="handleRequestPanelResize"
-                @collapse="requestPanelCollapsed = true"
-                @expand="requestPanelCollapsed = false"
-              >
-                <div data-testid="workbench-request" class="h-full min-h-0">
-                  <RequestPanel
-                    :locale="locale"
-                    :tabs="openTabs"
-                    :active-tab-id="activeTabId"
-                    :active-environment-name="activeEnvironment?.name ?? environments[0]?.name ?? text.common.environment"
-                    :active-environment-variables="activeEnvironment?.variables ?? []"
-                    :resolved-active-url="resolvedActiveUrl"
-                    :collapsed="requestPanelCollapsed"
-                    @select-tab="setActiveTab"
-                    @close-tab="handleCloseTab"
-                    @create-tab="handleCreateTab"
-                    @save-tab="handleSaveRequest"
-                    @update-active-tab="handleUpdateActiveTab"
-                    @update-environment-variables="handleUpdateEnvironmentVariables"
-                    @send="handleSend"
-                    @save-request="handleSaveRequest"
-                    @import-workspace="handleImportWorkspaceClick"
-                    @export-workspace="handleExportWorkspace"
-                    @toggle-collapsed="toggleRequestPanelCollapsed"
-                  />
-                </div>
-              </ResizablePanel>
-
-              <ResizableHandle
-                class="h-1 rounded-full bg-transparent transition-colors before:bg-[var(--zr-handle-bg)] hover:before:bg-[var(--zr-handle-active)]"
-              />
-
-              <ResizablePanel
-                ref="responseWorkbenchPanel"
-                :default-size="responseDesktopExpandedSize"
-                :min-size="10"
-                :collapsed-size="12"
-                collapsible
-                class="min-h-0"
-                @resize="handleResponsePanelResize"
-                @collapse="responsePanelCollapsed = true"
-                @expand="responsePanelCollapsed = false"
-              >
-                <div data-testid="workbench-response" class="h-full min-h-0">
-                  <ResponsePanel
-                    :locale="locale"
-                    :response-body="activeTab?.response.responseBody"
-                    :status="activeTab?.response.status"
-                    :status-text="activeTab?.response.statusText"
-                    :time="activeTab?.response.time"
-                    :size="activeTab?.response.size"
-                    :headers="activeTab?.response.headers"
-                    :test-results="activeTab?.response.testResults"
-                    :configured-tests-count="activeTab?.tests.length ?? 0"
-                    :content-type="activeTab?.response.contentType"
-                    :request-method="activeTab?.response.requestMethod"
-                    :request-url="activeTab?.response.requestUrl"
-                    :state="activeTab?.response.state"
-                    :stale="activeTab?.response.stale"
-                    :theme="resolvedTheme"
-                    :collapsed="responsePanelCollapsed"
-                    @toggle-collapsed="toggleResponsePanelCollapsed"
-                  />
-                </div>
-              </ResizablePanel>
-            </ResizablePanelGroup>
-          </ResizablePanel>
-        </ResizablePanelGroup>
-
-        <ResizablePanelGroup v-else direction="vertical" class="relative h-full min-h-0 gap-1">
-          <ResizablePanel
-            ref="requestWorkbenchPanel"
-            :default-size="requestCompactExpandedSize"
-            :min-size="32"
-            :collapsed-size="18"
-            collapsible
-            class="min-h-0"
-            @resize="handleRequestPanelResize"
-            @collapse="requestPanelCollapsed = true"
-            @expand="requestPanelCollapsed = false"
+        <div data-testid="workbench-carrier" class="zr-workbench-carrier h-full min-h-0">
+          <ResizablePanelGroup
+            v-if="!isCompactLayout"
+            data-testid="workbench-layout-desktop"
+            direction="horizontal"
+            class="zr-workbench-layout zr-workbench-layout-desktop relative h-full min-h-0 gap-[var(--zr-workbench-seam-gap)]"
           >
-            <div data-testid="workbench-request" class="h-full min-h-0">
-              <RequestPanel
-                :locale="locale"
-                :tabs="openTabs"
-                :active-tab-id="activeTabId"
-                :active-environment-name="activeEnvironment?.name ?? environments[0]?.name ?? text.common.environment"
-                :active-environment-variables="activeEnvironment?.variables ?? []"
-                :resolved-active-url="resolvedActiveUrl"
-                :collapsed="requestPanelCollapsed"
-                @select-tab="setActiveTab"
-                @close-tab="handleCloseTab"
-                @create-tab="handleCreateTab"
-                @save-tab="handleSaveRequest"
-                @update-active-tab="handleUpdateActiveTab"
-                @update-environment-variables="handleUpdateEnvironmentVariables"
-                @send="handleSend"
-                @save-request="handleSaveRequest"
-                @import-workspace="handleImportWorkspaceClick"
-                @export-workspace="handleExportWorkspace"
-                @toggle-collapsed="toggleRequestPanelCollapsed"
-              />
-            </div>
-          </ResizablePanel>
+            <ResizablePanel :default-size="20" :min-size="16" class="h-full min-h-0 min-w-[252px]">
+              <div
+                data-testid="workbench-sidebar"
+                class="zr-workbench-segment zr-workbench-segment-sidebar h-full min-h-0 overflow-hidden"
+              >
+                <AppSidebar
+                  :locale="locale"
+                  :collections="collections"
+                  :history-items="historyItems"
+                  :active-request-id="activeTab?.requestId"
+                  :search-query="searchQuery"
+                  :runtime-ready="runtimeReady"
+                  @select-request="handleSelectRequest"
+                  @create-request="handleCreateTab"
+                  @create-collection="handleCreateCollection"
+                  @rename-collection="handleRenameCollection"
+                  @delete-collection="handleDeleteCollection"
+                  @delete-request="handleDeleteRequest"
+                  @select-history="handleSelectHistory"
+                  @remove-history="handleRemoveHistory"
+                  @clear-history="handleClearHistory"
+                  @update:search-query="searchQuery = $event"
+                />
+              </div>
+            </ResizablePanel>
 
-          <ResizableHandle
-            class="h-1 rounded-full bg-transparent transition-colors before:bg-[var(--zr-handle-bg)] hover:before:bg-[var(--zr-handle-active)]"
-          />
+            <ResizableHandle
+              data-testid="workbench-seam-sidebar-request"
+              class="zr-workbench-seam zr-workbench-seam-vertical w-[var(--zr-workbench-seam-size)]"
+            />
 
-          <ResizablePanel
-            ref="responseWorkbenchPanel"
-            :default-size="responseCompactExpandedSize"
-            :min-size="14"
-            :collapsed-size="18"
-            collapsible
-            class="min-h-0"
-            @resize="handleResponsePanelResize"
-            @collapse="responsePanelCollapsed = true"
-            @expand="responsePanelCollapsed = false"
+            <ResizablePanel :default-size="80" class="h-full min-h-0 min-w-0">
+              <ResizablePanelGroup
+                data-testid="workbench-stack-desktop"
+                direction="vertical"
+                class="zr-workbench-layout zr-workbench-layout-stack h-full min-h-0 gap-[var(--zr-workbench-seam-gap)]"
+              >
+                <ResizablePanel
+                  ref="requestWorkbenchPanel"
+                  :default-size="requestDesktopExpandedSize"
+                  :min-size="30"
+                  :collapsed-size="12"
+                  collapsible
+                  class="min-h-0"
+                  @resize="handleRequestPanelResize"
+                  @collapse="requestPanelCollapsed = true"
+                  @expand="requestPanelCollapsed = false"
+                >
+                  <div
+                    data-testid="workbench-request"
+                    class="zr-workbench-segment zr-workbench-segment-request h-full min-h-0 overflow-hidden"
+                  >
+                    <RequestPanel
+                      :locale="locale"
+                      :tabs="openTabs"
+                      :active-tab-id="activeTabId"
+                      :active-environment-name="activeEnvironment?.name ?? environments[0]?.name ?? text.common.environment"
+                      :active-environment-variables="activeEnvironment?.variables ?? []"
+                      :resolved-active-url="resolvedActiveUrl"
+                      :collapsed="requestPanelCollapsed"
+                      @select-tab="setActiveTab"
+                      @close-tab="handleCloseTab"
+                      @create-tab="handleCreateTab"
+                      @save-tab="handleSaveRequest"
+                      @update-active-tab="handleUpdateActiveTab"
+                      @update-environment-variables="handleUpdateEnvironmentVariables"
+                      @send="handleSend"
+                      @save-request="handleSaveRequest"
+                      @import-workspace="handleImportWorkspaceClick"
+                      @export-workspace="handleExportWorkspace"
+                      @toggle-collapsed="toggleRequestPanelCollapsed"
+                    />
+                  </div>
+                </ResizablePanel>
+
+                <ResizableHandle
+                  data-testid="workbench-seam-request-response"
+                  class="zr-workbench-seam zr-workbench-seam-horizontal h-[var(--zr-workbench-seam-size)]"
+                />
+
+                <ResizablePanel
+                  ref="responseWorkbenchPanel"
+                  :default-size="responseDesktopExpandedSize"
+                  :min-size="10"
+                  :collapsed-size="12"
+                  collapsible
+                  class="min-h-0"
+                  @resize="handleResponsePanelResize"
+                  @collapse="responsePanelCollapsed = true"
+                  @expand="responsePanelCollapsed = false"
+                >
+                  <div
+                    data-testid="workbench-response"
+                    class="zr-workbench-segment zr-workbench-segment-response h-full min-h-0 overflow-hidden"
+                  >
+                    <ResponsePanel
+                      :locale="locale"
+                      :response-body="activeTab?.response.responseBody"
+                      :status="activeTab?.response.status"
+                      :status-text="activeTab?.response.statusText"
+                      :time="activeTab?.response.time"
+                      :size="activeTab?.response.size"
+                      :headers="activeTab?.response.headers"
+                      :test-results="activeTab?.response.testResults"
+                      :configured-tests-count="activeTab?.tests.length ?? 0"
+                      :content-type="activeTab?.response.contentType"
+                      :request-method="activeTab?.response.requestMethod"
+                      :request-url="activeTab?.response.requestUrl"
+                      :state="activeTab?.response.state"
+                      :stale="activeTab?.response.stale"
+                      :theme="resolvedTheme"
+                      :collapsed="responsePanelCollapsed"
+                      @toggle-collapsed="toggleResponsePanelCollapsed"
+                    />
+                  </div>
+                </ResizablePanel>
+              </ResizablePanelGroup>
+            </ResizablePanel>
+          </ResizablePanelGroup>
+
+          <ResizablePanelGroup
+            v-else
+            data-testid="workbench-layout-compact"
+            direction="vertical"
+            class="zr-workbench-layout zr-workbench-layout-compact relative h-full min-h-0 gap-[var(--zr-workbench-seam-gap)]"
           >
-            <div data-testid="workbench-response" class="h-full min-h-0">
-              <ResponsePanel
-                :locale="locale"
-                :response-body="activeTab?.response.responseBody"
-                :status="activeTab?.response.status"
-                :status-text="activeTab?.response.statusText"
-                :time="activeTab?.response.time"
-                :size="activeTab?.response.size"
-                :headers="activeTab?.response.headers"
-                :test-results="activeTab?.response.testResults"
-                :configured-tests-count="activeTab?.tests.length ?? 0"
-                :content-type="activeTab?.response.contentType"
-                :request-method="activeTab?.response.requestMethod"
-                :request-url="activeTab?.response.requestUrl"
-                :state="activeTab?.response.state"
-                :stale="activeTab?.response.stale"
-                :theme="resolvedTheme"
-                :collapsed="responsePanelCollapsed"
-                @toggle-collapsed="toggleResponsePanelCollapsed"
-              />
-            </div>
-          </ResizablePanel>
-        </ResizablePanelGroup>
+            <ResizablePanel
+              ref="requestWorkbenchPanel"
+              :default-size="requestCompactExpandedSize"
+              :min-size="32"
+              :collapsed-size="18"
+              collapsible
+              class="min-h-0"
+              @resize="handleRequestPanelResize"
+              @collapse="requestPanelCollapsed = true"
+              @expand="requestPanelCollapsed = false"
+            >
+              <div
+                data-testid="workbench-request"
+                class="zr-workbench-segment zr-workbench-segment-request h-full min-h-0 overflow-hidden"
+              >
+                <RequestPanel
+                  :locale="locale"
+                  :tabs="openTabs"
+                  :active-tab-id="activeTabId"
+                  :active-environment-name="activeEnvironment?.name ?? environments[0]?.name ?? text.common.environment"
+                  :active-environment-variables="activeEnvironment?.variables ?? []"
+                  :resolved-active-url="resolvedActiveUrl"
+                  :collapsed="requestPanelCollapsed"
+                  @select-tab="setActiveTab"
+                  @close-tab="handleCloseTab"
+                  @create-tab="handleCreateTab"
+                  @save-tab="handleSaveRequest"
+                  @update-active-tab="handleUpdateActiveTab"
+                  @update-environment-variables="handleUpdateEnvironmentVariables"
+                  @send="handleSend"
+                  @save-request="handleSaveRequest"
+                  @import-workspace="handleImportWorkspaceClick"
+                  @export-workspace="handleExportWorkspace"
+                  @toggle-collapsed="toggleRequestPanelCollapsed"
+                />
+              </div>
+            </ResizablePanel>
+
+            <ResizableHandle
+              data-testid="workbench-seam-request-response"
+              class="zr-workbench-seam zr-workbench-seam-horizontal h-[var(--zr-workbench-seam-size)]"
+            />
+
+            <ResizablePanel
+              ref="responseWorkbenchPanel"
+              :default-size="responseCompactExpandedSize"
+              :min-size="14"
+              :collapsed-size="18"
+              collapsible
+              class="min-h-0"
+              @resize="handleResponsePanelResize"
+              @collapse="responsePanelCollapsed = true"
+              @expand="responsePanelCollapsed = false"
+            >
+              <div
+                data-testid="workbench-response"
+                class="zr-workbench-segment zr-workbench-segment-response h-full min-h-0 overflow-hidden"
+              >
+                <ResponsePanel
+                  :locale="locale"
+                  :response-body="activeTab?.response.responseBody"
+                  :status="activeTab?.response.status"
+                  :status-text="activeTab?.response.statusText"
+                  :time="activeTab?.response.time"
+                  :size="activeTab?.response.size"
+                  :headers="activeTab?.response.headers"
+                  :test-results="activeTab?.response.testResults"
+                  :configured-tests-count="activeTab?.tests.length ?? 0"
+                  :content-type="activeTab?.response.contentType"
+                  :request-method="activeTab?.response.requestMethod"
+                  :request-url="activeTab?.response.requestUrl"
+                  :state="activeTab?.response.state"
+                  :stale="activeTab?.response.stale"
+                  :theme="resolvedTheme"
+                  :collapsed="responsePanelCollapsed"
+                  @toggle-collapsed="toggleResponsePanelCollapsed"
+                />
+              </div>
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        </div>
       </BusySurface>
 
       <WorkspaceDialog

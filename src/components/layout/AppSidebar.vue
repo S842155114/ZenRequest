@@ -120,11 +120,11 @@ const toggleCollection = (name: string) => {
 
 const getMethodBadgeClass = (method: string) => {
   switch (method) {
-    case 'GET': return 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
-    case 'POST': return 'border-orange-500/25 bg-orange-500/10 text-orange-300'
-    case 'PUT': return 'border-sky-500/25 bg-sky-500/10 text-sky-300'
-    case 'DELETE': return 'border-rose-500/25 bg-rose-500/10 text-rose-300'
-    default: return 'border-white/10 bg-white/5 text-[#a4aab8]'
+    case 'GET': return 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+    case 'POST': return 'border-orange-500/25 bg-orange-500/10 text-orange-700 dark:text-orange-300'
+    case 'PUT': return 'border-sky-500/25 bg-sky-500/10 text-sky-700 dark:text-sky-300'
+    case 'DELETE': return 'border-rose-500/25 bg-rose-500/10 text-rose-700 dark:text-rose-300'
+    default: return 'border-[color:var(--zr-border)] bg-[var(--zr-soft-bg)] text-[var(--zr-text-secondary)]'
   }
 }
 
@@ -150,10 +150,10 @@ const getHistoryGroupKey = (executedAtEpochMs?: number): HistoryGroupKey => {
 
 const getHistoryStatusMetaClass = (status: number) => (
   status < 300
-    ? 'text-emerald-300/85'
+    ? 'text-emerald-700/85 dark:text-emerald-300/85'
     : status < 400
-      ? 'text-amber-300/85'
-      : 'text-rose-300/85'
+      ? 'text-amber-700/85 dark:text-amber-300/85'
+      : 'text-rose-700/85 dark:text-rose-300/85'
 )
 
 const getTestIdKey = (value: string) => value
@@ -209,8 +209,8 @@ const groupedHistoryItems = computed(() => {
 </script>
 
 <template>
-  <aside data-testid="sidebar-root" class="zr-sidebar-shell flex h-full min-h-0 flex-col overflow-hidden rounded-[0.7rem]">
-    <div class="px-3 pt-3">
+  <aside data-testid="sidebar-root" class="zr-sidebar-shell zr-sidebar-browser flex h-full min-h-0 flex-col overflow-hidden rounded-[0.7rem]">
+    <div class="zr-sidebar-browser-header px-3 pt-3">
       <div class="mb-2.5 flex items-start justify-between gap-2.5">
         <div class="min-w-0">
           <div class="flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] text-[var(--zr-text-muted)]">
@@ -226,7 +226,7 @@ const groupedHistoryItems = computed(() => {
         </div>
         <Button
           size="sm"
-          class="h-8 rounded-md bg-[#ff6c37] px-2.5 text-[11px] font-semibold text-white shadow-none hover:bg-[#ff5a20]"
+          class="zr-primary-action h-8 rounded-md px-2.5 text-[11px] font-semibold"
           :disabled="!props.runtimeReady"
           @click="emit('create-request')"
         >
@@ -235,7 +235,7 @@ const groupedHistoryItems = computed(() => {
         </Button>
       </div>
 
-      <div data-testid="sidebar-mode-switcher" class="mt-2.5 flex items-center gap-1.5">
+      <div data-testid="sidebar-mode-switcher" class="zr-sidebar-mode-switch mt-2.5 flex items-center gap-1.5">
         <Button
           size="sm"
           data-testid="sidebar-collections-tab"
@@ -262,7 +262,7 @@ const groupedHistoryItems = computed(() => {
         </Button>
       </div>
 
-      <div data-testid="sidebar-search" class="zr-search-bar mt-2.5 flex items-center gap-2 rounded-md px-2.5">
+      <div data-testid="sidebar-search" class="zr-search-bar zr-sidebar-search mt-2.5 flex items-center gap-2 rounded-md px-2.5">
         <Search class="h-3.5 w-3.5 text-[var(--zr-text-muted)]" />
         <input
           data-testid="sidebar-search-input"
