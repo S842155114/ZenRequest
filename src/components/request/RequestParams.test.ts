@@ -7,7 +7,10 @@ import RequestParams from './RequestParams.vue'
 const tabsStubs = {
   Tabs: defineComponent({ template: '<div><slot /></div>' }),
   TabsList: defineComponent({ template: '<div role="tablist"><slot /></div>' }),
-  TabsTrigger: defineComponent({ template: '<button><slot /></button>' }),
+  TabsTrigger: defineComponent({
+    inheritAttrs: false,
+    template: '<button v-bind="$attrs"><slot /></button>',
+  }),
   TabsContent: defineComponent({ template: '<div><slot /></div>' }),
 }
 
@@ -86,5 +89,22 @@ describe('RequestParams compact chrome', () => {
     await wrapper.findAll('button').find((button) => button.text() === 'Raw')!.trigger('click')
 
     expect(wrapper.find('[data-testid="request-raw-content-type"]').exists()).toBe(true)
+  })
+
+  it('marks auth, tests, and env as secondary configuration tabs', () => {
+    const wrapper = mount(RequestParams, {
+      props: {
+        locale: 'en',
+        environmentName: 'Local',
+      },
+      global: {
+        stubs: tabsStubs,
+      },
+    })
+
+    for (const label of ['Auth', 'Tests', 'Env']) {
+      const trigger = wrapper.findAll('button').find((button) => button.text().includes(label))
+      expect(trigger?.attributes('data-request-secondary')).toBe('true')
+    }
   })
 })

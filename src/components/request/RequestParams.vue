@@ -204,12 +204,13 @@ const text = computed(() => getMessages(props.locale))
         <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ headers.filter(h => h.enabled).length }}</Badge>
       </TabsTrigger>
       <TabsTrigger value="body" class="zr-tab-trigger">{{ text.request.body }}</TabsTrigger>
-      <TabsTrigger value="auth" class="zr-tab-trigger">{{ text.request.auth }}</TabsTrigger>
-      <TabsTrigger value="tests" class="zr-tab-trigger">
+      <span class="mx-1 h-5 w-px self-center bg-[color:var(--zr-border)]" />
+      <TabsTrigger value="auth" data-request-secondary="true" class="zr-tab-trigger opacity-80">{{ text.request.auth }}</TabsTrigger>
+      <TabsTrigger value="tests" data-request-secondary="true" class="zr-tab-trigger opacity-80">
         {{ text.request.tests }}
         <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ tests.length }}</Badge>
       </TabsTrigger>
-      <TabsTrigger value="env" class="zr-tab-trigger">{{ text.request.env }}</TabsTrigger>
+      <TabsTrigger value="env" data-request-secondary="true" class="zr-tab-trigger opacity-80">{{ text.request.env }}</TabsTrigger>
     </TabsList>
     
     <TabsContent value="params" class="mt-2.5 flex-1 px-3 pb-3">

@@ -23,6 +23,7 @@ import {
   createResponseStateFromHistoryItem,
   cloneTests,
   cloneTab,
+  createWorkbenchActivityProjection,
   createBlankRequestTab,
   createRequestTabFromHistorySnapshot,
   createRequestTabFromPreset,
@@ -74,6 +75,7 @@ type DialogKind =
   | 'deleteCollection'
   | 'exportWorkspace'
   | 'importWorkspace'
+  | 'confirmCloseDirtyTab'
   | 'saveRequest'
   | 'createEnvironment'
   | 'renameEnvironment'
@@ -84,6 +86,7 @@ interface DialogState {
   title: string
   description?: string
   confirmText: string
+  secondaryActionText?: string
   destructive?: boolean
   nameLabel?: string
   namePlaceholder?: string
@@ -129,6 +132,7 @@ const systemPrefersDark = ref(
 )
 const workspaceImportInput = ref<HTMLInputElement | null>(null)
 const dialogState = ref<DialogState | null>(null)
+const pendingCloseAfterSaveTabId = ref<string | null>(null)
 const pendingWorkspaceImport = ref<{ packageJson: string; fileName: string; meta: ImportPackageMeta } | null>(null)
 const searchQuery = ref('')
 const toasts = ref<ToastItem[]>([])
@@ -158,6 +162,8 @@ const responseCompactExpandedSize = ref(46)
 const activeWorkspace = computed(() => workspaces.value.find((item) => item.id === activeWorkspaceId.value) ?? workspaces.value[0])
 const activeTab = computed(() => openTabs.value.find((tab) => tab.id === activeTabId.value) ?? openTabs.value[0])
 const activeEnvironment = computed(() => environments.value.find((item) => item.id === activeEnvironmentId.value) ?? environments.value[0])
+const workbenchActivityProjection = computed(() => createWorkbenchActivityProjection(openTabs.value, activeTabId.value))
+const activeRequestResourceId = computed(() => activeTab.value?.origin?.requestId ?? activeTab.value?.requestId)
 const resolvedTheme = computed(() => {
   if (themeMode.value === 'system') {
     return systemPrefersDark.value ? 'dark' : 'light'
@@ -233,6 +239,9 @@ const parseTags = (value: string) => value
 const closeDialog = () => {
   if (dialogState.value?.kind === 'importWorkspace') {
     pendingWorkspaceImport.value = null
+  }
+  if (dialogState.value?.kind === 'saveRequest' || dialogState.value?.kind === 'confirmCloseDirtyTab') {
+    pendingCloseAfterSaveTabId.value = null
   }
   dialogState.value = null
 }
@@ -358,7 +367,7 @@ const setActiveTab = (tabId: string) => {
 }
 
 const handleSelectRequest = (request: RequestPreset) => {
-  const existing = openTabs.value.find((tab) => tab.requestId === request.id)
+  const existing = openTabs.value.find((tab) => tab.origin?.kind === 'resource' && tab.requestId === request.id)
   if (existing) {
     activeTabId.value = existing.id
     return
@@ -376,9 +385,9 @@ const handleCreateTab = () => {
   activeTabId.value = newTab.id
 }
 
-const handleCloseTab = (tabId: string) => {
-  if (openTabs.value.length === 1) return
+const closeTabImmediately = (tabId: string) => {
   const index = openTabs.value.findIndex((tab) => tab.id === tabId)
+  if (index < 0) return
   openTabs.value = openTabs.value.filter((tab) => tab.id !== tabId)
   if (activeTabId.value === tabId) {
     const fallback = openTabs.value[index] ?? openTabs.value[index - 1] ?? openTabs.value[0]
@@ -386,10 +395,32 @@ const handleCloseTab = (tabId: string) => {
   }
 }
 
+const handleCloseTab = (tabId: string) => {
+  if (openTabs.value.length === 1) return
+
+  const targetTab = openTabs.value.find((tab) => tab.id === tabId)
+  if (!targetTab) return
+
+  if (targetTab.isDirty || targetTab.persistenceState !== 'saved') {
+    openDialog({
+      kind: 'confirmCloseDirtyTab',
+      title: text.value.dialogs.closeDirtyTab.title,
+      description: text.value.dialogs.closeDirtyTab.description(targetTab.name),
+      confirmText: text.value.dialogs.closeDirtyTab.confirm,
+      secondaryActionText: text.value.dialogs.closeDirtyTab.secondary,
+      contextName: tabId,
+    })
+    return
+  }
+
+  closeTabImmediately(tabId)
+}
+
 const handleUpdateActiveTab = (payload: Partial<RequestTabState>) => {
   if (!activeTab.value) return
 
   updateTab(activeTab.value.id, (tab) => ({
+    ...(payload.origin ? { origin: payload.origin } : {}),
     ...tab,
     ...payload,
     params: payload.params ? cloneItems(payload.params) : cloneItems(tab.params),
@@ -398,6 +429,15 @@ const handleUpdateActiveTab = (payload: Partial<RequestTabState>) => {
     tests: payload.tests ? cloneTests(payload.tests) : cloneTests(tab.tests),
     response: payload.response ? cloneResponse(payload.response) : cloneResponse(tab.response),
     isDirty: payload.isDirty ?? true,
+    persistenceState: payload.persistenceState
+      ?? (
+        (payload.origin ?? tab.origin)?.kind === 'detached'
+          ? 'unbound'
+          : (payload.isDirty ?? true) ? 'unsaved' : 'saved'
+      ),
+    executionState: payload.executionState
+      ?? payload.response?.state
+      ?? tab.executionState,
   }))
 }
 
@@ -501,20 +541,39 @@ const handleDeleteRequest = async (payload: { collectionName: string; requestId:
   ))
   openTabs.value = openTabs.value.map((tab) => (
     tab.requestId === payload.requestId
-      ? { ...tab, requestId: undefined, collectionId: undefined, collectionName: SCRATCH_PAD_NAME, isDirty: true }
+      ? {
+          ...tab,
+          requestId: undefined,
+          collectionId: undefined,
+          collectionName: SCRATCH_PAD_NAME,
+          origin: {
+            kind: 'detached',
+            requestId: tab.origin?.requestId ?? payload.requestId,
+          },
+          persistenceState: 'unbound',
+          isDirty: true,
+        }
       : tab
   ))
   showToast({ ...text.value.toasts.requestRemoved(payload.collectionName), tone: 'success' })
 }
 
 const handleSelectHistory = (item: HistoryItem) => {
+  const existing = openTabs.value.find((tab) => (
+    tab.origin?.kind === 'replay' && tab.origin?.historyItemId === item.id
+  ))
+  if (existing) {
+    activeTabId.value = existing.id
+    return
+  }
+
   const snapshot = item.requestSnapshot as HistoryRequestSnapshot | undefined
   const requestFromCollection = item.requestId
     ? collections.value.flatMap((collection) => collection.requests).find((request) => request.id === item.requestId)
     : undefined
   const fallbackPreset = requestFromCollection ? clonePreset(requestFromCollection) : undefined
   const newTab = snapshot
-    ? createRequestTabFromHistorySnapshot(snapshot, item.name)
+    ? createRequestTabFromHistorySnapshot(snapshot, item.name, item.id)
     : fallbackPreset
       ? createRequestTabFromPreset(fallbackPreset)
       : createBlankRequestTab()
@@ -529,9 +588,17 @@ const handleSelectHistory = (item: HistoryItem) => {
     : fallbackPreset?.tags?.length
       ? [...fallbackPreset.tags]
       : [text.value.toasts.historyTag]
+  newTab.origin = {
+    kind: 'replay',
+    requestId: snapshot?.requestId ?? fallbackPreset?.id ?? item.requestId,
+    historyItemId: item.id,
+  }
+  newTab.persistenceState = 'unsaved'
+  newTab.isDirty = true
   newTab.method = resolvedMethod
   newTab.url = resolvedUrl
   newTab.response = cloneResponse(createResponseStateFromHistoryItem(item, resolvedMethod, resolvedUrl))
+  newTab.executionState = newTab.response.state ?? 'idle'
   openTabs.value = [...openTabs.value, newTab]
   activeTabId.value = newTab.id
 }
@@ -626,6 +693,7 @@ const handleSaveRequest = (tabId?: string) => {
       label: collection.name,
       value: collection.name,
     })),
+    contextName: tab.id,
   })
 }
 
@@ -685,6 +753,16 @@ const handleWorkspaceImportChange = async (event: Event) => {
       text.value.toasts.workspaceImportFailed,
       error instanceof Error ? error.message : String(error),
     )
+  }
+}
+
+const handleDialogSecondaryAction = () => {
+  const dialog = dialogState.value
+  if (!dialog) return
+
+  if (dialog.kind === 'confirmCloseDirtyTab' && dialog.contextName) {
+    closeTabImmediately(dialog.contextName)
+    closeDialog()
   }
 }
 
@@ -793,14 +871,34 @@ const handleDialogSubmit = async (payload: {
       collections.value = collections.value.filter((collection) => collection.id !== target.id)
       openTabs.value = openTabs.value.map((tab) => (
         deletedRequestIds.has(tab.requestId ?? '')
-          ? { ...tab, requestId: undefined, collectionId: undefined, collectionName: SCRATCH_PAD_NAME, isDirty: true }
+          ? {
+              ...tab,
+              requestId: undefined,
+              collectionId: undefined,
+              collectionName: SCRATCH_PAD_NAME,
+              origin: {
+                kind: 'detached',
+                requestId: tab.origin?.requestId ?? tab.requestId,
+              },
+              persistenceState: 'unbound',
+              isDirty: true,
+            }
           : tab
       ))
       showToast({ ...text.value.toasts.collectionDeleted(target.name), tone: 'success' })
       break
     }
+    case 'confirmCloseDirtyTab': {
+      if (!dialog.contextName) break
+      pendingCloseAfterSaveTabId.value = dialog.contextName
+      handleSaveRequest(dialog.contextName)
+      return
+    }
     case 'saveRequest': {
-      const tab = activeTab.value
+      const targetTabId = dialog.contextName
+      const tab = targetTabId
+        ? openTabs.value.find((item) => item.id === targetTabId) ?? activeTab.value
+        : activeTab.value
       if (!tab) break
 
       const requestName = payload.nameValue
@@ -850,15 +948,28 @@ const handleDialogSubmit = async (payload: {
         return { ...collection, expanded: true, requests }
       })
 
-      handleUpdateActiveTab({
-        requestId: saveResult.data.id,
+      const savedRequestId = saveResult.data.id
+      updateTab(tab.id, (currentTab) => ({
+        ...currentTab,
+        requestId: savedRequestId,
         name: requestName,
         description: requestDescription,
         tags: requestTags,
         collectionId: targetCollection.id,
         collectionName: targetCollection.name,
+        origin: {
+          kind: 'resource',
+          requestId: savedRequestId,
+        },
+        persistenceState: 'saved',
         isDirty: false,
-      })
+      }))
+
+      const shouldCloseAfterSave = pendingCloseAfterSaveTabId.value === tab.id
+      if (shouldCloseAfterSave) {
+        pendingCloseAfterSaveTabId.value = null
+        closeTabImmediately(tab.id)
+      }
 
       showToast({ ...text.value.toasts.requestSaved(requestName, targetCollection.name), tone: 'success' })
       break
@@ -1017,6 +1128,7 @@ const handleSend = async (payload: SendRequestPayload) => {
     auth: cloneAuth(payload.auth),
     tests: cloneTests(payload.tests),
     isSending: true,
+    executionState: 'pending',
     response: cloneResponse({
       ...tab.response,
       state: 'pending',
@@ -1034,7 +1146,7 @@ const handleSend = async (payload: SendRequestPayload) => {
     updateTab(payload.tabId, (tab) => ({
       ...tab,
       isSending: false,
-      isDirty: false,
+      executionState: resolveResponseStateFromStatus(response.data!.status),
       response: {
         responseBody: response.data!.responseBody || '{\n  "message": "Empty response body"\n}',
         status: response.data!.status,
@@ -1065,6 +1177,7 @@ const handleSend = async (payload: SendRequestPayload) => {
     updateTab(payload.tabId, (tab) => ({
       ...tab,
       isSending: false,
+      executionState: 'transport-error',
       response: {
         responseBody: JSON.stringify({ error: 'Request failed', message }, null, 2),
         status: 0,
@@ -1296,7 +1409,8 @@ watch(isCompactLayout, async () => {
                 :locale="locale"
                 :collections="collections"
                 :history-items="historyItems"
-                :active-request-id="activeTab?.requestId"
+                :active-request-id="activeRequestResourceId"
+                :activity-projection="workbenchActivityProjection"
                 :search-query="searchQuery"
                 :runtime-ready="runtimeReady"
                 @select-request="handleSelectRequest"
@@ -1339,7 +1453,8 @@ watch(isCompactLayout, async () => {
                   :locale="locale"
                   :collections="collections"
                   :history-items="historyItems"
-                  :active-request-id="activeTab?.requestId"
+                  :active-request-id="activeRequestResourceId"
+                  :activity-projection="workbenchActivityProjection"
                   :search-query="searchQuery"
                   :runtime-ready="runtimeReady"
                   @select-request="handleSelectRequest"
@@ -1385,6 +1500,7 @@ watch(isCompactLayout, async () => {
                     <RequestPanel
                       :locale="locale"
                       :tabs="openTabs"
+                      :activity-projection="workbenchActivityProjection"
                       :active-tab-id="activeTabId"
                       :active-environment-name="activeEnvironment?.name ?? environments[0]?.name ?? text.common.environment"
                       :active-environment-variables="activeEnvironment?.variables ?? []"
@@ -1474,6 +1590,7 @@ watch(isCompactLayout, async () => {
                 <RequestPanel
                   :locale="locale"
                   :tabs="openTabs"
+                  :activity-projection="workbenchActivityProjection"
                   :active-tab-id="activeTabId"
                   :active-environment-name="activeEnvironment?.name ?? environments[0]?.name ?? text.common.environment"
                   :active-environment-variables="activeEnvironment?.variables ?? []"
@@ -1558,7 +1675,9 @@ watch(isCompactLayout, async () => {
         :select-label="dialogState?.selectLabel ?? ''"
         :select-value="dialogState?.selectValue ?? ''"
         :select-options="dialogState?.selectOptions ?? []"
+        :secondary-action-text="dialogState?.secondaryActionText ?? ''"
         @close="closeDialog"
+        @secondary-action="handleDialogSecondaryAction"
         @submit="handleDialogSubmit"
       />
     </template>

@@ -1,14 +1,4 @@
-# history Specification
-
-## Purpose
-TBD - created by archiving change align-runtime-domain-model. Update Purpose after archive.
-## Requirements
-### Requirement: History is long-lived workspace data
-The system SHALL persist request history as long-lived, manageable data owned by a workspace rather than as transient UI-only state.
-
-#### Scenario: Workspace history remains available
-- **WHEN** the user reopens a workspace after a restart
-- **THEN** the system restores that workspace's persisted history entries
+## MODIFIED Requirements
 
 ### Requirement: History uses mixed reference-plus-snapshot storage
 Each history item SHALL store an execution-time request snapshot and MAY reference the originating saved request by request id when one exists. When reopened in the workbench, the stored request snapshot SHALL remain the authoritative replay source, and the replayed work item MUST NOT be treated as the same object as the canonical saved request solely because they share a request id.
@@ -25,19 +15,7 @@ Each history item SHALL store an execution-time request snapshot and MAY referen
 - **WHEN** the user reopens a history item that references an existing saved request
 - **THEN** the workbench restores the history snapshot as a replay draft distinct from the canonical saved request tab
 
-### Requirement: History stores preview content only
-The system SHALL store preview response content in history rather than full large response bodies, and it MUST mark truncated previews when the stored content is incomplete.
-
-#### Scenario: Large response recorded in history
-- **WHEN** a request response exceeds the history preview limit
-- **THEN** the system stores only preview content and marks the history item as truncated
-
-### Requirement: History redacts header and auth sensitive data
-The system SHALL redact header/auth-sensitive data in persisted history records, including authorization and cookie-like credentials.
-
-#### Scenario: Sensitive header in executed request
-- **WHEN** a request containing sensitive authorization or cookie data is recorded in history
-- **THEN** the persisted history record stores redacted values instead of raw sensitive credentials
+## ADDED Requirements
 
 ### Requirement: History reopens into replay drafts with stable identity
 The system SHALL reopen a history item into a replay draft identified by that history item so repeated reopen actions for the same history entry remain predictable and do not collapse into the canonical saved request tab.
@@ -49,4 +27,3 @@ The system SHALL reopen a history item into a replay draft identified by that hi
 #### Scenario: User reopens different history items from the same saved request
 - **WHEN** the user reopens two different history items that both reference the same saved request id
 - **THEN** the system opens or focuses separate replay drafts for those history items because each history snapshot is a distinct replay source
-
