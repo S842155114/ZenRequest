@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { defineComponent } from 'vue'
+import { defineComponent, nextTick } from 'vue'
 
 import RequestPanel from './RequestPanel.vue'
 import type { RequestTabState } from '@/types/request'
@@ -44,6 +44,10 @@ const createTab = (): RequestTabState => ({
 })
 
 describe('RequestPanel i18n copy', () => {
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
   it('renders shell labels from i18n in zh-CN locale', () => {
     const wrapper = mount(RequestPanel, {
       props: {
@@ -155,5 +159,65 @@ describe('RequestPanel i18n copy', () => {
 
     expect(wrapper.find('[data-testid="request-panel-busy-overlay"]').exists()).toBe(false)
     expect(wrapper.get('[data-testid="request-panel-busy-surface"]').attributes('aria-busy')).toBe('false')
+  })
+
+  it('opens a context menu for a non-active tab without selecting it first', async () => {
+    const wrapper = mount(RequestPanel, {
+      attachTo: document.body,
+      props: {
+        locale: 'en',
+        tabs: [
+          createTab(),
+          { ...createTab(), id: 'tab-2', name: 'User Detail', collectionName: 'Orders' },
+        ],
+        activeTabId: 'tab-1',
+        activeEnvironmentName: 'Local',
+        activeEnvironmentVariables: [],
+        resolvedActiveUrl: 'https://example.com/orders',
+      },
+      global: {
+        stubs: {
+          RequestUrlBar: defineComponent({ template: '<div data-testid="request-url-bar-stub" />' }),
+          RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
+        },
+      },
+    })
+
+    await wrapper.get('[data-testid="request-tab-tab-2"]').trigger('contextmenu')
+    await nextTick()
+
+    expect(wrapper.emitted('select-tab')).toBeUndefined()
+
+    const saveItem = document.body.querySelector('[data-testid="request-tab-context-save-tab-2"]')
+    expect(saveItem).not.toBeNull()
+
+    saveItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await nextTick()
+
+    expect(wrapper.emitted('save-tab')?.[0]).toEqual(['tab-2'])
+  })
+
+  it('keeps editable request controls on native context-menu behavior', async () => {
+    const wrapper = mount(RequestPanel, {
+      attachTo: document.body,
+      props: {
+        locale: 'en',
+        tabs: [createTab()],
+        activeTabId: 'tab-1',
+        activeEnvironmentName: 'Local',
+        activeEnvironmentVariables: [],
+        resolvedActiveUrl: 'https://example.com/orders',
+      },
+      global: {
+        stubs: {
+          RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
+        },
+      },
+    })
+
+    await wrapper.get('input').trigger('contextmenu')
+    await nextTick()
+
+    expect(document.body.querySelector('[data-testid="request-tab-context-menu"]')).toBeNull()
   })
 })

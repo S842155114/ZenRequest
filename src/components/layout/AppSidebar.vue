@@ -4,9 +4,17 @@ import { getMessages } from '@/lib/i18n'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu'
 import { Separator } from '@/components/ui/separator'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import type { AppLocale, HistoryItem, RequestCollection, RequestPreset } from '@/types/request'
+import { getContextMenuTestIdKey, shouldBypassResourceContextMenu } from '@/lib/resource-context-menu'
 import {
   Boxes,
   ChevronDown,
@@ -121,10 +129,16 @@ const getStatusBadgeClass = (status: number) => (
 )
 
 const text = computed(() => getMessages(props.locale))
+
+const handleResourceContextMenuGuard = (event: MouseEvent) => {
+  if (shouldBypassResourceContextMenu(event.target)) {
+    event.stopPropagation()
+  }
+}
 </script>
 
 <template>
-  <aside class="zr-sidebar-shell flex h-full min-h-0 flex-col overflow-hidden rounded-[0.7rem]">
+  <aside data-testid="sidebar-root" class="zr-sidebar-shell flex h-full min-h-0 flex-col overflow-hidden rounded-[0.7rem]">
     <div class="px-3 pt-3">
       <div class="mb-2.5 flex items-start justify-between gap-2.5">
         <div class="min-w-0">
@@ -150,6 +164,8 @@ const text = computed(() => getMessages(props.locale))
       <div class="zr-search-bar flex items-center gap-2 rounded-md px-2.5">
         <Search class="h-3.5 w-3.5 text-[var(--zr-text-muted)]" />
         <input
+          data-testid="sidebar-search-input"
+          data-native-context-menu="true"
           :value="props.searchQuery"
           class="w-full bg-transparent py-1.5 text-[13px] text-[var(--zr-text-primary)] outline-none placeholder:text-[var(--zr-text-muted)]"
           :placeholder="text.sidebar.filterPlaceholder"
@@ -210,65 +226,111 @@ const text = computed(() => getMessages(props.locale))
           class="zr-sidebar-card"
           @update:open="toggleCollection(collection.name)"
         >
-          <div class="px-2.5 py-2.5">
-            <CollapsibleTrigger class="flex w-full items-center gap-2.5 text-left">
-              <div class="zr-folder-icon">
-                <FolderKanban class="h-3.5 w-3.5" />
+          <ContextMenu>
+            <ContextMenuTrigger as-child>
+              <div
+                :data-testid="`sidebar-collection-surface-${getContextMenuTestIdKey(collection.name)}`"
+                data-resource-context-menu-surface="true"
+                class="px-2.5 py-2.5"
+                @contextmenu.capture="handleResourceContextMenuGuard"
+              >
+                <CollapsibleTrigger class="flex w-full items-center gap-2.5 text-left">
+                  <div class="zr-folder-icon">
+                    <FolderKanban class="h-3.5 w-3.5" />
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <div class="truncate text-[13px] font-medium text-[var(--zr-text-primary)]">{{ collection.name }}</div>
+                    <div class="mt-0.5 text-[10px] text-[var(--zr-text-muted)]">{{ text.sidebar.requestsCount(collection.requests.length) }}</div>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <Button variant="ghost" size="icon-sm" class="zr-tool-button h-6 w-6 rounded-md" @click.stop="emit('rename-collection', collection.name)">
+                      <Pencil class="h-3 w-3" />
+                    </Button>
+                    <Button variant="ghost" size="icon-sm" class="zr-tool-button h-6 w-6 rounded-md hover:text-rose-300" @click.stop="emit('delete-collection', collection.name)">
+                      <Trash2 class="h-3 w-3" />
+                    </Button>
+                  </div>
+                  <component
+                    :is="isCollectionExpanded(collection.name) || collection.expanded ? ChevronDown : ChevronRight"
+                    class="h-4 w-4 shrink-0 text-[var(--zr-text-muted)]"
+                  />
+                </CollapsibleTrigger>
               </div>
-              <div class="min-w-0 flex-1">
-                <div class="truncate text-[13px] font-medium text-[var(--zr-text-primary)]">{{ collection.name }}</div>
-                <div class="mt-0.5 text-[10px] text-[var(--zr-text-muted)]">{{ text.sidebar.requestsCount(collection.requests.length) }}</div>
-              </div>
-              <div class="flex items-center gap-1">
-                <Button variant="ghost" size="icon-sm" class="zr-tool-button h-6 w-6 rounded-md" @click.stop="emit('rename-collection', collection.name)">
-                  <Pencil class="h-3 w-3" />
-                </Button>
-                <Button variant="ghost" size="icon-sm" class="zr-tool-button h-6 w-6 rounded-md hover:text-rose-300" @click.stop="emit('delete-collection', collection.name)">
-                  <Trash2 class="h-3 w-3" />
-                </Button>
-              </div>
-              <component
-                :is="isCollectionExpanded(collection.name) || collection.expanded ? ChevronDown : ChevronRight"
-                class="h-4 w-4 shrink-0 text-[var(--zr-text-muted)]"
-              />
-            </CollapsibleTrigger>
-          </div>
+            </ContextMenuTrigger>
+            <ContextMenuContent data-testid="collection-context-menu" class="zr-dropdown min-w-[180px]">
+              <ContextMenuItem
+                :data-testid="`collection-context-rename-${getContextMenuTestIdKey(collection.name)}`"
+                @select="emit('rename-collection', collection.name)"
+              >
+                {{ text.common.rename }}
+              </ContextMenuItem>
+              <ContextMenuItem
+                :data-testid="`collection-context-delete-${getContextMenuTestIdKey(collection.name)}`"
+                @select="emit('delete-collection', collection.name)"
+              >
+                {{ text.common.delete }}
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
 
           <CollapsibleContent>
             <Separator class="bg-[var(--zr-border)]" />
             <div class="space-y-0.5 px-1.5 py-1.5">
-              <button
+              <ContextMenu
                 v-for="request in collection.requests"
                 :key="request.id"
-                :class="[
-                  'zr-request-row group flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors',
-                  props.activeRequestId === request.id
-                    ? 'zr-request-row-active'
-                    : 'zr-request-row-idle'
-                ]"
-                @click="emit('select-request', request)"
               >
-                <Badge
-                  variant="outline"
-                  :class="['mt-0.5 min-w-[2.8rem] justify-center rounded-md border text-[10px] font-semibold tracking-[0.16em]', getMethodBadgeClass(request.method)]"
-                >
-                  {{ request.method.substring(0, 3) }}
-                </Badge>
-                <div class="min-w-0 flex-1">
-                  <div class="truncate text-[12px] font-medium text-[var(--zr-text-primary)]">{{ request.name }}</div>
-                  <div v-if="request.description" class="mt-0.5 line-clamp-2 text-[10px] leading-4 text-[var(--zr-text-muted)]">
-                    {{ request.description }}
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  class="zr-tool-button h-5 w-5 rounded-sm opacity-0 transition-opacity group-hover:opacity-100 hover:text-rose-300"
-                  @click.stop="emit('delete-request', { collectionName: collection.name, requestId: request.id })"
-                >
-                  <Trash2 class="h-3 w-3" />
-                </Button>
-              </button>
+                <ContextMenuTrigger as-child>
+                  <button
+                    :data-testid="`sidebar-request-surface-${getContextMenuTestIdKey(request.id)}`"
+                    data-resource-context-menu-surface="true"
+                    :class="[
+                      'zr-request-row group flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors',
+                      props.activeRequestId === request.id
+                        ? 'zr-request-row-active'
+                        : 'zr-request-row-idle'
+                    ]"
+                    @click="emit('select-request', request)"
+                    @contextmenu.capture="handleResourceContextMenuGuard"
+                  >
+                    <Badge
+                      variant="outline"
+                      :class="['mt-0.5 min-w-[2.8rem] justify-center rounded-md border text-[10px] font-semibold tracking-[0.16em]', getMethodBadgeClass(request.method)]"
+                    >
+                      {{ request.method.substring(0, 3) }}
+                    </Badge>
+                    <div class="min-w-0 flex-1">
+                      <div class="truncate text-[12px] font-medium text-[var(--zr-text-primary)]">{{ request.name }}</div>
+                      <div v-if="request.description" class="mt-0.5 line-clamp-2 text-[10px] leading-4 text-[var(--zr-text-muted)]">
+                        {{ request.description }}
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      class="zr-tool-button h-5 w-5 rounded-sm opacity-0 transition-opacity group-hover:opacity-100 hover:text-rose-300"
+                      @click.stop="emit('delete-request', { collectionName: collection.name, requestId: request.id })"
+                    >
+                      <Trash2 class="h-3 w-3" />
+                    </Button>
+                  </button>
+                </ContextMenuTrigger>
+                <ContextMenuContent data-testid="request-context-menu" class="zr-dropdown min-w-[180px]">
+                  <ContextMenuItem
+                    :data-testid="`request-context-open-${getContextMenuTestIdKey(request.id)}`"
+                    @select="emit('select-request', request)"
+                  >
+                    {{ text.common.open }}
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem
+                    :data-testid="`request-context-delete-${getContextMenuTestIdKey(request.id)}`"
+                    @select="emit('delete-request', { collectionName: collection.name, requestId: request.id })"
+                  >
+                    {{ text.common.delete }}
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
             </div>
           </CollapsibleContent>
         </Collapsible>

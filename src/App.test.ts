@@ -254,7 +254,11 @@ const AppHeaderStub = defineComponent({
 
 const AppSidebarStub = defineComponent({
   name: 'AppSidebar',
-  template: '<div data-testid="sidebar-stub">sidebar</div>',
+  template: `
+    <div data-testid="sidebar-stub">
+      <div data-testid="resource-context-surface" data-resource-context-menu-surface="true">resource-surface</div>
+    </div>
+  `,
 })
 
 const RequestPanelStub = defineComponent({
@@ -266,7 +270,13 @@ const RequestPanelStub = defineComponent({
   setup(props) {
     return () => {
       const current = (props.tabs as Array<{ id: string; name: string }>).find((tab) => tab.id === props.activeTabId)
-      return h('div', { 'data-testid': 'request-panel-stub' }, current?.name ?? 'no-active-tab')
+      return h('div', { 'data-testid': 'request-panel-stub' }, [
+        h('div', current?.name ?? 'no-active-tab'),
+        h('input', {
+          'data-testid': 'native-context-input',
+          'data-native-context-menu': 'true',
+        }),
+      ])
     }
   },
 })
@@ -288,6 +298,7 @@ const AppToastListStub = defineComponent({
 
 const mountApp = async () => {
   const wrapper = mount(App, {
+    attachTo: document.body,
     global: {
       stubs: {
         AppHeader: AppHeaderStub,
@@ -314,6 +325,7 @@ beforeEach(() => {
 
 afterEach(() => {
   setRuntimeAdapter(createAdapter())
+  document.body.innerHTML = ''
 })
 
 describe('App workbench shell', () => {
@@ -512,5 +524,24 @@ describe('App workbench shell', () => {
     expect(wrapper.get('[data-testid="workbench-sidebar"]').classes()).toContain('min-h-0')
     expect(wrapper.get('[data-testid="workbench-request"]').classes()).toContain('min-h-0')
     expect(wrapper.get('[data-testid="workbench-response"]').classes()).toContain('min-h-0')
+  })
+
+  it('suppresses global context menus on unsupported surfaces while allowing whitelisted targets', async () => {
+    window.innerWidth = 1440
+    setRuntimeAdapter(createAdapter())
+
+    const wrapper = await mountApp()
+
+    const blockedEvent = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
+    wrapper.get('[data-testid="workbench-response"]').element.dispatchEvent(blockedEvent)
+    expect(blockedEvent.defaultPrevented).toBe(true)
+
+    const allowedEvent = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
+    wrapper.get('[data-testid="resource-context-surface"]').element.dispatchEvent(allowedEvent)
+    expect(allowedEvent.defaultPrevented).toBe(false)
+
+    const nativeInputEvent = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
+    wrapper.get('[data-testid="native-context-input"]').element.dispatchEvent(nativeInputEvent)
+    expect(nativeInputEvent.defaultPrevented).toBe(false)
   })
 })

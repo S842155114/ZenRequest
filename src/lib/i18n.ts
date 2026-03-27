@@ -6,6 +6,7 @@ const messages = {
   en: {
     common: {
       cancel: 'Cancel',
+      close: 'Close',
       collection: 'Collection',
       create: 'Create',
       delete: 'Delete',
@@ -15,6 +16,7 @@ const messages = {
       exportJson: 'Export JSON',
       importJson: 'Import JSON',
       name: 'Name',
+      open: 'Open',
       rename: 'Rename',
       save: 'Save',
       search: 'Search',
@@ -386,6 +388,7 @@ const messages = {
   'zh-CN': {
     common: {
       cancel: '取消',
+      close: '关闭',
       collection: '集合',
       create: '创建',
       delete: '删除',
@@ -395,6 +398,7 @@ const messages = {
       exportJson: '导出 JSON',
       importJson: '导入 JSON',
       name: '名称',
+      open: '打开',
       rename: '重命名',
       save: '保存',
       search: '搜索',
