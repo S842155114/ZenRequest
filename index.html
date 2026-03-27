@@ -7,9 +7,34 @@
     <title>ZenRequest</title>
     <script>
       try {
-        var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-        document.documentElement.dataset.startupTheme = prefersDark ? "dark" : "light";
+        var storageKey = "zenrequest.workspace";
+        var rawSnapshot = window.localStorage ? window.localStorage.getItem(storageKey) : null;
+        var themeMode = "dark";
+
+        if (rawSnapshot) {
+          var parsedSnapshot = JSON.parse(rawSnapshot);
+          var storedThemeMode = parsedSnapshot && parsedSnapshot.themeMode;
+
+          if (storedThemeMode === "light" || storedThemeMode === "dark" || storedThemeMode === "system") {
+            themeMode = storedThemeMode;
+          }
+        }
+
+        var resolvedTheme = themeMode;
+        if (themeMode === "system") {
+          resolvedTheme = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
+            ? "dark"
+            : "light";
+        }
+
+        if (resolvedTheme !== "light" && resolvedTheme !== "dark") {
+          resolvedTheme = "dark";
+        }
+
+        document.documentElement.dataset.theme = resolvedTheme;
+        document.documentElement.dataset.startupTheme = resolvedTheme;
       } catch (_error) {
+        document.documentElement.dataset.theme = "dark";
         document.documentElement.dataset.startupTheme = "dark";
       }
     </script>

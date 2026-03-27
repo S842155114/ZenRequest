@@ -4,7 +4,6 @@ import { getMessages } from '@/lib/i18n'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
 import { defaultAuthConfig, defaultRequestTest } from '@/lib/request-workspace'
 import type {
@@ -220,8 +219,8 @@ const text = computed(() => getMessages(props.locale))
 </script>
 
 <template>
-  <Tabs default-value="params" class="flex min-h-0 flex-1 flex-col">
-    <TabsList class="zr-input mx-3 mt-3 w-fit rounded-lg p-0.5">
+  <Tabs data-testid="request-compose-body" default-value="params" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+    <TabsList class="zr-input mx-3 mt-3 w-fit shrink-0 rounded-lg p-0.5">
       <TabsTrigger value="params" data-testid="request-section-trigger-params" class="zr-tab-trigger">
         {{ text.request.params }}
         <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ enabledParamsCount }}</Badge>
@@ -248,9 +247,9 @@ const text = computed(() => getMessages(props.locale))
         <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ enabledEnvironmentVariablesCount }}</Badge>
       </TabsTrigger>
     </TabsList>
-    
-    <TabsContent value="params" class="mt-2.5 flex-1 px-3 pb-3">
-      <ScrollArea class="h-full">
+
+    <div data-testid="request-compose-scroll-area" class="min-h-0 flex-1 overflow-y-auto">
+      <TabsContent value="params" data-testid="request-section-content-params" class="mt-2.5 px-3 pb-3">
         <div class="zr-code-panel overflow-hidden rounded-lg">
           <table class="w-full text-xs">
             <thead>
@@ -305,11 +304,9 @@ const text = computed(() => getMessages(props.locale))
         <Button variant="ghost" size="sm" class="zr-dashed-button mt-2.5 rounded-lg text-xs" @click="addItem(params)">
           {{ text.request.addParameter }}
         </Button>
-      </ScrollArea>
-    </TabsContent>
-    
-    <TabsContent value="headers" class="mt-2.5 flex-1 px-3 pb-3">
-      <ScrollArea class="h-full">
+      </TabsContent>
+
+      <TabsContent value="headers" data-testid="request-section-content-headers" class="mt-2.5 px-3 pb-3">
         <div class="zr-code-panel overflow-hidden rounded-lg">
           <table class="w-full text-xs">
             <thead>
@@ -357,24 +354,22 @@ const text = computed(() => getMessages(props.locale))
         <Button variant="ghost" size="sm" class="zr-dashed-button mt-2.5 rounded-lg text-xs" @click="addItem(headers)">
           {{ text.request.addHeader }}
         </Button>
-      </ScrollArea>
-    </TabsContent>
-    
-    <TabsContent value="body" class="mt-2.5 flex-1 px-3 pb-3">
+      </TabsContent>
+
+      <TabsContent value="body" data-testid="request-section-content-body" class="mt-2.5 px-3 pb-3">
       <div class="mb-2.5 flex items-center gap-1.5">
         <Button variant="ghost" size="sm" :class="['h-7 rounded-lg px-2.5 text-[10px]', bodyType === 'json' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="bodyType = 'json'">{{ text.request.json }}</Button>
         <Button variant="ghost" size="sm" :class="['h-7 rounded-lg px-2.5 text-[10px]', bodyType === 'formdata' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="bodyType = 'formdata'">{{ text.request.formData }}</Button>
         <Button variant="ghost" size="sm" :class="['h-7 rounded-lg px-2.5 text-[10px]', bodyType === 'raw' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="bodyType = 'raw'">{{ text.request.raw }}</Button>
         <Button variant="ghost" size="sm" :class="['h-7 rounded-lg px-2.5 text-[10px]', bodyType === 'binary' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="bodyType = 'binary'">{{ text.request.binary }}</Button>
       </div>
-      <div class="zr-code-panel flex h-[calc(100%-40px)] min-h-[160px] flex-col overflow-hidden rounded-lg">
+      <div class="zr-code-panel flex min-h-[18rem] flex-col overflow-hidden rounded-lg">
         <div class="flex items-center justify-between border-b border-[color:var(--zr-border)] px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">
           <span>{{ text.request.requestPayload }}</span>
           <span class="zr-chip rounded-full px-2 py-1 text-[10px] tracking-[0.18em] text-[var(--zr-text-secondary)]">{{ bodyType }}</span>
         </div>
         <template v-if="bodyType === 'formdata'">
-          <div data-testid="request-formdata-editor" class="flex min-h-0 flex-1 flex-col p-3">
-            <ScrollArea class="min-h-0 flex-1">
+          <div data-testid="request-formdata-editor" class="flex flex-col p-3">
               <div class="overflow-hidden rounded-lg border border-[color:var(--zr-border)]">
                 <table class="w-full text-xs">
                   <thead class="bg-[var(--zr-soft-bg)] text-left text-xs text-[var(--zr-text-muted)]">
@@ -423,7 +418,6 @@ const text = computed(() => getMessages(props.locale))
                   </tbody>
                 </table>
               </div>
-            </ScrollArea>
             <Button
               data-testid="request-formdata-add-field"
               variant="ghost"
@@ -436,7 +430,7 @@ const text = computed(() => getMessages(props.locale))
           </div>
         </template>
         <template v-else-if="bodyType === 'binary'">
-          <div data-testid="request-binary-editor" class="flex min-h-0 flex-1 flex-col gap-3 p-3">
+          <div data-testid="request-binary-editor" class="flex flex-col gap-3 p-3">
             <div class="space-y-2">
               <div class="text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">{{ text.request.binaryUpload }}</div>
               <input
@@ -489,7 +483,7 @@ const text = computed(() => getMessages(props.locale))
           </div>
           <textarea
             v-model="bodyContent"
-            class="min-h-0 flex-1 resize-none bg-transparent p-3 font-mono text-xs leading-5 text-[var(--zr-text-primary)] outline-none"
+            class="min-h-[15rem] w-full resize-none bg-transparent p-3 font-mono text-xs leading-5 text-[var(--zr-text-primary)] outline-none"
           />
           <div
             v-if="bodyType === 'json' && jsonBodyError"
@@ -499,9 +493,9 @@ const text = computed(() => getMessages(props.locale))
           </div>
         </template>
       </div>
-    </TabsContent>
-    
-    <TabsContent value="auth" class="mt-2.5 flex-1 px-3 pb-3">
+      </TabsContent>
+
+      <TabsContent value="auth" data-testid="request-section-content-auth" class="mt-2.5 px-3 pb-3">
       <div class="mb-2.5 flex flex-wrap items-center gap-1.5">
         <Button variant="ghost" size="sm" :class="['h-7 rounded-lg text-[10px]', auth.type === 'none' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="setAuthType('none')">{{ text.request.none }}</Button>
         <Button variant="ghost" size="sm" :class="['h-7 rounded-lg text-[10px]', auth.type === 'bearer' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="setAuthType('bearer')">{{ text.request.bearerToken }}</Button>
@@ -509,7 +503,7 @@ const text = computed(() => getMessages(props.locale))
         <Button variant="ghost" size="sm" :class="['h-7 rounded-lg text-[10px]', auth.type === 'apiKey' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="setAuthType('apiKey')">{{ text.request.apiKey }}</Button>
       </div>
 
-      <div class="zr-code-panel flex min-h-[160px] flex-col rounded-lg p-3">
+        <div class="zr-code-panel flex min-h-[160px] flex-col rounded-lg p-3">
         <template v-if="auth.type === 'none'">
           <div class="flex h-full min-h-[160px] items-center justify-center text-xs text-[var(--zr-text-muted)]">
             {{ text.request.noAuthRequired }}
@@ -552,11 +546,10 @@ const text = computed(() => getMessages(props.locale))
             <Button variant="ghost" size="sm" :class="['h-7 rounded-lg px-2.5 text-[10px]', auth.apiKeyPlacement === 'query' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="setApiKeyPlacement('query')">{{ text.request.query }}</Button>
           </div>
         </template>
-      </div>
-    </TabsContent>
+        </div>
+      </TabsContent>
 
-    <TabsContent value="tests" class="mt-2.5 flex-1 px-3 pb-3">
-      <ScrollArea class="h-full">
+      <TabsContent value="tests" data-testid="request-section-content-tests" class="mt-2.5 px-3 pb-3">
         <div class="space-y-2.5">
           <div
             v-for="(test, idx) in tests"
@@ -616,10 +609,9 @@ const text = computed(() => getMessages(props.locale))
             {{ text.request.addTest }}
           </Button>
         </div>
-      </ScrollArea>
-    </TabsContent>
+      </TabsContent>
 
-    <TabsContent value="env" class="mt-2.5 flex-1 px-3 pb-3">
+      <TabsContent value="env" data-testid="request-section-content-env" class="mt-2.5 px-3 pb-3">
       <div class="mb-2.5 flex items-center justify-between">
         <div>
           <div class="text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">{{ text.request.activeEnvironment }}</div>
@@ -629,7 +621,6 @@ const text = computed(() => getMessages(props.locale))
           {{ text.request.vars(enabledEnvironmentVariablesCount) }}
         </Badge>
       </div>
-      <ScrollArea class="h-[calc(100%-48px)]">
         <div class="zr-code-panel overflow-hidden rounded-lg">
           <table class="w-full text-xs">
             <thead>
@@ -675,7 +666,7 @@ const text = computed(() => getMessages(props.locale))
         <Button variant="ghost" size="sm" class="zr-dashed-button mt-2.5 rounded-lg text-xs" @click="addItem(environmentVariables)">
           {{ text.request.addVariable }}
         </Button>
-      </ScrollArea>
-    </TabsContent>
+      </TabsContent>
+    </div>
   </Tabs>
 </template>
