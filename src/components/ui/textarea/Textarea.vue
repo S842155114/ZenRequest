@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { type HTMLAttributes, useAttrs } from 'vue'
+import { useVModel } from '@vueuse/core'
 import { cn } from '@/lib/utils'
 
 defineOptions({
@@ -8,10 +9,21 @@ defineOptions({
 })
 
 const props = defineProps<{
+  defaultValue?: string | number
+  modelValue?: string | number
   class?: HTMLAttributes['class']
 }>()
 
+const emit = defineEmits<{
+  (e: 'update:modelValue', payload: string | number): void
+}>()
+
 const { class: _class, ...delegated } = useAttrs()
+
+const modelValue = useVModel(props, 'modelValue', emit, {
+  passive: true,
+  defaultValue: props.defaultValue,
+})
 
 const textareaClasses = computed(() => {
   return cn(
@@ -22,5 +34,5 @@ const textareaClasses = computed(() => {
 </script>
 
 <template>
-  <textarea :class="textareaClasses" v-bind="delegated" />
+  <textarea v-model="modelValue" :class="textareaClasses" v-bind="delegated" />
 </template>

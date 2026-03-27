@@ -279,6 +279,53 @@ describe('AppSidebar', () => {
     expect(wrapper.get('[data-testid="request-search-context-request-orders-list"]').text()).toBe('Orders')
   })
 
+  it('renders workset summary and row activity signals from the shared projection', async () => {
+    const wrapper = mountSidebar({
+      activityProjection: {
+        summary: {
+          open: 3,
+          dirty: 1,
+          running: 1,
+          recovered: 1,
+        },
+        requests: {
+          'request-orders-list': {
+            active: true,
+            open: true,
+            dirty: true,
+            running: false,
+            recovered: false,
+            result: 'success',
+          },
+        },
+        history: {
+          'history-orders': {
+            active: false,
+            open: true,
+            dirty: true,
+            running: false,
+            recovered: true,
+            result: 'success',
+          },
+        },
+        tabs: {},
+      },
+    })
+
+    expect(wrapper.get('[data-testid="sidebar-workset-open"]').text()).toContain('3')
+    expect(wrapper.get('[data-testid="sidebar-workset-running"]').text()).toContain('1')
+
+    const requestActivity = wrapper.get('[data-testid="request-activity-request-orders-list"]')
+    expect(requestActivity.text()).toContain('Active')
+    expect(requestActivity.text()).toContain('Dirty')
+
+    await wrapper.get('[data-testid="sidebar-history-tab"]').trigger('click')
+
+    const historyActivity = wrapper.get('[data-testid="history-activity-history-orders"]')
+    expect(historyActivity.text()).toContain('Recovered')
+    expect(historyActivity.text()).toContain('Open')
+  })
+
   it('opens a collection context menu on right-click and routes actions to that collection', async () => {
     vi.useRealTimers()
     const wrapper = mountSidebar()

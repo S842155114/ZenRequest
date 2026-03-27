@@ -5,18 +5,48 @@ import { defineComponent, nextTick } from 'vue'
 import RequestPanel from './RequestPanel.vue'
 import type { RequestTabState } from '@/types/request'
 
-const createTab = (): RequestTabState => ({
-  id: 'tab-1',
+const RequestUrlBarCaptureStub = defineComponent({
+  name: 'RequestUrlBar',
+  props: {
+    readiness: {
+      type: Object,
+      required: false,
+      default: () => ({
+        blockers: [],
+        advisories: [],
+      }),
+    },
+    originKind: { type: String, required: false, default: '' },
+    persistenceState: { type: String, required: false, default: '' },
+    executionState: { type: String, required: false, default: '' },
+  },
+  template: `
+    <div data-testid="request-url-bar-capture">
+      <div data-testid="request-url-bar-origin">{{ originKind }}</div>
+      <div data-testid="request-url-bar-persistence">{{ persistenceState }}</div>
+      <div data-testid="request-url-bar-execution">{{ executionState }}</div>
+      <div data-testid="request-url-bar-blockers">{{ readiness.blockers.join(' | ') }}</div>
+      <div data-testid="request-url-bar-advisories">{{ readiness.advisories.join(' | ') }}</div>
+    </div>
+  `,
+})
+
+const createTab = (overrides: Partial<RequestTabState> = {}): RequestTabState => ({
+  id: overrides.id ?? 'tab-1',
   name: '订单详情',
   description: '',
   tags: [],
-  collectionName: 'Scratch Pad',
-  method: 'POST',
-  url: 'https://example.com/orders',
+  collectionName: overrides.collectionName ?? 'Scratch Pad',
+  method: overrides.method ?? 'POST',
+  url: overrides.url ?? 'https://example.com/orders',
   params: [],
   headers: [],
-  body: '',
-  bodyType: 'json',
+  body: overrides.body ?? '',
+  bodyType: overrides.bodyType ?? 'json',
+  bodyContentType: overrides.bodyContentType,
+  formDataFields: overrides.formDataFields ?? [],
+  binaryFileName: overrides.binaryFileName,
+  binaryMimeType: overrides.binaryMimeType,
   auth: {
     type: 'none',
     bearerToken: '',
@@ -40,7 +70,12 @@ const createTab = (): RequestTabState => ({
     testResults: [],
   },
   isSending: false,
-  isDirty: false,
+  isDirty: overrides.isDirty ?? false,
+  requestId: overrides.requestId,
+  origin: overrides.origin,
+  persistenceState: overrides.persistenceState,
+  executionState: overrides.executionState,
+  ...overrides,
 })
 
 describe('RequestPanel i18n copy', () => {
@@ -227,5 +262,203 @@ describe('RequestPanel i18n copy', () => {
     await nextTick()
 
     expect(document.body.querySelector('[data-testid="request-tab-context-menu"]')).toBeNull()
+  })
+
+  it('distinguishes resource, replay, scratch, and detached tabs in the tab strip', () => {
+    const wrapper = mount(RequestPanel, {
+      props: {
+        locale: 'en',
+        tabs: [
+          createTab({
+            id: 'tab-resource',
+            name: 'Saved Request',
+            collectionName: 'Orders',
+            requestId: 'request-orders',
+            origin: { kind: 'resource', requestId: 'request-orders' },
+            persistenceState: 'saved',
+            executionState: 'success',
+          }),
+          createTab({
+            id: 'tab-replay',
+            name: 'Replay Draft',
+            collectionName: 'Orders',
+            requestId: 'request-orders',
+            origin: { kind: 'replay', requestId: 'request-orders', historyItemId: 'history-orders' },
+            persistenceState: 'unsaved',
+            executionState: 'success',
+            isDirty: true,
+          }),
+          createTab({
+            id: 'tab-scratch',
+            name: 'Scratch Draft',
+            origin: { kind: 'scratch' },
+            persistenceState: 'unsaved',
+            executionState: 'idle',
+            isDirty: true,
+          }),
+          createTab({
+            id: 'tab-detached',
+            name: 'Detached Draft',
+            origin: { kind: 'detached', requestId: 'request-orders' },
+            persistenceState: 'unbound',
+            executionState: 'http-error',
+            isDirty: true,
+          }),
+        ],
+        activeTabId: 'tab-resource',
+        activeEnvironmentName: 'Local',
+        activeEnvironmentVariables: [],
+        resolvedActiveUrl: 'https://example.com/orders',
+      },
+      global: {
+        stubs: {
+          RequestUrlBar: RequestUrlBarCaptureStub,
+          RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
+        },
+      },
+    })
+
+    expect(wrapper.get('[data-testid="request-tab-origin-tab-resource"]').text()).toContain('Resource')
+    expect(wrapper.get('[data-testid="request-tab-origin-tab-replay"]').text()).toContain('Recovered')
+    expect(wrapper.get('[data-testid="request-tab-origin-tab-scratch"]').text()).toContain('Scratch')
+    expect(wrapper.get('[data-testid="request-tab-origin-tab-detached"]').text()).toContain('Detached')
+    expect(wrapper.get('[data-testid="request-tab-persistence-tab-detached"]').text()).toContain('Unbound')
+  })
+
+  it('does not render resource origin as saved state when a canonical request tab is dirty', () => {
+    const wrapper = mount(RequestPanel, {
+      props: {
+        locale: 'en',
+        tabs: [
+          createTab({
+            id: 'tab-resource-dirty',
+            name: 'Orders Draft',
+            collectionName: 'Orders',
+            requestId: 'request-orders',
+            origin: { kind: 'resource', requestId: 'request-orders' },
+            persistenceState: 'unsaved',
+            executionState: 'idle',
+            isDirty: true,
+          }),
+        ],
+        activeTabId: 'tab-resource-dirty',
+        activeEnvironmentName: 'Local',
+        activeEnvironmentVariables: [],
+        resolvedActiveUrl: 'https://example.com/orders',
+      },
+      global: {
+        stubs: {
+          RequestUrlBar: RequestUrlBarCaptureStub,
+          RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
+        },
+      },
+    })
+
+    expect(wrapper.get('[data-testid="request-tab-origin-tab-resource-dirty"]').text()).toContain('Resource')
+    expect(wrapper.get('[data-testid="request-tab-origin-tab-resource-dirty"]').text()).not.toContain('Saved')
+    expect(wrapper.get('[data-testid="request-tab-persistence-tab-resource-dirty"]').text()).toContain('Draft')
+  })
+
+  it('shows provenance cues in the collapsed summary for replay drafts', () => {
+    const wrapper = mount(RequestPanel, {
+      props: {
+        locale: 'en',
+        tabs: [
+          createTab({
+            id: 'tab-replay',
+            name: 'Replay Draft',
+            collectionName: 'Orders',
+            requestId: 'request-orders',
+            origin: { kind: 'replay', requestId: 'request-orders', historyItemId: 'history-orders' },
+            persistenceState: 'unsaved',
+            executionState: 'success',
+            isDirty: true,
+          }),
+        ],
+        activeTabId: 'tab-replay',
+        activeEnvironmentName: 'Local',
+        activeEnvironmentVariables: [],
+        resolvedActiveUrl: 'https://example.com/orders',
+        collapsed: true,
+      },
+      global: {
+        stubs: {
+          RequestUrlBar: RequestUrlBarCaptureStub,
+          RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
+        },
+      },
+    })
+
+    expect(wrapper.get('[data-testid="request-summary-origin"]').text()).toContain('Recovered')
+    expect(wrapper.get('[data-testid="request-summary-persistence"]').text()).toContain('Draft')
+    expect(wrapper.get('[data-testid="request-summary-result"]').text()).toContain('Success')
+  })
+
+  it('aggregates blockers and advisories for invalid JSON requests before send', () => {
+    const wrapper = mount(RequestPanel, {
+      props: {
+        locale: 'en',
+        tabs: [
+          createTab({
+            id: 'tab-invalid-json',
+            requestId: 'request-orders',
+            origin: { kind: 'resource', requestId: 'request-orders' },
+            persistenceState: 'unsaved',
+            executionState: 'idle',
+            url: 'https://{{missingHost}}/orders',
+            bodyType: 'json',
+            body: '{',
+            isDirty: true,
+          }),
+        ],
+        activeTabId: 'tab-invalid-json',
+        activeEnvironmentName: 'Local',
+        activeEnvironmentVariables: [],
+        resolvedActiveUrl: '',
+      },
+      global: {
+        stubs: {
+          RequestUrlBar: RequestUrlBarCaptureStub,
+          RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
+        },
+      },
+    })
+
+    expect(wrapper.get('[data-testid="request-url-bar-origin"]').text()).toBe('resource')
+    expect(wrapper.get('[data-testid="request-url-bar-blockers"]').text()).toContain('missingHost')
+    expect(wrapper.get('[data-testid="request-url-bar-blockers"]').text()).toContain('JSON body is invalid')
+    expect(wrapper.get('[data-testid="request-url-bar-advisories"]').text()).toContain('Unsaved changes')
+  })
+
+  it('blocks binary requests that do not have an attached payload', () => {
+    const wrapper = mount(RequestPanel, {
+      props: {
+        locale: 'en',
+        tabs: [
+          createTab({
+            id: 'tab-binary',
+            origin: { kind: 'scratch' },
+            persistenceState: 'unsaved',
+            executionState: 'idle',
+            url: 'https://example.com/upload',
+            bodyType: 'binary',
+            body: '',
+            isDirty: true,
+          }),
+        ],
+        activeTabId: 'tab-binary',
+        activeEnvironmentName: 'Local',
+        activeEnvironmentVariables: [{ key: 'baseUrl', value: 'https://example.com', enabled: true }],
+        resolvedActiveUrl: 'https://example.com/upload',
+      },
+      global: {
+        stubs: {
+          RequestUrlBar: RequestUrlBarCaptureStub,
+          RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
+        },
+      },
+    })
+
+    expect(wrapper.get('[data-testid="request-url-bar-blockers"]').text()).toContain('Attach a binary payload')
   })
 })

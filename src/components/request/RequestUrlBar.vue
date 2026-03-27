@@ -2,24 +2,52 @@
 import { computed } from 'vue'
 import { getMessages, localizeScratchPadName } from '@/lib/i18n'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import type { AppLocale } from '@/types/request'
-import { Download, Globe, Save, Upload } from 'lucide-vue-next'
+import type {
+  AppLocale,
+  RequestTabExecutionState,
+  RequestTabOriginKind,
+  RequestTabPersistenceState,
+} from '@/types/request'
+import { Download, Ellipsis, Globe, Save, Upload } from 'lucide-vue-next'
 
 defineOptions({
   name: 'RequestUrlBar'
 })
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   locale: AppLocale
   method: string
   url: string
   isLoading: boolean
+  requestName?: string
+  originKind?: RequestTabOriginKind
+  persistenceState?: RequestTabPersistenceState
+  executionState?: RequestTabExecutionState
+  readiness?: {
+    blockers: string[]
+    advisories: string[]
+  }
   collectionName: string
   environmentName: string
   resolvedUrl: string
-}>()
+}>(), {
+  requestName: '',
+  originKind: 'scratch',
+  persistenceState: 'unsaved',
+  executionState: 'idle',
+  readiness: () => ({
+    blockers: [],
+    advisories: [],
+  }),
+})
 
 const emit = defineEmits<{
   (e: 'update:method', value: string): void
@@ -50,6 +78,64 @@ const handleUrlChange = (value: string | number) => {
 
 const text = computed(() => getMessages(props.locale))
 const displayCollectionName = computed(() => localizeScratchPadName(props.collectionName, props.locale))
+const hasBlockingIssues = computed(() => props.readiness.blockers.length > 0)
+const displayRequestName = computed(() => props.requestName.trim() || text.value.request.requestBuilder)
+
+const originLabel = computed(() => {
+  switch (props.originKind) {
+    case 'resource': return text.value.request.resource
+    case 'replay': return text.value.request.recovered
+    case 'detached': return text.value.request.detached
+    default: return text.value.request.scratch
+  }
+})
+
+const persistenceLabel = computed(() => {
+  switch (props.persistenceState) {
+    case 'saved': return text.value.request.saved
+    case 'unbound': return text.value.request.unbound
+    default: return text.value.request.draft
+  }
+})
+
+const executionLabel = computed(() => {
+  switch (props.executionState) {
+    case 'pending': return text.value.request.running
+    case 'success': return text.value.request.success
+    case 'http-error': return text.value.request.failed
+    case 'transport-error': return text.value.request.error
+    default: return text.value.request.ready
+  }
+})
+
+const originBadgeClass = computed(() => {
+  switch (props.originKind) {
+    case 'resource': return 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+    case 'replay': return 'border-violet-500/25 bg-violet-500/10 text-violet-700 dark:text-violet-300'
+    case 'detached': return 'border-rose-500/25 bg-rose-500/10 text-rose-700 dark:text-rose-300'
+    default: return 'border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+  }
+})
+
+const persistenceBadgeClass = computed(() => (
+  props.persistenceState === 'saved'
+    ? 'border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] text-[var(--zr-text-secondary)]'
+    : props.persistenceState === 'unbound'
+      ? 'border-rose-500/25 bg-rose-500/10 text-rose-700 dark:text-rose-300'
+      : 'border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+))
+
+const executionBadgeClass = computed(() => {
+  switch (props.executionState) {
+    case 'pending': return 'border-sky-500/25 bg-sky-500/10 text-sky-700 dark:text-sky-300'
+    case 'success': return 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+    case 'http-error':
+    case 'transport-error':
+      return 'border-rose-500/25 bg-rose-500/10 text-rose-700 dark:text-rose-300'
+    default:
+      return 'border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] text-[var(--zr-text-secondary)]'
+  }
+})
 </script>
 
 <template>
@@ -57,20 +143,111 @@ const displayCollectionName = computed(() => localizeScratchPadName(props.collec
     data-testid="request-url-shell"
     class="zr-request-command-bar border-b border-[color:var(--zr-border)] bg-[var(--zr-editor-accent)]"
   >
-    <div class="zr-request-command-header flex items-center justify-between gap-2.5 px-3 pt-3">
-      <div class="flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] text-[var(--zr-text-muted)]">
-        <Globe class="h-3 w-3 text-[#ff8b5f]" />
-        {{ text.request.requestBuilder }}
+    <div class="zr-request-command-header flex items-start justify-between gap-2.5 px-3 pt-3">
+      <div class="min-w-0">
+        <div class="flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] text-[var(--zr-text-muted)]">
+          <Globe class="h-3 w-3 text-[#ff8b5f]" />
+          {{ text.request.requestBuilder }}
+        </div>
+        <div class="mt-1 truncate text-sm font-semibold text-[var(--zr-text-primary)]">
+          {{ displayRequestName }}
+        </div>
+        <div data-testid="request-command-identity" class="mt-1.5 flex flex-wrap items-center gap-1.5">
+          <span
+            data-testid="request-identity-origin"
+            :class="[
+              'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em]',
+              originBadgeClass,
+            ]"
+          >
+            {{ originLabel }}
+          </span>
+          <span
+            data-testid="request-identity-persistence"
+            :class="[
+              'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em]',
+              persistenceBadgeClass,
+            ]"
+          >
+            {{ persistenceLabel }}
+          </span>
+          <span
+            data-testid="request-identity-execution"
+            :class="[
+              'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em]',
+              executionBadgeClass,
+            ]"
+          >
+            {{ executionLabel }}
+          </span>
+        </div>
       </div>
-      <div class="zr-request-command-actions hidden items-center gap-2 md:flex">
-        <Button variant="ghost" size="sm" class="zr-secondary-action h-7 rounded-md px-2.5 text-[11px]" @click="emit('import-workspace')">
-          <Upload class="h-3 w-3" />
-          {{ text.common.importJson }}
-        </Button>
-        <Button variant="ghost" size="sm" class="zr-secondary-action h-7 rounded-md px-2.5 text-[11px]" @click="emit('export-workspace')">
-          <Download class="h-3 w-3" />
-          {{ text.common.exportJson }}
-        </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            data-testid="request-command-overflow-trigger"
+            class="zr-secondary-action h-8 w-8 shrink-0 rounded-md"
+            :aria-label="text.request.requestActions"
+          >
+            <Ellipsis class="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" class="zr-dropdown min-w-[180px]">
+          <DropdownMenuItem
+            data-testid="request-command-overflow-import"
+            @select="emit('import-workspace')"
+          >
+            <Upload class="mr-2 h-3.5 w-3.5" />
+            {{ text.common.importJson }}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            data-testid="request-command-overflow-export"
+            @select="emit('export-workspace')"
+          >
+            <Download class="mr-2 h-3.5 w-3.5" />
+            {{ text.common.exportJson }}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+
+    <div
+      v-if="props.readiness.blockers.length || props.readiness.advisories.length"
+      class="px-3 pt-2.5"
+    >
+      <div
+        v-if="props.readiness.blockers.length"
+        data-testid="request-readiness-blockers"
+        class="flex flex-wrap items-center gap-1.5"
+      >
+        <span class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rose-700 dark:text-rose-300">
+          {{ text.request.blockers }}
+        </span>
+        <span
+          v-for="blocker in props.readiness.blockers"
+          :key="blocker"
+          class="rounded-full border border-rose-500/25 bg-rose-500/10 px-2 py-0.5 text-[10px] font-medium text-rose-700 dark:text-rose-300"
+        >
+          {{ blocker }}
+        </span>
+      </div>
+      <div
+        v-if="props.readiness.advisories.length"
+        data-testid="request-readiness-advisories"
+        class="mt-1.5 flex flex-wrap items-center gap-1.5"
+      >
+        <span class="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">
+          {{ text.request.advisories }}
+        </span>
+        <span
+          v-for="advisory in props.readiness.advisories"
+          :key="advisory"
+          class="rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300"
+        >
+          {{ advisory }}
+        </span>
       </div>
     </div>
 
@@ -99,22 +276,15 @@ const displayCollectionName = computed(() => localizeScratchPadName(props.collec
           @update:model-value="handleUrlChange"
           :placeholder="text.request.urlPlaceholder"
           data-native-context-menu="true"
-          class="zr-input h-9 rounded-md pr-18 text-[13px] font-mono shadow-none focus-visible:border-[#ff6c37]/45 focus-visible:ring-[#ff6c37]/30"
+          class="zr-input h-9 rounded-md text-[13px] font-mono shadow-none focus-visible:border-[#ff6c37]/45 focus-visible:ring-[#ff6c37]/30"
         />
-        <div class="absolute right-2 top-1/2 flex -translate-y-1/2 gap-1 md:hidden">
-          <Button variant="ghost" size="icon-sm" class="zr-secondary-action h-7 w-7 rounded-md" @click="emit('import-workspace')">
-            <Upload class="h-3 w-3" />
-          </Button>
-          <Button variant="ghost" size="icon-sm" class="zr-secondary-action h-7 w-7 rounded-md" @click="emit('export-workspace')">
-            <Download class="h-3 w-3" />
-          </Button>
-        </div>
       </div>
 
       <div class="flex items-center gap-2">
         <Button
+          data-testid="request-command-send"
           @click="emit('send')"
-          :disabled="isLoading"
+          :disabled="isLoading || hasBlockingIssues"
           class="zr-primary-action h-9 rounded-md px-4 text-[13px] font-semibold disabled:opacity-50"
         >
           <svg v-if="isLoading" class="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

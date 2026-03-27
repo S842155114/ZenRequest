@@ -13,6 +13,32 @@ export type AuthType = 'none' | 'bearer' | 'basic' | 'apiKey'
 export type RequestTestSource = 'status' | 'header' | 'body'
 export type RequestTestOperator = 'equals' | 'contains' | 'exists'
 export type ResponseLifecycleState = 'idle' | 'pending' | 'success' | 'http-error' | 'transport-error'
+export type RequestTabOriginKind = 'resource' | 'replay' | 'scratch' | 'detached'
+export type RequestTabPersistenceState = 'saved' | 'unsaved' | 'unbound'
+export type RequestTabExecutionState = ResponseLifecycleState
+
+export interface WorkbenchActivitySignal {
+  active: boolean
+  open: boolean
+  dirty: boolean
+  running: boolean
+  recovered: boolean
+  result: RequestTabExecutionState
+}
+
+export interface WorkbenchActivitySummary {
+  open: number
+  dirty: number
+  running: number
+  recovered: number
+}
+
+export interface WorkbenchActivityProjection {
+  requests: Record<string, WorkbenchActivitySignal>
+  history: Record<string, WorkbenchActivitySignal>
+  tabs: Record<string, WorkbenchActivitySignal>
+  summary: WorkbenchActivitySummary
+}
 
 export interface FormDataFieldSnapshot {
   key: string
@@ -133,9 +159,18 @@ export interface EnvironmentPreset {
   variables: KeyValueItem[]
 }
 
+export interface RequestTabOrigin {
+  kind: RequestTabOriginKind
+  requestId?: string
+  historyItemId?: string
+}
+
 export interface RequestTabState {
   id: string
   requestId?: string
+  origin?: RequestTabOrigin
+  persistenceState?: RequestTabPersistenceState
+  executionState?: RequestTabExecutionState
   name: string
   description: string
   tags: string[]

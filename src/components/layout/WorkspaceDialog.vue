@@ -28,6 +28,7 @@ const props = withDefaults(defineProps<{
   title: string
   description?: string
   confirmText?: string
+  secondaryActionText?: string
   cancelText?: string
   destructive?: boolean
   nameLabel?: string
@@ -45,6 +46,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   description: '',
   confirmText: 'Confirm',
+  secondaryActionText: '',
   cancelText: 'Cancel',
   destructive: false,
   nameLabel: '',
@@ -63,6 +65,7 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   (e: 'close'): void
+  (e: 'secondary-action'): void
   (e: 'submit', payload: {
     nameValue: string
     detailsValue: string
@@ -169,6 +172,14 @@ const handleOpenChange = (nextOpen: boolean) => {
           @click="emit('close')"
         >
           {{ cancelText }}
+        </Button>
+        <Button
+          v-if="secondaryActionText"
+          variant="outline"
+          class="rounded-lg border-[var(--zr-border)] bg-transparent px-4 text-[var(--zr-text-secondary)] hover:text-[var(--zr-text-primary)]"
+          @click="emit('secondary-action')"
+        >
+          {{ secondaryActionText }}
         </Button>
         <Button
           :class="[
