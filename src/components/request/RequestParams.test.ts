@@ -107,4 +107,88 @@ describe('RequestParams compact chrome', () => {
       expect(trigger?.attributes('data-request-secondary')).toBe('true')
     }
   })
+
+  it('shows count badges for body, auth, tests, and env using effective configured scope', () => {
+    const wrapper = mount(RequestParams, {
+      props: {
+        locale: 'en',
+        environmentName: 'Local',
+        bodyType: 'formdata',
+        formDataFields: [
+          { key: 'file', value: 'avatar.png', enabled: true },
+          { key: 'ignored', value: 'draft', enabled: false },
+        ],
+        auth: {
+          type: 'bearer',
+          bearerToken: 'Bearer token',
+          username: '',
+          password: '',
+          apiKeyKey: '',
+          apiKeyValue: '',
+          apiKeyPlacement: 'header',
+        },
+        tests: [
+          { id: 'test-1', name: 'Status is 200', source: 'status', operator: 'equals', expected: '200' },
+        ],
+        environmentVariables: [
+          { key: 'baseUrl', value: 'https://example.com', description: '', enabled: true },
+          { key: 'draft', value: 'x', description: '', enabled: false },
+        ],
+      },
+      global: {
+        stubs: tabsStubs,
+      },
+    })
+
+    expect(wrapper.get('[data-testid="request-section-trigger-body"]').text()).toContain('1')
+    expect(wrapper.get('[data-testid="request-section-trigger-auth"]').text()).toContain('1')
+    expect(wrapper.get('[data-testid="request-section-trigger-tests"]').text()).toContain('1')
+    expect(wrapper.get('[data-testid="request-section-trigger-env"]').text()).toContain('1')
+  })
+
+  it('renders low-noise row toggles without repeating ON labels in request tables', () => {
+    const wrapper = mount(RequestParams, {
+      props: {
+        locale: 'en',
+        environmentName: 'Local',
+        params: [
+          { key: 'page', value: '1', description: '', enabled: true },
+        ],
+      },
+      global: {
+        stubs: tabsStubs,
+      },
+    })
+
+    const toggle = wrapper.get('[data-testid="request-row-toggle-params-0"]')
+    expect(toggle.text()).toBe('')
+  })
+
+  it('uses a single active treatment for body and auth segmented controls after switching', async () => {
+    const wrapper = mount(RequestParams, {
+      props: {
+        locale: 'en',
+        environmentName: 'Local',
+      },
+      global: {
+        stubs: tabsStubs,
+      },
+    })
+
+    const rawButton = wrapper.findAll('button').find((button) => button.text() === 'Raw')!
+    await rawButton.trigger('click')
+
+    const jsonButton = wrapper.findAll('button').find((button) => button.text() === 'JSON')!
+    expect(jsonButton.classes()).not.toContain('bg-secondary')
+    expect(jsonButton.classes()).not.toContain('zr-tab-button-active')
+    expect(rawButton.classes()).toContain('zr-tab-button-active')
+
+    const bearerButton = wrapper.findAll('button').find((button) => button.text() === 'Bearer Token')!
+    await bearerButton.trigger('click')
+
+    const noneButton = wrapper.findAll('button').find((button) => button.text() === 'None')!
+    expect(noneButton.classes()).not.toContain('bg-secondary')
+    expect(noneButton.classes()).not.toContain('zr-tab-button-active')
+    expect(bearerButton.classes()).toContain('zr-tab-button-active')
+  })
 })
