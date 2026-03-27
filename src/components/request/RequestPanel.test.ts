@@ -67,6 +67,10 @@ describe('RequestPanel i18n copy', () => {
       },
     })
 
+    expect(wrapper.get('[data-testid="request-panel-root"]').classes()).toEqual(
+      expect.arrayContaining(['zr-request-shell']),
+    )
+    expect(wrapper.get('[data-testid="request-panel-header"]').classes()).toContain('zr-request-shell-header')
     expect(wrapper.text()).toContain('请求工作台')
     expect(wrapper.text()).toContain('请求方法')
     expect(wrapper.text()).toContain('环境')
@@ -125,8 +129,12 @@ describe('RequestPanel i18n copy', () => {
     })
 
     const busySurface = wrapper.get('[data-testid="request-panel-busy-surface"]')
+    const firstTab = wrapper.get('[data-testid="request-tab-tab-1"]')
+    const secondTab = wrapper.get('[data-testid="request-tab-tab-2"]')
 
     expect(wrapper.find('[data-testid="request-panel-tabs"]').exists()).toBe(true)
+    expect(firstTab.classes()).toContain('zr-request-tab-active')
+    expect(secondTab.classes()).toContain('zr-request-tab-idle')
     expect(busySurface.find('[data-testid="request-url-bar-stub"]').exists()).toBe(true)
     expect(busySurface.find('[data-testid="request-params-stub"]').exists()).toBe(true)
     expect(busySurface.find('[data-testid="request-panel-tabs"]').exists()).toBe(false)

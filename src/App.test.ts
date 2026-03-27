@@ -652,9 +652,21 @@ describe('App workbench shell', () => {
 
     const wrapper = await mountApp()
 
+    expect(wrapper.find('[data-testid="workbench-carrier"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="workbench-carrier"]').classes()).toContain('zr-workbench-carrier')
+    expect(wrapper.get('[data-testid="workbench-layout-desktop"]').classes()).toContain('zr-workbench-layout-desktop')
     expect(wrapper.find('[data-testid="workbench-sidebar"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="workbench-request"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="workbench-response"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="workbench-sidebar"]').classes()).toEqual(
+      expect.arrayContaining(['zr-workbench-segment', 'zr-workbench-segment-sidebar']),
+    )
+    expect(wrapper.get('[data-testid="workbench-request"]').classes()).toEqual(
+      expect.arrayContaining(['zr-workbench-segment', 'zr-workbench-segment-request']),
+    )
+    expect(wrapper.get('[data-testid="workbench-response"]').classes()).toEqual(
+      expect.arrayContaining(['zr-workbench-segment', 'zr-workbench-segment-response']),
+    )
   })
 
   it('preserves the active request context when toggling compact navigation', async () => {
@@ -684,7 +696,10 @@ describe('App workbench shell', () => {
 
     const wrapper = await mountApp()
 
-    const handles = wrapper.findAll('[data-testid="resize-handle-stub"]')
+    const handles = [
+      wrapper.get('[data-testid="workbench-seam-sidebar-request"]'),
+      wrapper.get('[data-testid="workbench-seam-request-response"]'),
+    ]
 
     expect(handles.length).toBeGreaterThan(0)
     expect(handles.every((handle) => handle.attributes('data-with-handle') === 'false')).toBe(true)
@@ -696,13 +711,21 @@ describe('App workbench shell', () => {
 
     const wrapper = await mountApp()
 
-    const groups = wrapper.findAll('[data-testid="resizable-group"]')
-    const handles = wrapper.findAll('[data-testid="resize-handle-stub"]')
+    const groups = [
+      wrapper.get('[data-testid="workbench-layout-desktop"]'),
+      wrapper.get('[data-testid="workbench-stack-desktop"]'),
+    ]
+    const sidebarSeam = wrapper.get('[data-testid="workbench-seam-sidebar-request"]')
+    const responseSeam = wrapper.get('[data-testid="workbench-seam-request-response"]')
 
     expect(groups.length).toBe(2)
-    expect(groups.every((group) => group.classes().includes('gap-1'))).toBe(true)
-    expect(handles[0]?.classes()).toContain('w-1')
-    expect(handles[1]?.classes()).toContain('h-1')
+    expect(groups.every((group) => group.classes().includes('gap-[var(--zr-workbench-seam-gap)]'))).toBe(true)
+    expect(sidebarSeam.classes()).toEqual(
+      expect.arrayContaining(['zr-workbench-seam', 'zr-workbench-seam-vertical', 'w-[var(--zr-workbench-seam-size)]']),
+    )
+    expect(responseSeam.classes()).toEqual(
+      expect.arrayContaining(['zr-workbench-seam', 'zr-workbench-seam-horizontal', 'h-[var(--zr-workbench-seam-size)]']),
+    )
   })
 
   it('keeps the three workbench regions shrinkable for internal vertical scrolling', async () => {
@@ -714,6 +737,25 @@ describe('App workbench shell', () => {
     expect(wrapper.get('[data-testid="workbench-sidebar"]').classes()).toContain('min-h-0')
     expect(wrapper.get('[data-testid="workbench-request"]').classes()).toContain('min-h-0')
     expect(wrapper.get('[data-testid="workbench-response"]').classes()).toContain('min-h-0')
+  })
+
+  it('keeps the connected docked-segment language in compact layout', async () => {
+    window.innerWidth = 960
+    setRuntimeAdapter(createAdapter())
+
+    const wrapper = await mountApp()
+
+    expect(wrapper.get('[data-testid="workbench-carrier"]').classes()).toContain('zr-workbench-carrier')
+    expect(wrapper.get('[data-testid="workbench-layout-compact"]').classes()).toContain('zr-workbench-layout-compact')
+    expect(wrapper.get('[data-testid="workbench-request"]').classes()).toEqual(
+      expect.arrayContaining(['zr-workbench-segment', 'zr-workbench-segment-request']),
+    )
+    expect(wrapper.get('[data-testid="workbench-response"]').classes()).toEqual(
+      expect.arrayContaining(['zr-workbench-segment', 'zr-workbench-segment-response']),
+    )
+    expect(wrapper.get('[data-testid="workbench-seam-request-response"]').classes()).toEqual(
+      expect.arrayContaining(['zr-workbench-seam', 'zr-workbench-seam-horizontal']),
+    )
   })
 
   it('suppresses global context menus on unsupported surfaces while allowing whitelisted targets', async () => {

@@ -182,6 +182,9 @@ describe('AppSidebar', () => {
   it('shows collections messaging by default and keeps mode tabs ahead of search', () => {
     const wrapper = mountSidebar()
 
+    expect(wrapper.get('[data-testid="sidebar-root"]').classes()).toEqual(
+      expect.arrayContaining(['zr-sidebar-shell', 'zr-sidebar-browser']),
+    )
     expect(wrapper.get('[data-testid="sidebar-title"]').text()).toBe('Collections')
     expect(wrapper.get('[data-testid="sidebar-description"]').text()).toBe(
       'Browse saved requests and organize them into collections.',
@@ -193,6 +196,8 @@ describe('AppSidebar', () => {
     const modeSwitcher = wrapper.get('[data-testid="sidebar-mode-switcher"]').element
     const searchBar = wrapper.get('[data-testid="sidebar-search"]').element
 
+    expect(wrapper.get('[data-testid="sidebar-mode-switcher"]').classes()).toContain('zr-sidebar-mode-switch')
+    expect(wrapper.get('[data-testid="sidebar-search"]').classes()).toContain('zr-sidebar-search')
     expect(Boolean(modeSwitcher.compareDocumentPosition(searchBar) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
   })
 
@@ -270,6 +275,7 @@ describe('AppSidebar', () => {
     const row = wrapper.get('[data-testid="request-row-request-orders-list"]')
 
     expect(row.attributes('aria-current')).toBe('true')
+    expect(row.classes()).toContain('zr-request-row-active')
     expect(wrapper.get('[data-testid="request-search-context-request-orders-list"]').text()).toBe('Orders')
   })
 
@@ -288,7 +294,8 @@ describe('AppSidebar', () => {
     await flushPromises()
     await nextTick()
 
-    expect(wrapper.emitted('rename-collection')?.at(-1)).toEqual(['Orders'])
+    const renameEvents = wrapper.emitted('rename-collection') ?? []
+    expect(renameEvents[renameEvents.length - 1]).toEqual(['Orders'])
   })
 
   it('opens a request context menu without selecting the request first', async () => {
@@ -308,7 +315,8 @@ describe('AppSidebar', () => {
     await flushPromises()
     await nextTick()
 
-    expect(wrapper.emitted('delete-request')?.at(-1)).toEqual([{ collectionName: 'Orders', requestId: 'request-orders-list' }])
+    const deleteEvents = wrapper.emitted('delete-request') ?? []
+    expect(deleteEvents[deleteEvents.length - 1]).toEqual([{ collectionName: 'Orders', requestId: 'request-orders-list' }])
   })
 
   it('does not open an application context menu on blank sidebar surfaces or text inputs', async () => {

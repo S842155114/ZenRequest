@@ -198,11 +198,19 @@ describe('AppHeader', () => {
   it('renders separate brand, context, and utility zones with environment metadata and settings-hosted preferences', () => {
     const wrapper = mountHeader()
 
+    expect(wrapper.get('[data-testid="header-shell"]').classes()).toEqual(
+      expect.arrayContaining(['zr-header-shell']),
+    )
     expect(wrapper.find('[data-testid="header-brand-zone"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="header-context-zone"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="header-utilities-zone"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="header-brand-zone"]').classes()).toContain('zr-header-zone')
+    expect(wrapper.get('[data-testid="header-context-zone"]').classes()).toContain('zr-header-zone')
+    expect(wrapper.get('[data-testid="header-utilities-zone"]').classes()).toContain('zr-header-zone')
     expect(wrapper.find('[data-testid="header-workspace-switcher"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="header-environment-switcher"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="header-workspace-switcher"]').classes()).toContain('zr-header-context-card')
+    expect(wrapper.get('[data-testid="header-environment-switcher"]').classes()).toContain('zr-header-context-card')
     expect(wrapper.find('[data-testid="header-settings-trigger"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('Primary Workspace')
     expect(wrapper.text()).toContain('Local')

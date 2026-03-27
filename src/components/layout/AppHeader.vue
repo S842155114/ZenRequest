@@ -98,9 +98,13 @@ watch(() => props.isCompactLayout, (isCompactLayout) => {
   <TooltipProvider>
     <Sheet :open="settingsSheetOpen" @update:open="settingsSheetOpen = $event">
       <header
-        class="zr-shell-header relative z-10 mx-1.5 mt-1.5 flex h-12 items-center gap-2 overflow-hidden rounded-[0.625rem] px-2.5 md:px-3"
+        data-testid="header-shell"
+        class="zr-shell-header zr-header-shell relative z-10 mx-1.5 mt-1.5 flex h-12 items-center gap-2 overflow-hidden rounded-[0.625rem] px-2.5 md:px-3"
       >
-        <div data-testid="header-brand-zone" class="flex min-w-0 shrink-0 items-center gap-2.5">
+        <div
+          data-testid="header-brand-zone"
+          class="zr-header-zone zr-header-brand-zone flex min-w-0 shrink-0 items-center gap-2.5"
+        >
           <Tooltip v-if="isCompactLayout">
             <TooltipTrigger as-child>
               <Button
@@ -131,9 +135,12 @@ watch(() => props.isCompactLayout, (isCompactLayout) => {
 
         <div
           data-testid="header-context-zone"
-          class="flex min-w-0 flex-1 items-center justify-end gap-1.5 md:justify-center md:gap-2"
+          class="zr-header-zone zr-header-context-zone flex min-w-0 flex-1 items-center justify-end gap-1.5 md:justify-center md:gap-2"
         >
-          <div data-testid="header-workspace-switcher" class="zr-toolbar-chip flex min-w-0 items-center gap-1 rounded-md px-1.5">
+          <div
+            data-testid="header-workspace-switcher"
+            class="zr-toolbar-chip zr-header-context-card flex min-w-0 items-center gap-1 rounded-md px-1.5"
+          >
             <PanelsTopLeft class="h-3.5 w-3.5 shrink-0 text-[#ff8b5f]" />
             <Select
               :model-value="activeWorkspaceId"
@@ -186,7 +193,10 @@ watch(() => props.isCompactLayout, (isCompactLayout) => {
             </DropdownMenu>
           </div>
 
-          <div data-testid="header-environment-switcher" class="zr-toolbar-chip flex min-w-0 items-center gap-1 rounded-md px-1.5">
+          <div
+            data-testid="header-environment-switcher"
+            class="zr-toolbar-chip zr-header-context-card flex min-w-0 items-center gap-1 rounded-md px-1.5"
+          >
             <Workflow class="h-3.5 w-3.5 shrink-0 text-[#ff8b5f]" />
             <Select
               :model-value="activeEnvironmentId"
@@ -255,7 +265,10 @@ watch(() => props.isCompactLayout, (isCompactLayout) => {
           </div>
         </div>
 
-        <div data-testid="header-utilities-zone" class="flex shrink-0 items-center gap-1.5">
+        <div
+          data-testid="header-utilities-zone"
+          class="zr-header-zone zr-header-utility-zone flex shrink-0 items-center gap-1.5"
+        >
           <template v-if="!isCompactLayout">
             <DropdownMenu>
               <DropdownMenuTrigger as-child>
