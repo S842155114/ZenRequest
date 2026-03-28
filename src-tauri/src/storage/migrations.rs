@@ -1,4 +1,4 @@
-pub const BASELINE_SCHEMA_VERSION: i64 = 3;
+pub const BASELINE_SCHEMA_VERSION: i64 = 4;
 
 pub fn baseline_sql() -> &'static str {
     r#"
@@ -57,6 +57,7 @@ pub fn baseline_sql() -> &'static str {
       body_type TEXT NOT NULL,
       auth_json TEXT NOT NULL,
       tests_json TEXT NOT NULL DEFAULT '[]',
+      mock_json TEXT NOT NULL DEFAULT 'null',
       sort_order INTEGER NOT NULL DEFAULT 0,
       created_at_epoch_ms INTEGER NOT NULL,
       updated_at_epoch_ms INTEGER NOT NULL,
@@ -90,6 +91,7 @@ pub fn baseline_sql() -> &'static str {
       response_headers_json TEXT NOT NULL,
       response_preview TEXT NOT NULL,
       truncated INTEGER NOT NULL DEFAULT 0,
+      execution_source TEXT NOT NULL DEFAULT 'live',
       executed_at_epoch_ms INTEGER NOT NULL,
       FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
       FOREIGN KEY(request_id) REFERENCES requests(id) ON DELETE SET NULL

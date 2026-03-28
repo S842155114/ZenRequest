@@ -219,6 +219,7 @@ pub async fn execute_request(
         response_body,
         headers: response_headers,
         truncated,
+        execution_source: "live".to_string(),
         history_item: None,
     })
 }

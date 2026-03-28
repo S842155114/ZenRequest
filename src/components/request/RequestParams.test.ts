@@ -169,13 +169,69 @@ describe('RequestParams compact chrome', () => {
     expect(wrapper.find('[data-testid="request-raw-content-type"]').exists()).toBe(true)
   })
 
-  it('marks auth, tests, and env as secondary configuration tabs', () => {
+  it('uses a code-editor surface for json and raw text body modes instead of a textarea', async () => {
+    const wrapper = mountRequestParams({
+      bodyType: 'json',
+      body: '{"ok":true}',
+    })
+
+    await wrapper.get('[data-testid="request-section-trigger-body"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="request-body-code-editor"]').exists()).toBe(true)
+    expect(wrapper.find('textarea').exists()).toBe(false)
+
+    await wrapper.findAll('button').find((button) => button.text() === 'Raw')!.trigger('click')
+
+    expect(wrapper.find('[data-testid="request-body-code-editor"]').exists()).toBe(true)
+    expect(wrapper.find('textarea').exists()).toBe(false)
+  })
+
+  it('formats valid json bodies from the request editor without leaving json mode', async () => {
+    const wrapper = mountRequestParams({
+      bodyType: 'json',
+      body: '{"ok":true,"items":[1,2]}',
+    })
+
+    await wrapper.get('[data-testid="request-section-trigger-body"]').trigger('click')
+    await wrapper.get('[data-testid="request-json-format"]').trigger('click')
+
+    const bodyUpdates = wrapper.emitted('update:body') ?? []
+    const lastBodyUpdate = bodyUpdates[bodyUpdates.length - 1]?.[0] as string
+
+    expect(lastBodyUpdate).toContain('\n  "ok": true,')
+    expect(lastBodyUpdate).toContain('\n  "items": [\n    1,\n    2\n  ]')
+  })
+
+  it('marks mock, auth, tests, and env as secondary configuration tabs', () => {
     const wrapper = mountRequestParams()
 
-    for (const label of ['Auth', 'Tests', 'Env']) {
+    for (const label of ['Mock', 'Auth', 'Tests', 'Env']) {
       const trigger = wrapper.findAll('button').find((button) => button.text().includes(label))
       expect(trigger?.attributes('data-request-secondary')).toBe('true')
     }
+  })
+
+  it('renders editable request-local mock fields when a mock template exists', async () => {
+    const wrapper = mountRequestParams({
+      mock: {
+        enabled: true,
+        status: 202,
+        statusText: 'Accepted',
+        contentType: 'application/json',
+        body: '{"source":"mock"}',
+        headers: [
+          { key: 'X-Mock', value: 'enabled', description: '', enabled: true },
+        ],
+      },
+    } as any)
+
+    await wrapper.get('[data-testid="request-section-trigger-mock"]').trigger('click')
+
+    expect(wrapper.get('[data-testid="request-mock-enabled"]').attributes('data-state')).toBe('on')
+    expect(wrapper.get('[data-testid="request-mock-status"]').element).toBeTruthy()
+    expect(wrapper.get('[data-testid="request-mock-status-text"]').element).toBeTruthy()
+    expect(wrapper.get('[data-testid="request-mock-content-type"]').element).toBeTruthy()
+    expect(wrapper.find('[data-testid="request-mock-body-editor"]').exists()).toBe(true)
   })
 
   it('shows count badges for body, auth, tests, and env using effective configured scope', () => {

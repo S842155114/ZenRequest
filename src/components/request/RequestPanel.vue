@@ -12,12 +12,13 @@ import {
 } from '@/components/ui/context-menu'
 import RequestUrlBar from './RequestUrlBar.vue'
 import RequestParams from './RequestParams.vue'
-import { cloneAuth, cloneItems, cloneTests, normalizeRequestTabState } from '@/lib/request-workspace'
+import { cloneAuth, cloneItems, cloneMock, cloneTests, normalizeRequestTabState } from '@/lib/request-workspace'
 import { getContextMenuTestIdKey, shouldBypassResourceContextMenu } from '@/lib/resource-context-menu'
 import type {
   AppLocale,
   FormDataFieldSnapshot,
   KeyValueItem,
+  RequestMockState,
   RequestTabState,
   RequestTestDefinition,
   SendRequestPayload,
@@ -99,6 +100,7 @@ const binaryMimeType = ref('')
 const auth = ref(cloneAuth())
 const tests = ref<RequestTestDefinition[]>([])
 const environmentVariables = ref<KeyValueItem[]>([])
+const mock = ref<RequestMockState | undefined>(undefined)
 
 const cloneFormDataFields = (fields?: FormDataFieldSnapshot[]) => (fields ?? []).map((field) => ({ ...field }))
 
@@ -116,6 +118,7 @@ const applyTab = (tab: RequestTabState | null) => {
   binaryMimeType.value = tab.binaryMimeType ?? ''
   auth.value = cloneAuth(tab.auth)
   tests.value = cloneTests(tab.tests)
+  mock.value = cloneMock(tab.mock)
 }
 
 const applyEnvironmentVariables = (items: KeyValueItem[]) => {
@@ -131,7 +134,7 @@ watch(() => props.activeEnvironmentName, () => {
 }, { immediate: true })
 
 watch(
-  [method, url, params, headers, bodyContent, bodyType, bodyContentType, formDataFields, binaryFileName, binaryMimeType, auth, tests],
+  [method, url, params, headers, bodyContent, bodyType, bodyContentType, formDataFields, binaryFileName, binaryMimeType, auth, tests, mock],
   () => {
     if (!activeTab.value) return
     emit('update-active-tab', {
@@ -147,6 +150,7 @@ watch(
       binaryMimeType: binaryMimeType.value || undefined,
       auth: cloneAuth(auth.value),
       tests: cloneTests(tests.value),
+      mock: cloneMock(mock.value),
     })
   },
   { deep: true }
@@ -181,6 +185,7 @@ const handleSend = () => {
     binaryMimeType: binaryMimeType.value || undefined,
     auth: cloneAuth(auth.value),
     tests: cloneTests(tests.value),
+    mock: cloneMock(mock.value),
   })
 }
 
@@ -526,6 +531,7 @@ const requestReadiness = computed<RequestReadinessState>(() => {
               v-model:binary-mime-type="binaryMimeType"
               v-model:auth="auth"
               v-model:tests="tests"
+              v-model:mock="mock"
               v-model:environment-variables="environmentVariables"
               :environment-name="activeEnvironmentName"
             />
