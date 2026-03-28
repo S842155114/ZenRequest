@@ -59,6 +59,8 @@ Alternatives considered:
 - Leave request text modes on textarea and only improve validation. Rejected because it does not close the authoring gap materially.
 - Duplicate a second CodeMirror wrapper for request editing. Rejected because it creates avoidable drift with the response viewer.
 
+The request body model should also preserve isolated per-mode drafts. Editing `json`, `formdata`, `raw`, or `binary` must not auto-convert content into another body mode when the user switches tabs. Validation and send blocking should apply only to the currently active body mode, with body-specific validation rendered inside the payload surface itself.
+
 ### 2. Model the mock template as optional request-owned state, not as a separate resource
 
 The new request-local mock template will be represented as one optional nested object attached to request drafts, saved requests, workspace session tabs, and history request snapshots.

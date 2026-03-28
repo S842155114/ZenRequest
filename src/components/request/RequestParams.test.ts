@@ -4,6 +4,30 @@ import { mount } from '@vue/test-utils'
 
 import RequestParams from './RequestParams.vue'
 
+if (typeof Range !== 'undefined') {
+  if (!Range.prototype.getClientRects) {
+    Range.prototype.getClientRects = () => ({
+      length: 0,
+      item: () => null,
+      [Symbol.iterator]: function * iterator() {},
+    } as unknown as DOMRectList)
+  }
+
+  if (!Range.prototype.getBoundingClientRect) {
+    Range.prototype.getBoundingClientRect = () => ({
+      x: 0,
+      y: 0,
+      width: 0,
+      height: 0,
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0,
+      toJSON: () => ({}),
+    } as DOMRect)
+  }
+}
+
 const tabsContextKey = Symbol('request-params-tabs')
 
 const tabsStubs = {
@@ -200,6 +224,91 @@ describe('RequestParams compact chrome', () => {
 
     expect(lastBodyUpdate).toContain('\n  "ok": true,')
     expect(lastBodyUpdate).toContain('\n  "items": [\n    1,\n    2\n  ]')
+  })
+
+  it('keeps form-data isolated from json drafts when switching modes', async () => {
+    const wrapper = mountRequestParams({
+      bodyType: 'json',
+      body: '{\n  "232": "4444",\n  "ss": "sdasd",\n  "name": "vqlue"\n}',
+    })
+
+    await wrapper.get('[data-testid="request-section-trigger-body"]').trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === 'Form Data')!.trigger('click')
+
+    const formDataUpdates = wrapper.emitted('update:formDataFields') ?? []
+    const lastFormDataUpdate = formDataUpdates[formDataUpdates.length - 1]?.[0] as Array<{ key: string; value: string }>
+    const bodyUpdates = wrapper.emitted('update:body') ?? []
+    const lastBodyUpdate = bodyUpdates[bodyUpdates.length - 1]?.[0] as string
+
+    expect(lastFormDataUpdate).toEqual([
+      { key: '', value: '', enabled: true },
+    ])
+    expect(lastBodyUpdate).toBe('')
+  })
+
+  it('restores the prior json draft when switching back from form-data mode to json', async () => {
+    const originalJson = '{\n  "232": "4444",\n  "ss": "sdasd",\n  "name": "vqlue"\n}'
+    const wrapper = mountRequestParams({
+      bodyType: 'json',
+      body: originalJson,
+    })
+
+    await wrapper.get('[data-testid="request-section-trigger-body"]').trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === 'Form Data')!.trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === 'JSON')!.trigger('click')
+
+    const bodyUpdates = wrapper.emitted('update:body') ?? []
+    const lastBodyUpdate = bodyUpdates[bodyUpdates.length - 1]?.[0] as string
+
+    expect(lastBodyUpdate).toBe(originalJson)
+  })
+
+  it('keeps raw text isolated from json drafts when switching between text modes', async () => {
+    const originalJson = '{\n  "name": "value"\n}'
+    const wrapper = mountRequestParams({
+      bodyType: 'json',
+      body: originalJson,
+    })
+
+    await wrapper.get('[data-testid="request-section-trigger-body"]').trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === 'Raw')!.trigger('click')
+
+    const bodyUpdatesAfterRaw = wrapper.emitted('update:body') ?? []
+    const rawDraft = bodyUpdatesAfterRaw[bodyUpdatesAfterRaw.length - 1]?.[0] as string
+    expect(rawDraft).toBe('')
+
+    await wrapper.findAll('button').find((button) => button.text() === 'JSON')!.trigger('click')
+
+    const bodyUpdatesAfterJson = wrapper.emitted('update:body') ?? []
+    const restoredJson = bodyUpdatesAfterJson[bodyUpdatesAfterJson.length - 1]?.[0] as string
+    expect(restoredJson).toBe(originalJson)
+  })
+
+  it('keeps the json format action in the payload header instead of giving it a full-width dedicated row', async () => {
+    const wrapper = mountRequestParams({
+      bodyType: 'json',
+      body: '{"ok":true}',
+    })
+
+    await wrapper.get('[data-testid="request-section-trigger-body"]').trigger('click')
+
+    const header = wrapper.get('[data-testid="request-body-header"]')
+    const formatButton = wrapper.get('[data-testid="request-json-format"]')
+
+    expect(header.text()).toContain('Request Payload')
+    expect(header.text()).toContain('json')
+    expect(header.element.contains(formatButton.element)).toBe(true)
+  })
+
+  it('renders invalid json feedback inside the payload surface', async () => {
+    const wrapper = mountRequestParams({
+      bodyType: 'json',
+      body: '{',
+    })
+
+    await wrapper.get('[data-testid="request-section-trigger-body"]').trigger('click')
+
+    expect(wrapper.get('[data-testid="request-json-error"]').text()).toContain('Invalid JSON')
   })
 
   it('marks mock, auth, tests, and env as secondary configuration tabs', () => {

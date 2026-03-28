@@ -496,7 +496,7 @@ describe('RequestPanel i18n copy', () => {
     expect(wrapper.get('[data-testid="request-summary-result"]').text()).toContain('Success')
   })
 
-  it('aggregates blockers and advisories for invalid JSON requests before send', () => {
+  it('keeps invalid JSON feedback out of the top blocker strip while preserving other readiness blockers', () => {
     const wrapper = mount(RequestPanel, {
       props: {
         locale: 'en',
@@ -528,8 +528,39 @@ describe('RequestPanel i18n copy', () => {
 
     expect(wrapper.get('[data-testid="request-url-bar-origin"]').text()).toBe('resource')
     expect(wrapper.get('[data-testid="request-url-bar-blockers"]').text()).toContain('missingHost')
-    expect(wrapper.get('[data-testid="request-url-bar-blockers"]').text()).toContain('JSON body is invalid')
+    expect(wrapper.get('[data-testid="request-url-bar-blockers"]').text()).not.toContain('JSON body is invalid')
     expect(wrapper.get('[data-testid="request-url-bar-advisories"]').text()).toContain('Unsaved changes')
+  })
+
+  it('prevents send for invalid JSON even when the top blocker strip is otherwise clear', async () => {
+    const wrapper = mount(RequestPanel, {
+      props: {
+        locale: 'en',
+        tabs: [
+          createTab({
+            id: 'tab-invalid-json-send',
+            url: 'https://example.com/orders',
+            bodyType: 'json',
+            body: '{',
+          }),
+        ],
+        activeTabId: 'tab-invalid-json-send',
+        activeEnvironmentName: 'Local',
+        activeEnvironmentVariables: [],
+        resolvedActiveUrl: 'https://example.com/orders',
+      },
+      global: {
+        stubs: {
+          RequestUrlBar: RequestUrlBarSendStub,
+          CodeEditorSurface: defineComponent({ template: '<div data-testid="code-editor-surface-stub" />' }),
+        },
+      },
+    })
+
+    await wrapper.get('[data-testid="request-url-bar-send"]').trigger('click')
+    await nextTick()
+
+    expect(wrapper.emitted('send')).toBeUndefined()
   })
 
   it('blocks binary requests that do not have an attached payload', () => {

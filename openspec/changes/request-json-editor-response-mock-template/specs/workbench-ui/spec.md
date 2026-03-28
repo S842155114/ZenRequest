@@ -15,6 +15,14 @@ The system SHALL present a request-body editing surface that matches the selecte
 - **WHEN** the active request body mode is `json` and the current body contains valid JSON
 - **THEN** the request authoring region allows the user to format the body into a normalized pretty-printed JSON structure without leaving JSON mode
 
+#### Scenario: User switches between body modes after editing each one
+- **WHEN** the user edits content in `json`, `formdata`, `raw`, or `binary` mode and then switches to a different body mode
+- **THEN** the workbench preserves each body mode as its own isolated draft instead of auto-converting or overwriting the other body-mode drafts
+
+#### Scenario: User sends a request while the active body mode is invalid
+- **WHEN** the currently selected body mode has invalid content such as malformed JSON or incomplete form-data rows
+- **THEN** the request does not send, and the validation feedback remains inside the active request-payload editing surface instead of being promoted as an unrelated top-level blocker from inactive body modes
+
 ## ADDED Requirements
 
 ### Requirement: Request workbench exposes request-local mock configuration

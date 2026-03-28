@@ -360,10 +360,6 @@ const requestReadiness = computed<RequestReadinessState>(() => {
     blockers.push(text.value.request.missingVariablesBlocker([...unresolvedKeys].join(', ')))
   }
 
-  if (bodyType.value === 'json' && jsonBodyError.value) {
-    blockers.push(text.value.request.invalidJsonBlocker)
-  }
-
   if (bodyType.value === 'binary' && !bodyContent.value.trim()) {
     blockers.push(text.value.request.missingBinaryPayloadBlocker)
   }
@@ -521,6 +517,7 @@ const requestReadiness = computed<RequestReadinessState>(() => {
             <RequestParams
               ref="requestParamsRef"
               :locale="locale"
+              :request-key="activeTab.id"
               v-model:params="params"
               v-model:headers="headers"
               v-model:body="bodyContent"

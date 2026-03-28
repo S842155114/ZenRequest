@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { EditorState } from '@codemirror/state'
+import { EditorSelection, EditorState } from '@codemirror/state'
 import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { html } from '@codemirror/lang-html'
 import { json } from '@codemirror/lang-json'
@@ -39,6 +39,7 @@ const emit = defineEmits<{
 
 const host = ref<HTMLDivElement | null>(null)
 const editorView = shallowRef<EditorView | null>(null)
+let syncingFromProps = false
 
 const createLanguageExtension = (language: ResponseCodeLanguage) => {
   switch (language) {
@@ -122,8 +123,12 @@ const darkTheme = EditorView.theme({
   },
 }, { dark: true })
 
-const buildEditorState = () => EditorState.create({
-  doc: props.content,
+const buildEditorState = (
+  doc: string,
+  selection?: EditorSelection,
+) => EditorState.create({
+  doc,
+  selection,
   extensions: [
     EditorState.readOnly.of(props.readOnly),
     EditorView.editable.of(!props.readOnly),
@@ -135,7 +140,7 @@ const buildEditorState = () => EditorState.create({
     baseTheme,
     props.readOnly ? readOnlyTheme : editableTheme,
     EditorView.updateListener.of((update) => {
-      if (!props.readOnly && update.docChanged) {
+      if (!props.readOnly && update.docChanged && !syncingFromProps) {
         emit('update:content', update.state.doc.toString())
       }
     }),
@@ -150,26 +155,47 @@ const mountEditor = () => {
 
   editorView.value?.destroy()
   editorView.value = new EditorView({
-    state: buildEditorState(),
+    state: buildEditorState(props.content),
     parent: host.value,
   })
 }
 
 watch(
-  () => [props.content, props.language, props.theme, props.readOnly] as const,
+  () => props.content,
   () => {
     if (!editorView.value) return
 
     const currentContent = editorView.value.state.doc.toString()
-    if (
-      currentContent === props.content
-      && props.language === props.language
-    ) {
-      editorView.value.setState(buildEditorState())
+    if (currentContent === props.content) {
       return
     }
 
-    editorView.value.setState(buildEditorState())
+    syncingFromProps = true
+    editorView.value.dispatch({
+      changes: {
+        from: 0,
+        to: currentContent.length,
+        insert: props.content,
+      },
+      selection: {
+        anchor: Math.min(editorView.value.state.selection.main.anchor, props.content.length),
+        head: Math.min(editorView.value.state.selection.main.head, props.content.length),
+      },
+    })
+    syncingFromProps = false
+  },
+)
+
+watch(
+  () => [props.language, props.theme, props.readOnly] as const,
+  () => {
+    if (!editorView.value) return
+
+    const currentState = editorView.value.state
+    editorView.value.setState(buildEditorState(
+      currentState.doc.toString(),
+      EditorSelection.create(currentState.selection.ranges, currentState.selection.mainIndex),
+    ))
   },
 )
 

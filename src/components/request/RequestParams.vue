@@ -24,6 +24,7 @@ defineOptions({
 const props = defineProps<{
   locale: AppLocale
   environmentName: string
+  requestKey?: string
 }>()
 
 const params = defineModel<KeyValueItem[]>('params', { default: () => [] })
@@ -41,6 +42,7 @@ const mock = defineModel<RequestMockState | undefined>('mock')
 
 type ComposeSection = 'params' | 'headers' | 'body' | 'mock' | 'auth' | 'tests' | 'env'
 type TableSection = 'params' | 'headers' | 'env' | 'formdata'
+type TextBodyMode = 'json' | 'raw' | 'binary'
 
 const composeSections: ComposeSection[] = ['params', 'headers', 'body', 'mock', 'auth', 'tests', 'env']
 const activeSection = ref<ComposeSection>('params')
@@ -76,6 +78,56 @@ const createFormDataField = (): FormDataFieldSnapshot => ({
   key: '',
   value: '',
   enabled: true,
+})
+
+const textBodyDraftsByRequest = ref<Record<string, Record<TextBodyMode, string>>>({})
+const formDataDraftsByRequest = ref<Record<string, FormDataFieldSnapshot[]>>({})
+
+const getRequestDraftKey = () => props.requestKey || '__default__'
+
+const ensureTextBodyDrafts = () => {
+  const requestKey = getRequestDraftKey()
+  if (!textBodyDraftsByRequest.value[requestKey]) {
+    textBodyDraftsByRequest.value[requestKey] = {
+      json: '',
+      raw: '',
+      binary: '',
+    }
+  }
+  return textBodyDraftsByRequest.value[requestKey]
+}
+
+const ensureFormDataDraft = () => {
+  const requestKey = getRequestDraftKey()
+  if (!formDataDraftsByRequest.value[requestKey]) {
+    formDataDraftsByRequest.value[requestKey] = []
+  }
+  return formDataDraftsByRequest.value[requestKey]
+}
+
+const syncCurrentTextBodyDraft = () => {
+  if (bodyType.value === 'formdata') return
+  ensureTextBodyDrafts()[bodyType.value] = bodyContent.value
+}
+
+const cloneFormDataDraft = (fields: FormDataFieldSnapshot[]) => fields.map((field) => ({ ...field }))
+
+const syncCurrentFormDataDraft = () => {
+  if (bodyType.value !== 'formdata') return
+  formDataDraftsByRequest.value[getRequestDraftKey()] = cloneFormDataDraft(formDataFields.value)
+}
+
+watch(
+  () => props.requestKey,
+  () => {
+    syncCurrentTextBodyDraft()
+    syncCurrentFormDataDraft()
+  },
+  { immediate: true },
+)
+
+watch(bodyContent, () => {
+  syncCurrentTextBodyDraft()
 })
 
 const toggleFormDataField = (index: number) => {
@@ -239,6 +291,10 @@ watch(() => formDataFields.value, (items) => {
   syncRevealedRows('formdata', items.length)
 }, { immediate: true })
 
+watch(formDataFields, () => {
+  syncCurrentFormDataDraft()
+}, { deep: true })
+
 const isKeyValueRowInvalid = (section: Exclude<TableSection, 'formdata'>, item: KeyValueItem, index: number) => (
   item.enabled
   && revealedRows.value[section][index]
@@ -310,6 +366,11 @@ const prepareForSubmit = () => {
   reconcileKeyValueSection('headers', headers.value)
   reconcileKeyValueSection('env', environmentVariables.value)
 
+  if (bodyType.value === 'json' && jsonBodyError.value) {
+    activeSection.value = 'body'
+    return false
+  }
+
   if (bodyType.value === 'formdata') {
     reconcileFormDataSection()
   }
@@ -330,11 +391,25 @@ const handleSectionChange = (nextSection: string | number) => {
 const setBodyType = (nextType: RequestBodyType) => {
   if (bodyType.value === nextType) return
 
+  syncCurrentTextBodyDraft()
+  syncCurrentFormDataDraft()
+
   if (bodyType.value === 'formdata' && nextType !== 'formdata') {
     reconcileSection('formdata')
   }
 
+  if (nextType === 'formdata') {
+    bodyType.value = nextType
+    const nextFields = cloneFormDataDraft(ensureFormDataDraft())
+    formDataFields.value = nextFields.length > 0 ? nextFields : [createFormDataField()]
+    bodyContent.value = serializeFormDataFields(formDataFields.value)
+    return
+  }
+
   bodyType.value = nextType
+
+  const nextBody = ensureTextBodyDrafts()[nextType]
+  bodyContent.value = nextBody
 }
 
 const addTest = () => {
@@ -371,37 +446,16 @@ const serializeFormDataFields = (fields: FormDataFieldSnapshot[]) => fields
   .map((field) => `${field.key}=${field.value}`)
   .join('\n')
 
-let syncingFormDataBody = false
 watch(formDataFields, (fields) => {
   if (bodyType.value !== 'formdata') return
   const nextBody = serializeFormDataFields(fields)
   if (nextBody === bodyContent.value) return
-  syncingFormDataBody = true
   bodyContent.value = nextBody
-  queueMicrotask(() => {
-    syncingFormDataBody = false
-  })
 }, { deep: true })
 
 watch([bodyType, bodyContent], ([nextBodyType, nextBody]) => {
   if (nextBodyType === 'raw' && !bodyContentType.value) {
     bodyContentType.value = 'text/plain'
-  }
-
-  if (nextBodyType !== 'formdata' || syncingFormDataBody) return
-
-  const parsedFields = parseFormDataBody(nextBody)
-  if (parsedFields.length === 0) {
-    if (formDataFields.value.length === 0 && activeSection.value === 'body') {
-      formDataFields.value = [createFormDataField()]
-    }
-    return
-  }
-
-  const current = JSON.stringify(formDataFields.value)
-  const next = JSON.stringify(parsedFields)
-  if (current !== next) {
-    formDataFields.value = parsedFields
   }
 }, { immediate: true })
 
@@ -705,9 +759,25 @@ defineExpose({
         <Button variant="ghost" size="sm" :class="['h-7 rounded-lg px-2.5 text-[10px]', bodyType === 'binary' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="setBodyType('binary')">{{ text.request.binary }}</Button>
       </div>
       <div class="zr-code-panel flex min-h-[18rem] flex-col overflow-hidden rounded-lg">
-        <div class="flex items-center justify-between border-b border-[color:var(--zr-border)] px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">
+        <div
+          data-testid="request-body-header"
+          class="flex items-center justify-between border-b border-[color:var(--zr-border)] px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]"
+        >
           <span>{{ text.request.requestPayload }}</span>
-          <span class="zr-chip rounded-full px-2 py-1 text-[10px] tracking-[0.18em] text-[var(--zr-text-secondary)]">{{ bodyType }}</span>
+          <div class="flex items-center gap-2">
+            <Button
+              v-if="bodyType === 'json'"
+              data-testid="request-json-format"
+              variant="ghost"
+              size="sm"
+              class="zr-tool-button h-7 rounded-md px-2.5 text-[10px]"
+              :disabled="!bodyContent.trim() || Boolean(jsonBodyError)"
+              @click="formatJsonBody"
+            >
+              {{ text.request.pretty }}
+            </Button>
+            <span class="zr-chip rounded-full px-2 py-1 text-[10px] tracking-[0.18em] text-[var(--zr-text-secondary)]">{{ bodyType }}</span>
+          </div>
         </div>
         <template v-if="bodyType === 'formdata'">
           <div data-testid="request-formdata-editor" class="flex flex-col p-3">
@@ -840,21 +910,6 @@ defineExpose({
               />
             </div>
           </div>
-          <div
-            v-if="bodyType === 'json'"
-            class="flex items-center justify-end border-b border-[color:var(--zr-border)] px-3 py-2"
-          >
-            <Button
-              data-testid="request-json-format"
-              variant="ghost"
-              size="sm"
-              class="zr-tool-button h-7 rounded-md px-2.5 text-[10px]"
-              :disabled="!bodyContent.trim() || Boolean(jsonBodyError)"
-              @click="formatJsonBody"
-            >
-              {{ text.request.pretty }}
-            </Button>
-          </div>
           <CodeEditorSurface
             test-id="request-body-code-editor"
             :content="bodyContent"
@@ -864,6 +919,7 @@ defineExpose({
           />
           <div
             v-if="bodyType === 'json' && jsonBodyError"
+            data-testid="request-json-error"
             class="border-t border-rose-500/20 bg-rose-500/8 px-3 py-2 text-xs text-rose-700 dark:text-rose-300"
           >
             {{ text.request.jsonInvalid }}: {{ jsonBodyError }}
