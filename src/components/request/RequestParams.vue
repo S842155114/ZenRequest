@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { getMessages } from '@/lib/i18n'
+import CodeEditorSurface from '@/components/code/CodeEditorSurface.vue'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,6 +13,7 @@ import type {
   FormDataFieldSnapshot,
   KeyValueItem,
   RequestBodyType,
+  RequestMockState,
   RequestTestDefinition,
 } from '@/types/request'
 
@@ -22,6 +24,7 @@ defineOptions({
 const props = defineProps<{
   locale: AppLocale
   environmentName: string
+  requestKey?: string
 }>()
 
 const params = defineModel<KeyValueItem[]>('params', { default: () => [] })
@@ -35,11 +38,13 @@ const binaryMimeType = defineModel<string>('binaryMimeType', { default: '' })
 const auth = defineModel<AuthConfig>('auth', { default: () => defaultAuthConfig() })
 const tests = defineModel<RequestTestDefinition[]>('tests', { default: () => [] })
 const environmentVariables = defineModel<KeyValueItem[]>('environmentVariables', { default: () => [] })
+const mock = defineModel<RequestMockState | undefined>('mock')
 
-type ComposeSection = 'params' | 'headers' | 'body' | 'auth' | 'tests' | 'env'
+type ComposeSection = 'params' | 'headers' | 'body' | 'mock' | 'auth' | 'tests' | 'env'
 type TableSection = 'params' | 'headers' | 'env' | 'formdata'
+type TextBodyMode = 'json' | 'raw' | 'binary'
 
-const composeSections: ComposeSection[] = ['params', 'headers', 'body', 'auth', 'tests', 'env']
+const composeSections: ComposeSection[] = ['params', 'headers', 'body', 'mock', 'auth', 'tests', 'env']
 const activeSection = ref<ComposeSection>('params')
 const revealedRows = ref<Record<TableSection, boolean[]>>({
   params: [],
@@ -75,6 +80,56 @@ const createFormDataField = (): FormDataFieldSnapshot => ({
   enabled: true,
 })
 
+const textBodyDraftsByRequest = ref<Record<string, Record<TextBodyMode, string>>>({})
+const formDataDraftsByRequest = ref<Record<string, FormDataFieldSnapshot[]>>({})
+
+const getRequestDraftKey = () => props.requestKey || '__default__'
+
+const ensureTextBodyDrafts = () => {
+  const requestKey = getRequestDraftKey()
+  if (!textBodyDraftsByRequest.value[requestKey]) {
+    textBodyDraftsByRequest.value[requestKey] = {
+      json: '',
+      raw: '',
+      binary: '',
+    }
+  }
+  return textBodyDraftsByRequest.value[requestKey]
+}
+
+const ensureFormDataDraft = () => {
+  const requestKey = getRequestDraftKey()
+  if (!formDataDraftsByRequest.value[requestKey]) {
+    formDataDraftsByRequest.value[requestKey] = []
+  }
+  return formDataDraftsByRequest.value[requestKey]
+}
+
+const syncCurrentTextBodyDraft = () => {
+  if (bodyType.value === 'formdata') return
+  ensureTextBodyDrafts()[bodyType.value] = bodyContent.value
+}
+
+const cloneFormDataDraft = (fields: FormDataFieldSnapshot[]) => fields.map((field) => ({ ...field }))
+
+const syncCurrentFormDataDraft = () => {
+  if (bodyType.value !== 'formdata') return
+  formDataDraftsByRequest.value[getRequestDraftKey()] = cloneFormDataDraft(formDataFields.value)
+}
+
+watch(
+  () => props.requestKey,
+  () => {
+    syncCurrentTextBodyDraft()
+    syncCurrentFormDataDraft()
+  },
+  { immediate: true },
+)
+
+watch(bodyContent, () => {
+  syncCurrentTextBodyDraft()
+})
+
 const toggleFormDataField = (index: number) => {
   formDataFields.value[index].enabled = !formDataFields.value[index].enabled
 }
@@ -87,6 +142,100 @@ const removeFormDataField = (index: number) => {
 const addFormDataField = () => {
   formDataFields.value.push(createFormDataField())
   revealedRows.value.formdata.push(false)
+}
+
+const createMockState = (): RequestMockState => ({
+  enabled: false,
+  status: 200,
+  statusText: 'OK',
+  contentType: 'application/json',
+  body: '',
+  headers: [],
+})
+
+const createMockHeader = (): KeyValueItem => ({
+  key: '',
+  value: '',
+  description: '',
+  enabled: true,
+})
+
+const updateMock = (updater: (value: RequestMockState) => RequestMockState) => {
+  mock.value = updater(mock.value ?? createMockState())
+}
+
+const toggleMockEnabled = () => {
+  updateMock((current) => ({
+    ...current,
+    enabled: !current.enabled,
+  }))
+}
+
+const updateMockStatus = (value: string | number) => {
+  updateMock((current) => ({
+    ...current,
+    status: Number.parseInt(String(value), 10) || 0,
+  }))
+}
+
+const updateMockStatusText = (value: string | number) => {
+  updateMock((current) => ({
+    ...current,
+    statusText: String(value),
+  }))
+}
+
+const updateMockContentType = (value: string | number) => {
+  updateMock((current) => ({
+    ...current,
+    contentType: String(value),
+  }))
+}
+
+const updateMockBody = (value: string) => {
+  updateMock((current) => ({
+    ...current,
+    body: value,
+  }))
+}
+
+const toggleMockHeader = (index: number) => {
+  updateMock((current) => {
+    const headers = current.headers.map((header) => ({ ...header }))
+    headers[index].enabled = !headers[index].enabled
+    return {
+      ...current,
+      headers,
+    }
+  })
+}
+
+const updateMockHeader = (index: number, patch: Partial<KeyValueItem>) => {
+  updateMock((current) => {
+    const headers = current.headers.map((header) => ({ ...header }))
+    headers[index] = {
+      ...headers[index],
+      ...patch,
+    }
+    return {
+      ...current,
+      headers,
+    }
+  })
+}
+
+const addMockHeader = () => {
+  updateMock((current) => ({
+    ...current,
+    headers: [...current.headers, createMockHeader()],
+  }))
+}
+
+const removeMockHeader = (index: number) => {
+  updateMock((current) => ({
+    ...current,
+    headers: current.headers.filter((_, headerIndex) => headerIndex !== index),
+  }))
 }
 
 const setAuthType = (type: AuthConfig['type']) => {
@@ -141,6 +290,10 @@ watch(() => environmentVariables.value, (items) => {
 watch(() => formDataFields.value, (items) => {
   syncRevealedRows('formdata', items.length)
 }, { immediate: true })
+
+watch(formDataFields, () => {
+  syncCurrentFormDataDraft()
+}, { deep: true })
 
 const isKeyValueRowInvalid = (section: Exclude<TableSection, 'formdata'>, item: KeyValueItem, index: number) => (
   item.enabled
@@ -213,6 +366,11 @@ const prepareForSubmit = () => {
   reconcileKeyValueSection('headers', headers.value)
   reconcileKeyValueSection('env', environmentVariables.value)
 
+  if (bodyType.value === 'json' && jsonBodyError.value) {
+    activeSection.value = 'body'
+    return false
+  }
+
   if (bodyType.value === 'formdata') {
     reconcileFormDataSection()
   }
@@ -233,11 +391,25 @@ const handleSectionChange = (nextSection: string | number) => {
 const setBodyType = (nextType: RequestBodyType) => {
   if (bodyType.value === nextType) return
 
+  syncCurrentTextBodyDraft()
+  syncCurrentFormDataDraft()
+
   if (bodyType.value === 'formdata' && nextType !== 'formdata') {
     reconcileSection('formdata')
   }
 
+  if (nextType === 'formdata') {
+    bodyType.value = nextType
+    const nextFields = cloneFormDataDraft(ensureFormDataDraft())
+    formDataFields.value = nextFields.length > 0 ? nextFields : [createFormDataField()]
+    bodyContent.value = serializeFormDataFields(formDataFields.value)
+    return
+  }
+
   bodyType.value = nextType
+
+  const nextBody = ensureTextBodyDrafts()[nextType]
+  bodyContent.value = nextBody
 }
 
 const addTest = () => {
@@ -274,37 +446,16 @@ const serializeFormDataFields = (fields: FormDataFieldSnapshot[]) => fields
   .map((field) => `${field.key}=${field.value}`)
   .join('\n')
 
-let syncingFormDataBody = false
 watch(formDataFields, (fields) => {
   if (bodyType.value !== 'formdata') return
   const nextBody = serializeFormDataFields(fields)
   if (nextBody === bodyContent.value) return
-  syncingFormDataBody = true
   bodyContent.value = nextBody
-  queueMicrotask(() => {
-    syncingFormDataBody = false
-  })
 }, { deep: true })
 
 watch([bodyType, bodyContent], ([nextBodyType, nextBody]) => {
   if (nextBodyType === 'raw' && !bodyContentType.value) {
     bodyContentType.value = 'text/plain'
-  }
-
-  if (nextBodyType !== 'formdata' || syncingFormDataBody) return
-
-  const parsedFields = parseFormDataBody(nextBody)
-  if (parsedFields.length === 0) {
-    if (formDataFields.value.length === 0 && activeSection.value === 'body') {
-      formDataFields.value = [createFormDataField()]
-    }
-    return
-  }
-
-  const current = JSON.stringify(formDataFields.value)
-  const next = JSON.stringify(parsedFields)
-  if (current !== next) {
-    formDataFields.value = parsedFields
   }
 }, { immediate: true })
 
@@ -318,6 +469,11 @@ const jsonBodyError = computed(() => {
     return error instanceof Error ? error.message : String(error)
   }
 })
+
+const formatJsonBody = () => {
+  if (bodyType.value !== 'json' || !bodyContent.value.trim() || jsonBodyError.value) return
+  bodyContent.value = JSON.stringify(JSON.parse(bodyContent.value), null, 2)
+}
 
 const decodeBase64Size = (value: string) => {
   const normalized = value.replace(/\s+/g, '')
@@ -425,6 +581,9 @@ defineExpose({
         </Badge>
       </TabsTrigger>
       <span class="mx-1 h-5 w-px self-center bg-[color:var(--zr-border)]" />
+      <TabsTrigger value="mock" data-testid="request-section-trigger-mock" data-request-secondary="true" class="zr-tab-trigger opacity-80">
+        {{ text.request.mock }}
+      </TabsTrigger>
       <TabsTrigger value="auth" data-testid="request-section-trigger-auth" data-request-secondary="true" class="zr-tab-trigger opacity-80">
         {{ text.request.auth }}
         <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ authConfiguredCount }}</Badge>
@@ -600,9 +759,25 @@ defineExpose({
         <Button variant="ghost" size="sm" :class="['h-7 rounded-lg px-2.5 text-[10px]', bodyType === 'binary' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="setBodyType('binary')">{{ text.request.binary }}</Button>
       </div>
       <div class="zr-code-panel flex min-h-[18rem] flex-col overflow-hidden rounded-lg">
-        <div class="flex items-center justify-between border-b border-[color:var(--zr-border)] px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">
+        <div
+          data-testid="request-body-header"
+          class="flex items-center justify-between border-b border-[color:var(--zr-border)] px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]"
+        >
           <span>{{ text.request.requestPayload }}</span>
-          <span class="zr-chip rounded-full px-2 py-1 text-[10px] tracking-[0.18em] text-[var(--zr-text-secondary)]">{{ bodyType }}</span>
+          <div class="flex items-center gap-2">
+            <Button
+              v-if="bodyType === 'json'"
+              data-testid="request-json-format"
+              variant="ghost"
+              size="sm"
+              class="zr-tool-button h-7 rounded-md px-2.5 text-[10px]"
+              :disabled="!bodyContent.trim() || Boolean(jsonBodyError)"
+              @click="formatJsonBody"
+            >
+              {{ text.request.pretty }}
+            </Button>
+            <span class="zr-chip rounded-full px-2 py-1 text-[10px] tracking-[0.18em] text-[var(--zr-text-secondary)]">{{ bodyType }}</span>
+          </div>
         </div>
         <template v-if="bodyType === 'formdata'">
           <div data-testid="request-formdata-editor" class="flex flex-col p-3">
@@ -735,18 +910,158 @@ defineExpose({
               />
             </div>
           </div>
-          <textarea
-            v-model="bodyContent"
-            class="min-h-[15rem] w-full resize-none bg-transparent p-3 font-mono text-xs leading-5 text-[var(--zr-text-primary)] outline-none"
+          <CodeEditorSurface
+            test-id="request-body-code-editor"
+            :content="bodyContent"
+            :language="bodyType === 'json' ? 'json' : 'text'"
+            :read-only="false"
+            @update:content="bodyContent = $event"
           />
           <div
             v-if="bodyType === 'json' && jsonBodyError"
+            data-testid="request-json-error"
             class="border-t border-rose-500/20 bg-rose-500/8 px-3 py-2 text-xs text-rose-700 dark:text-rose-300"
           >
             {{ text.request.jsonInvalid }}: {{ jsonBodyError }}
           </div>
         </template>
       </div>
+      </TabsContent>
+
+      <TabsContent value="mock" data-testid="request-section-content-mock" class="mt-2.5 px-3 pb-3">
+        <div class="zr-code-panel flex min-h-[18rem] flex-col gap-3 rounded-lg p-3">
+          <template v-if="mock">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <div class="text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">{{ text.request.mock }}</div>
+                <div class="mt-1 text-xs text-[var(--zr-text-secondary)]">{{ text.request.mockEnabled }}</div>
+              </div>
+              <button
+                data-testid="request-mock-enabled"
+                :data-state="mock.enabled ? 'on' : 'off'"
+                class="zr-toggle-badge"
+                type="button"
+                @click="toggleMockEnabled"
+              >
+                <span class="zr-toggle-dot" aria-hidden="true" />
+              </button>
+            </div>
+
+            <div class="grid gap-2.5 md:grid-cols-3">
+              <div class="space-y-2">
+                <div class="text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">{{ text.request.mockStatus }}</div>
+                <Input
+                  data-testid="request-mock-status"
+                  :model-value="String(mock.status)"
+                  class="zr-input h-9 rounded-lg font-mono text-xs shadow-none"
+                  @update:model-value="updateMockStatus"
+                />
+              </div>
+              <div class="space-y-2 md:col-span-2">
+                <div class="text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">{{ text.request.mockStatusText }}</div>
+                <Input
+                  data-testid="request-mock-status-text"
+                  :model-value="mock.statusText"
+                  class="zr-input h-9 rounded-lg text-xs shadow-none"
+                  @update:model-value="updateMockStatusText"
+                />
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <div class="text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">{{ text.request.mockContentType }}</div>
+              <Input
+                data-testid="request-mock-content-type"
+                :model-value="mock.contentType"
+                class="zr-input h-9 rounded-lg font-mono text-xs shadow-none"
+                @update:model-value="updateMockContentType"
+              />
+            </div>
+
+            <div class="space-y-2">
+              <div class="text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">{{ text.request.mockHeaders }}</div>
+              <div class="overflow-hidden rounded-lg border border-[color:var(--zr-border)]">
+                <table class="w-full text-xs">
+                  <thead class="bg-[var(--zr-soft-bg)] text-left text-xs text-[var(--zr-text-muted)]">
+                    <tr>
+                      <th class="w-10 text-center"></th>
+                      <th class="w-[35%] px-3 py-2.5 font-medium">{{ text.request.key }}</th>
+                      <th class="w-[45%] px-3 py-2.5 font-medium">{{ text.request.value }}</th>
+                      <th class="w-8"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="(header, idx) in mock.headers"
+                      :key="idx"
+                      class="group border-t border-[color:var(--zr-border-soft)] first:border-t-0"
+                    >
+                      <td class="px-3 py-1.5 align-top text-center">
+                        <div class="flex h-9 items-center justify-center">
+                          <button
+                            :data-testid="`request-mock-row-toggle-${idx}`"
+                            :data-state="header.enabled ? 'on' : 'off'"
+                            class="zr-toggle-badge"
+                            type="button"
+                            @click="toggleMockHeader(idx)"
+                          >
+                            <span class="zr-toggle-dot" aria-hidden="true" />
+                          </button>
+                        </div>
+                      </td>
+                      <td class="px-3 py-1.5 align-top">
+                        <Input
+                          :model-value="header.key"
+                          class="zr-input h-9 rounded-lg text-xs font-mono shadow-none"
+                          @update:model-value="updateMockHeader(idx, { key: String($event) })"
+                        />
+                      </td>
+                      <td class="px-3 py-1.5 align-top">
+                        <Input
+                          :model-value="header.value"
+                          class="zr-input h-9 rounded-lg text-xs font-mono shadow-none"
+                          @update:model-value="updateMockHeader(idx, { value: String($event) })"
+                        />
+                      </td>
+                      <td class="px-3 py-1.5 align-top">
+                        <div class="flex h-9 items-center justify-center">
+                          <button class="opacity-0 transition-all text-[var(--zr-text-muted)] group-hover:opacity-100 hover:text-rose-300" @click="removeMockHeader(idx)">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr v-if="mock.headers.length === 0">
+                      <td colspan="4" class="px-3 py-4 text-center text-xs text-[var(--zr-text-muted)]">{{ text.request.mockHeaders }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <Button variant="ghost" size="sm" class="zr-dashed-button rounded-lg text-xs" @click="addMockHeader">
+                {{ text.request.addMockHeader }}
+              </Button>
+            </div>
+
+            <div class="flex min-h-[14rem] flex-1 flex-col gap-2">
+              <div class="text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">{{ text.request.mockBody }}</div>
+              <div class="zr-code-panel flex min-h-[14rem] flex-1 overflow-hidden rounded-lg">
+                <CodeEditorSurface
+                  test-id="request-mock-body-editor"
+                  :content="mock.body"
+                  :language="mock.contentType.includes('json') ? 'json' : 'text'"
+                  :read-only="false"
+                  @update:content="updateMockBody"
+                />
+              </div>
+            </div>
+          </template>
+          <div
+            v-else
+            class="flex min-h-[200px] items-center justify-center rounded-lg border border-dashed border-[color:var(--zr-border)] bg-[var(--zr-soft-bg)] px-5 text-center text-xs text-[var(--zr-text-muted)]"
+          >
+            {{ text.request.mockEmpty }}
+          </div>
+        </div>
       </TabsContent>
 
       <TabsContent value="auth" data-testid="request-section-content-auth" class="mt-2.5 px-3 pb-3">

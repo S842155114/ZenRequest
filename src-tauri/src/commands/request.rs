@@ -86,12 +86,60 @@ fn preview_response_body(body: &str) -> (String, bool) {
     }
 }
 
+fn build_mock_send_result(payload: &SendRequestPayloadDto) -> Result<SendRequestResultDto, AppError> {
+    let mock = payload
+        .mock
+        .as_ref()
+        .filter(|mock| mock.enabled)
+        .ok_or_else(|| AppError {
+            code: "MOCK_TEMPLATE_MISSING".to_string(),
+            message: "mock execution requested without an enabled template".to_string(),
+            details: None,
+        })?;
+
+    let response_body = if mock.content_type.contains("application/json") {
+        serde_json::from_str::<serde_json::Value>(&mock.body)
+            .ok()
+            .and_then(|value| serde_json::to_string_pretty(&value).ok())
+            .unwrap_or_else(|| mock.body.clone())
+    } else {
+        mock.body.clone()
+    };
+
+    Ok(SendRequestResultDto {
+        request_method: payload.method.clone(),
+        request_url: payload.url.clone(),
+        status: mock.status,
+        status_text: mock.status_text.clone(),
+        elapsed_ms: 0,
+        size_bytes: response_body.as_bytes().len(),
+        content_type: mock.content_type.clone(),
+        response_body,
+        headers: mock
+            .headers
+            .iter()
+            .filter(|header| header.enabled)
+            .map(|header| ResponseHeaderItemDto {
+                key: header.key.clone(),
+                value: header.value.clone(),
+            })
+            .collect(),
+        truncated: false,
+        execution_source: "mock".to_string(),
+        history_item: None,
+    })
+}
+
 #[tauri::command]
 pub async fn send_request(
     state: State<'_, AppState>,
     payload: SendRequestPayloadDto,
 ) -> Result<ApiEnvelope<SendRequestResultDto>, AppError> {
-    let response = match execute_request(&state.http_client, &payload).await {
+    let response = match if payload.mock.as_ref().is_some_and(|mock| mock.enabled) {
+        build_mock_send_result(&payload)
+    } else {
+        execute_request(&state.http_client, &payload).await
+    } {
         Ok(mut result) => {
             let (preview, preview_truncated) = preview_response_body(&result.response_body);
             let redacted_snapshot = redact_request_payload(&payload);
@@ -109,6 +157,7 @@ pub async fn send_request(
                 response_headers: redact_response_headers(&result.headers),
                 response_preview: preview,
                 truncated: result.truncated || preview_truncated,
+                execution_source: result.execution_source.clone(),
                 executed_at_epoch_ms: now_epoch_ms(),
             };
 
@@ -128,10 +177,11 @@ pub async fn send_request(
 #[cfg(test)]
 mod tests {
     use super::{
-        preview_response_body, redact_request_payload, AuthConfigDto, KeyValueItemDto,
-        SendRequestPayloadDto,
+        build_mock_send_result, preview_response_body, redact_request_payload, AuthConfigDto,
+        KeyValueItemDto, SendRequestPayloadDto,
     };
     use crate::models::RequestBodyDto;
+    use crate::models::request::RequestMockStateDto;
 
     #[test]
     fn redacts_sensitive_request_fields() {
@@ -174,6 +224,7 @@ mod tests {
                 api_key_placement: "header".to_string(),
             },
             tests: Vec::new(),
+            mock: None,
         };
 
         let redacted = redact_request_payload(&payload);
@@ -191,5 +242,59 @@ mod tests {
 
         assert!(truncated);
         assert_eq!(preview.chars().count(), 64 * 1024);
+    }
+
+    #[test]
+    fn builds_mock_send_results_from_request_local_mock_templates() {
+        let payload = SendRequestPayloadDto {
+            workspace_id: "workspace-1".to_string(),
+            tab_id: "tab-1".to_string(),
+            request_id: Some("request-1".to_string()),
+            name: "Demo".to_string(),
+            description: String::new(),
+            tags: Vec::new(),
+            collection_name: "Demo".to_string(),
+            method: "POST".to_string(),
+            url: "https://example.com/orders".to_string(),
+            params: Vec::new(),
+            headers: Vec::new(),
+            body: RequestBodyDto::Json {
+                value: "{}".to_string(),
+            },
+            auth: AuthConfigDto::default(),
+            tests: Vec::new(),
+            mock: Some(RequestMockStateDto {
+                enabled: true,
+                status: 202,
+                status_text: "Accepted".to_string(),
+                content_type: "application/json".to_string(),
+                body: "{\"source\":\"mock\"}".to_string(),
+                headers: vec![
+                    KeyValueItemDto {
+                        key: "X-Mock".to_string(),
+                        value: "enabled".to_string(),
+                        description: String::new(),
+                        enabled: true,
+                    },
+                    KeyValueItemDto {
+                        key: "X-Disabled".to_string(),
+                        value: "ignore".to_string(),
+                        description: String::new(),
+                        enabled: false,
+                    },
+                ],
+            }),
+        };
+
+        let result = build_mock_send_result(&payload).expect("mock result");
+
+        assert_eq!(result.status, 202);
+        assert_eq!(result.status_text, "Accepted");
+        assert_eq!(result.execution_source, "mock");
+        assert_eq!(result.request_method, "POST");
+        assert_eq!(result.request_url, "https://example.com/orders");
+        assert_eq!(result.headers.len(), 1);
+        assert_eq!(result.headers[0].key, "X-Mock");
+        assert!(result.response_body.contains("\"source\": \"mock\""));
     }
 }

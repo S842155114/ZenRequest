@@ -232,4 +232,37 @@ describe('ResponsePanel i18n copy', () => {
     expect(wrapper.get('[data-testid="response-stale-badge"]').text()).toContain('Stale')
     expect(wrapper.get('[data-testid="response-code-viewer"]').attributes('data-language')).toBe('json')
   })
+
+  it('shows a create-mock-template action for completed responses and emits when clicked', async () => {
+    const wrapper = mount(ResponsePanel, {
+      props: {
+        locale: 'en',
+        state: 'success',
+        status: 200,
+        statusText: 'OK',
+        responseBody: '{"ok":true}',
+        contentType: 'application/json',
+      } as any,
+    })
+
+    await wrapper.get('[data-testid="response-create-mock-template"]').trigger('click')
+
+    expect(wrapper.emitted('create-mock-template')).toHaveLength(1)
+  })
+
+  it('renders a mock-source badge when the active response came from a request-local mock', () => {
+    const wrapper = mount(ResponsePanel, {
+      props: {
+        locale: 'en',
+        state: 'success',
+        status: 200,
+        statusText: 'OK',
+        responseBody: '{"ok":true}',
+        contentType: 'application/json',
+        executionSource: 'mock',
+      } as any,
+    })
+
+    expect(wrapper.get('[data-testid="response-source-badge"]').text()).toContain('Mock')
+  })
 })

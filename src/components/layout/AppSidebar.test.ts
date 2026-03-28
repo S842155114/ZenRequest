@@ -112,6 +112,7 @@ const createHistoryItem = (overrides: Partial<HistoryItem> = {}): HistoryItem =>
   status: overrides.status ?? 200,
   time: overrides.time ?? '10 ms',
   executedAtEpochMs: overrides.executedAtEpochMs,
+  executionSource: overrides.executionSource,
   requestSnapshot: overrides.requestSnapshot ?? {
     tabId: 'tab-orders-history',
     requestId: 'request-orders-list',
@@ -265,6 +266,22 @@ describe('AppSidebar', () => {
     expect(wrapper.get('[data-testid="history-group-earlier"]').text()).toBe('Earlier')
     expect(wrapper.get('[data-testid="history-status-history-yesterday"]').text()).toBe('500')
     expect(wrapper.findAllComponents(BadgeStub)).toHaveLength(3)
+  })
+
+  it('shows explicit mock provenance for mock-sourced history rows', async () => {
+    const wrapper = mountSidebar({
+      historyItems: [
+        createHistoryItem({
+          id: 'history-mock',
+          name: 'Mock Orders',
+          executionSource: 'mock',
+        }),
+      ],
+    })
+
+    await wrapper.get('[data-testid="sidebar-history-tab"]').trigger('click')
+
+    expect(wrapper.get('[data-testid="history-source-history-mock"]').text()).toContain('Mock')
   })
 
   it('shows collection context during search and marks the active request row', () => {

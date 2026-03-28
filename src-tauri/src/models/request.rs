@@ -70,6 +70,23 @@ pub struct FormDataFieldDto {
     pub mime_type: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct RequestMockStateDto {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub status: u16,
+    #[serde(default)]
+    pub status_text: String,
+    #[serde(default)]
+    pub content_type: String,
+    #[serde(default)]
+    pub body: String,
+    #[serde(default)]
+    pub headers: Vec<KeyValueItemDto>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum RequestBodyDto {
@@ -119,6 +136,8 @@ pub struct SendRequestPayloadDto {
     pub auth: AuthConfigDto,
     #[serde(default)]
     pub tests: Vec<RequestTestDefinitionDto>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mock: Option<RequestMockStateDto>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -141,6 +160,8 @@ pub struct SendRequestResultDto {
     pub response_body: String,
     pub headers: Vec<ResponseHeaderItemDto>,
     pub truncated: bool,
+    #[serde(default = "default_execution_source")]
+    pub execution_source: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub history_item: Option<HistoryItemDto>,
 }
@@ -158,7 +179,12 @@ impl Default for SendRequestResultDto {
             response_body: String::new(),
             headers: Vec::new(),
             truncated: false,
+            execution_source: default_execution_source(),
             history_item: None,
         }
     }
+}
+
+fn default_execution_source() -> String {
+    "live".to_string()
 }

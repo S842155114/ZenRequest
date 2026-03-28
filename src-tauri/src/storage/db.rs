@@ -115,6 +115,64 @@ fn ensure_requests_tests_column(connection: &Connection) -> Result<(), AppError>
     Ok(())
 }
 
+fn ensure_requests_mock_column(connection: &Connection) -> Result<(), AppError> {
+    let mut statement = connection
+        .prepare("PRAGMA table_info(requests)")
+        .map_err(|err| db_error("failed to inspect requests schema", Some(err.to_string())))?;
+    let rows = statement
+        .query_map([], |row| row.get::<_, String>(1))
+        .map_err(|err| db_error("failed to query requests schema", Some(err.to_string())))?;
+
+    let mut has_mock_json = false;
+    for row in rows {
+        let column = row.map_err(|err| db_error("failed to read requests schema", Some(err.to_string())))?;
+        if column == "mock_json" {
+            has_mock_json = true;
+            break;
+        }
+    }
+
+    if !has_mock_json {
+        connection
+            .execute(
+                "ALTER TABLE requests ADD COLUMN mock_json TEXT NOT NULL DEFAULT 'null'",
+                [],
+            )
+            .map_err(|err| db_error("failed to migrate requests mock column", Some(err.to_string())))?;
+    }
+
+    Ok(())
+}
+
+fn ensure_history_execution_source_column(connection: &Connection) -> Result<(), AppError> {
+    let mut statement = connection
+        .prepare("PRAGMA table_info(history_items)")
+        .map_err(|err| db_error("failed to inspect history schema", Some(err.to_string())))?;
+    let rows = statement
+        .query_map([], |row| row.get::<_, String>(1))
+        .map_err(|err| db_error("failed to query history schema", Some(err.to_string())))?;
+
+    let mut has_execution_source = false;
+    for row in rows {
+        let column = row.map_err(|err| db_error("failed to read history schema", Some(err.to_string())))?;
+        if column == "execution_source" {
+            has_execution_source = true;
+            break;
+        }
+    }
+
+    if !has_execution_source {
+        connection
+            .execute(
+                "ALTER TABLE history_items ADD COLUMN execution_source TEXT NOT NULL DEFAULT 'live'",
+                [],
+            )
+            .map_err(|err| db_error("failed to migrate history execution source column", Some(err.to_string())))?;
+    }
+
+    Ok(())
+}
+
 pub fn initialize_database(db_path: &Path) -> Result<(), AppError> {
     if let Some(parent) = db_path.parent() {
         fs::create_dir_all(parent).map_err(|err| {
@@ -133,6 +191,8 @@ pub fn initialize_database(db_path: &Path) -> Result<(), AppError> {
         )
     })?;
     ensure_requests_tests_column(&connection)?;
+    ensure_requests_mock_column(&connection)?;
+    ensure_history_execution_source_column(&connection)?;
     connection
         .pragma_update(None, "user_version", BASELINE_SCHEMA_VERSION)
         .map_err(|err| {
@@ -687,12 +747,13 @@ fn import_workspace_data_with_connection(
             let headers_json = serialize_json(&request.headers, "request headers")?;
             let auth_json = serialize_json(&request.auth, "request auth")?;
             let tests_json = serialize_json(&request.tests, "request tests")?;
+            let mock_json = serialize_json(&request.mock, "request mock")?;
 
             connection
                 .execute(
                     "INSERT INTO requests
-                     (id, workspace_id, collection_id, name, description, tags_json, method, url, params_json, headers_json, body, body_type, auth_json, tests_json, sort_order, created_at_epoch_ms, updated_at_epoch_ms)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
+                     (id, workspace_id, collection_id, name, description, tags_json, method, url, params_json, headers_json, body, body_type, auth_json, tests_json, mock_json, sort_order, created_at_epoch_ms, updated_at_epoch_ms)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
                     params![
                         new_request_id,
                         workspace.id,
@@ -708,6 +769,7 @@ fn import_workspace_data_with_connection(
                         request.body_type,
                         auth_json,
                         tests_json,
+                        mock_json,
                         i64::try_from(request_index).unwrap_or(0),
                         timestamp,
                         timestamp
@@ -763,6 +825,7 @@ fn import_workspace_data_with_connection(
             response_headers: history_item.response_headers.clone(),
             response_preview: history_item.response_preview.clone(),
             truncated: history_item.truncated,
+            execution_source: history_item.execution_source.clone(),
             executed_at_epoch_ms: history_item.executed_at_epoch_ms,
         };
 
@@ -906,13 +969,14 @@ pub fn save_request(
     let headers_json = serialize_json(&payload.request.headers, "request headers")?;
     let auth_json = serialize_json(&payload.request.auth, "request auth")?;
     let tests_json = serialize_json(&payload.request.tests, "request tests")?;
+    let mock_json = serialize_json(&payload.request.mock, "request mock")?;
     let sort_order = next_sort_order(&connection, "requests", "collection_id", &payload.collection_id)?;
 
     connection
         .execute(
             "INSERT INTO requests
-             (id, workspace_id, collection_id, name, description, tags_json, method, url, params_json, headers_json, body, body_type, auth_json, tests_json, sort_order, created_at_epoch_ms, updated_at_epoch_ms)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
+             (id, workspace_id, collection_id, name, description, tags_json, method, url, params_json, headers_json, body, body_type, auth_json, tests_json, mock_json, sort_order, created_at_epoch_ms, updated_at_epoch_ms)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
              ON CONFLICT(id) DO UPDATE SET
                workspace_id = excluded.workspace_id,
                collection_id = excluded.collection_id,
@@ -927,6 +991,7 @@ pub fn save_request(
                body_type = excluded.body_type,
                auth_json = excluded.auth_json,
                tests_json = excluded.tests_json,
+               mock_json = excluded.mock_json,
                updated_at_epoch_ms = excluded.updated_at_epoch_ms",
             params![
                 request_id,
@@ -943,6 +1008,7 @@ pub fn save_request(
                 payload.request.body_type,
                 auth_json,
                 tests_json,
+                mock_json,
                 sort_order,
                 timestamp,
                 timestamp
@@ -1105,8 +1171,8 @@ pub fn insert_history_item(
     connection
         .execute(
             "INSERT INTO history_items
-             (id, workspace_id, request_id, request_name, request_method, request_url, request_snapshot_json, status, status_text, elapsed_ms, size_bytes, content_type, response_headers_json, response_preview, truncated, executed_at_epoch_ms)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+             (id, workspace_id, request_id, request_name, request_method, request_url, request_snapshot_json, status, status_text, elapsed_ms, size_bytes, content_type, response_headers_json, response_preview, truncated, execution_source, executed_at_epoch_ms)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
             params![
                 history_id,
                 workspace_id,
@@ -1123,6 +1189,7 @@ pub fn insert_history_item(
                 headers_json,
                 payload.response_preview,
                 if payload.truncated { 1 } else { 0 },
+                payload.execution_source,
                 i64::try_from(payload.executed_at_epoch_ms).unwrap_or(i64::MAX)
             ],
         )
@@ -1189,7 +1256,7 @@ fn load_request_with_collection_name(
 ) -> Result<RequestPresetDto, AppError> {
     connection
         .query_row(
-            "SELECT r.id, r.workspace_id, r.collection_id, c.name, r.name, r.description, r.tags_json, r.method, r.url, r.params_json, r.headers_json, r.body, r.body_type, r.auth_json, r.tests_json
+            "SELECT r.id, r.workspace_id, r.collection_id, c.name, r.name, r.description, r.tags_json, r.method, r.url, r.params_json, r.headers_json, r.body, r.body_type, r.auth_json, r.tests_json, r.mock_json
              FROM requests r
              JOIN collections c ON c.id = r.collection_id
              WHERE r.id = ?1",
@@ -1205,6 +1272,7 @@ fn map_request_row(row: &Row<'_>) -> rusqlite::Result<RequestPresetDto> {
     let headers_json: String = row.get(10)?;
     let auth_json: String = row.get(13)?;
     let tests_json: String = row.get(14)?;
+    let mock_json: String = row.get(15)?;
 
     Ok(RequestPresetDto {
         id: row.get(0)?,
@@ -1222,6 +1290,7 @@ fn map_request_row(row: &Row<'_>) -> rusqlite::Result<RequestPresetDto> {
         body_type: row.get(12)?,
         auth: serde_json::from_str(&auth_json).unwrap_or_default(),
         tests: serde_json::from_str(&tests_json).unwrap_or_default(),
+        mock: serde_json::from_str(&mock_json).unwrap_or_default(),
     })
 }
 
@@ -1267,7 +1336,7 @@ fn load_collections_with_connection(
         let mut request_statement = connection
             .prepare(
                 "SELECT r.id, r.workspace_id, r.collection_id, c.name, r.name, r.description, r.tags_json, r.method, r.url, r.params_json, r.headers_json, r.body, r.body_type, r.auth_json
-                 , r.tests_json
+                 , r.tests_json, r.mock_json
                  FROM requests r
                  JOIN collections c ON c.id = r.collection_id
                  WHERE r.collection_id = ?1
@@ -1350,7 +1419,7 @@ fn load_history_item_with_connection(
 ) -> Result<HistoryItemDto, AppError> {
     connection
         .query_row(
-            "SELECT id, request_id, request_name, request_method, request_url, request_snapshot_json, status, status_text, elapsed_ms, size_bytes, content_type, response_headers_json, response_preview, truncated, executed_at_epoch_ms
+            "SELECT id, request_id, request_name, request_method, request_url, request_snapshot_json, status, status_text, elapsed_ms, size_bytes, content_type, response_headers_json, response_preview, truncated, execution_source, executed_at_epoch_ms
              FROM history_items
              WHERE id = ?1",
             params![history_id],
@@ -1365,7 +1434,7 @@ fn load_history_with_connection(
 ) -> Result<Vec<HistoryItemDto>, AppError> {
     let mut statement = connection
         .prepare(
-            "SELECT id, request_id, request_name, request_method, request_url, request_snapshot_json, status, status_text, elapsed_ms, size_bytes, content_type, response_headers_json, response_preview, truncated, executed_at_epoch_ms
+            "SELECT id, request_id, request_name, request_method, request_url, request_snapshot_json, status, status_text, elapsed_ms, size_bytes, content_type, response_headers_json, response_preview, truncated, execution_source, executed_at_epoch_ms
              FROM history_items
              WHERE workspace_id = ?1
              ORDER BY executed_at_epoch_ms DESC",
@@ -1389,7 +1458,7 @@ fn load_history_export_with_connection(
 ) -> Result<Vec<WorkspaceHistoryExportItemDto>, AppError> {
     let mut statement = connection
         .prepare(
-            "SELECT id, request_id, request_name, request_method, request_url, request_snapshot_json, status, status_text, elapsed_ms, size_bytes, content_type, response_headers_json, response_preview, truncated, executed_at_epoch_ms
+            "SELECT id, request_id, request_name, request_method, request_url, request_snapshot_json, status, status_text, elapsed_ms, size_bytes, content_type, response_headers_json, response_preview, truncated, execution_source, executed_at_epoch_ms
              FROM history_items
              WHERE workspace_id = ?1
              ORDER BY executed_at_epoch_ms DESC",
@@ -1400,7 +1469,7 @@ fn load_history_export_with_connection(
         .query_map(params![workspace_id], |row| {
             let request_snapshot_json: String = row.get(5)?;
             let response_headers_json: String = row.get(11)?;
-            let executed_at_epoch_ms: i64 = row.get(14)?;
+            let executed_at_epoch_ms: i64 = row.get(15)?;
 
             Ok(WorkspaceHistoryExportItemDto {
                 id: row.get(0)?,
@@ -1417,6 +1486,7 @@ fn load_history_export_with_connection(
                 response_headers: serde_json::from_str(&response_headers_json).unwrap_or_default(),
                 response_preview: row.get(12)?,
                 truncated: row.get::<_, i64>(13)? != 0,
+                execution_source: row.get(14)?,
                 executed_at_epoch_ms: executed_at_epoch_ms as u64,
             })
         })
@@ -1434,7 +1504,7 @@ fn load_history_export_with_connection(
 fn map_history_row(row: &Row<'_>) -> rusqlite::Result<HistoryItemDto> {
     let request_snapshot_json: String = row.get(5)?;
     let response_headers_json: String = row.get(11)?;
-    let executed_at_epoch_ms: i64 = row.get(14)?;
+    let executed_at_epoch_ms: i64 = row.get(15)?;
     Ok(HistoryItemDto {
         id: row.get(0)?,
         request_id: row.get(1)?,
@@ -1450,6 +1520,7 @@ fn map_history_row(row: &Row<'_>) -> rusqlite::Result<HistoryItemDto> {
         response_headers: serde_json::from_str(&response_headers_json).unwrap_or_default(),
         response_preview: row.get(12)?,
         truncated: row.get::<_, i64>(13)? != 0,
+        execution_source: row.get(14)?,
         executed_at_epoch_ms: executed_at_epoch_ms as u64,
         time: format_history_time(executed_at_epoch_ms),
     })
@@ -1511,6 +1582,7 @@ fn seed_demo_workspace_with_connection(connection: &Connection) -> Result<Worksp
                 body_type: "json".to_string(),
                 auth: crate::models::AuthConfigDto::default(),
                 tests: Vec::new(),
+                mock: None,
             },
             RequestPresetDto {
                 id: generate_id("request"),
@@ -1533,6 +1605,7 @@ fn seed_demo_workspace_with_connection(connection: &Connection) -> Result<Worksp
                 body_type: "json".to_string(),
                 auth: crate::models::AuthConfigDto::default(),
                 tests: Vec::new(),
+                mock: None,
             },
         ],
     };
@@ -1549,10 +1622,11 @@ fn seed_demo_workspace_with_connection(connection: &Connection) -> Result<Worksp
         let headers_json = serialize_json(&request.headers, "request headers")?;
         let auth_json = serialize_json(&request.auth, "request auth")?;
         let tests_json = serialize_json(&request.tests, "request tests")?;
+        let mock_json = serialize_json(&request.mock, "request mock")?;
         connection.execute(
             "INSERT INTO requests
-             (id, workspace_id, collection_id, name, description, tags_json, method, url, params_json, headers_json, body, body_type, auth_json, tests_json, sort_order, created_at_epoch_ms, updated_at_epoch_ms)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
+             (id, workspace_id, collection_id, name, description, tags_json, method, url, params_json, headers_json, body, body_type, auth_json, tests_json, mock_json, sort_order, created_at_epoch_ms, updated_at_epoch_ms)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
             params![
                 request.id,
                 workspace.id,
@@ -1568,6 +1642,7 @@ fn seed_demo_workspace_with_connection(connection: &Connection) -> Result<Worksp
                 request.body_type,
                 auth_json,
                 tests_json,
+                mock_json,
                 i64::try_from(index).unwrap_or(0),
                 timestamp,
                 timestamp
@@ -1594,6 +1669,7 @@ fn seed_demo_workspace_with_connection(connection: &Connection) -> Result<Worksp
             body_type: collection.requests[0].body_type.clone(),
             auth: collection.requests[0].auth.clone(),
             tests: collection.requests[0].tests.clone(),
+            mock: collection.requests[0].mock.clone(),
             response: crate::models::ResponseStateDto::default(),
             is_sending: false,
             is_dirty: false,
@@ -1673,10 +1749,11 @@ fn migrate_legacy_snapshot_with_connection(
             let headers_json = serialize_json(&request.headers, "request headers")?;
             let auth_json = serialize_json(&request.auth, "request auth")?;
             let tests_json = serialize_json(&request.tests, "request tests")?;
+            let mock_json = serialize_json(&request.mock, "request mock")?;
             connection.execute(
                 "INSERT INTO requests
-                 (id, workspace_id, collection_id, name, description, tags_json, method, url, params_json, headers_json, body, body_type, auth_json, tests_json, sort_order, created_at_epoch_ms, updated_at_epoch_ms)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
+                 (id, workspace_id, collection_id, name, description, tags_json, method, url, params_json, headers_json, body, body_type, auth_json, tests_json, mock_json, sort_order, created_at_epoch_ms, updated_at_epoch_ms)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
                 params![
                     if request.id.is_empty() { generate_id("request") } else { request.id.clone() },
                     workspace.id,
@@ -1692,6 +1769,7 @@ fn migrate_legacy_snapshot_with_connection(
                     request.body_type,
                     auth_json,
                     tests_json,
+                    mock_json,
                     i64::try_from(request_index).unwrap_or(0),
                     timestamp,
                     timestamp
@@ -1719,6 +1797,7 @@ fn migrate_legacy_snapshot_with_connection(
             },
             auth: crate::models::AuthConfigDto::default(),
             tests: Vec::new(),
+            mock: None,
         };
         let stored = HistoryStoredPayloadDto {
             request_id: history_item.request_id.clone(),
@@ -1734,6 +1813,7 @@ fn migrate_legacy_snapshot_with_connection(
             response_headers: Vec::new(),
             response_preview: String::new(),
             truncated: history_item.truncated,
+            execution_source: history_item.execution_source.clone(),
             executed_at_epoch_ms: if history_item.executed_at_epoch_ms == 0 {
                 u64::try_from(timestamp).unwrap_or_default()
             } else {
@@ -1794,12 +1874,14 @@ mod tests {
         import_application_package, import_workspace_package, initialize_database,
         insert_history_item, list_workspaces, load_collections_with_connection,
         load_environments_with_connection, load_history_export_with_connection,
-        load_workspace_session_with_connection, open_connection, save_workspace_session,
+        load_workspace_session_with_connection, open_connection, save_request,
+        save_workspace_session,
     };
+    use crate::models::request::RequestMockStateDto;
     use crate::models::{
         HistoryStoredPayloadDto, ImportConflictStrategy, KeyValueItemDto,
         LegacyWorkspaceSnapshotDto, RequestBodyDto, RequestCollectionDto, RequestPresetDto,
-        SaveWorkspacePayloadDto, SendRequestPayloadDto, WorkspaceSessionDto,
+        SaveRequestPayloadDto, SaveWorkspacePayloadDto, SendRequestPayloadDto, WorkspaceSessionDto,
     };
     use std::fs;
     use std::path::PathBuf;
@@ -1857,6 +1939,7 @@ mod tests {
                     body_type: "json".to_string(),
                     auth: Default::default(),
                     tests: Vec::new(),
+                    mock: None,
                 }],
             }],
             history_items: Vec::new(),
@@ -1913,6 +1996,7 @@ mod tests {
                         body_type: request.body_type.clone(),
                         auth: request.auth.clone(),
                         tests: request.tests.clone(),
+                        mock: request.mock.clone(),
                         response: crate::models::ResponseStateDto::default(),
                         is_sending: false,
                         is_dirty: false,
@@ -1950,6 +2034,7 @@ mod tests {
                 },
                 auth: request.auth.clone(),
                 tests: request.tests.clone(),
+                mock: None,
             },
             status: 200,
             status_text: "OK".to_string(),
@@ -1962,6 +2047,7 @@ mod tests {
             }],
             response_preview: "{\"ok\":true}".to_string(),
             truncated: false,
+            execution_source: "live".to_string(),
             executed_at_epoch_ms: 1_717_171_717_000,
         };
         insert_history_item(&db_path, &workspace_id, &history).expect("history inserted");
@@ -2001,6 +2087,117 @@ mod tests {
             Some(imported_request_id.clone())
         );
         assert_eq!(imported_history[0].request_id, Some(imported_request_id));
+
+        let _ = fs::remove_file(db_path);
+    }
+
+    #[test]
+    fn save_request_roundtrips_mock_templates() {
+        let db_path = temp_db_path("request-mock-roundtrip");
+        initialize_database(&db_path).expect("database initialized");
+
+        let bootstrap = ensure_bootstrap_data(&db_path, None).expect("bootstrap payload");
+        let workspace_id = bootstrap
+            .active_workspace_id
+            .clone()
+            .expect("active workspace id");
+        let collection = bootstrap.collections[0].clone();
+        let request = collection.requests[0].clone();
+
+        let saved = save_request(&db_path, &SaveRequestPayloadDto {
+            workspace_id: workspace_id.clone(),
+            collection_id: collection.id.clone(),
+            request: RequestPresetDto {
+                mock: Some(RequestMockStateDto {
+                    enabled: true,
+                    status: 202,
+                    status_text: "Accepted".to_string(),
+                    content_type: "application/json".to_string(),
+                    body: "{\"source\":\"mock\"}".to_string(),
+                    headers: vec![KeyValueItemDto {
+                        key: "X-Mock".to_string(),
+                        value: "enabled".to_string(),
+                        description: String::new(),
+                        enabled: true,
+                    }],
+                }),
+                ..request
+            },
+        }).expect("request saved");
+
+        assert!(saved.mock.is_some());
+        assert_eq!(saved.mock.unwrap().status, 202);
+
+        let connection = open_connection(&db_path).expect("connection opened");
+        let collections = load_collections_with_connection(&connection, &workspace_id).expect("collections loaded");
+        let persisted = collections[0].requests[0].clone();
+        assert_eq!(persisted.mock.unwrap().body, "{\"source\":\"mock\"}");
+
+        let _ = fs::remove_file(db_path);
+    }
+
+    #[test]
+    fn insert_history_item_roundtrips_execution_source() {
+        let db_path = temp_db_path("history-execution-source");
+        initialize_database(&db_path).expect("database initialized");
+
+        let bootstrap = ensure_bootstrap_data(&db_path, None).expect("bootstrap payload");
+        let workspace_id = bootstrap
+            .active_workspace_id
+            .clone()
+            .expect("active workspace id");
+        let request = bootstrap.collections[0].requests[0].clone();
+
+        let history = HistoryStoredPayloadDto {
+            request_id: Some(request.id.clone()),
+            request_name: request.name.clone(),
+            request_method: request.method.clone(),
+            request_url: request.url.clone(),
+            request_snapshot: SendRequestPayloadDto {
+                workspace_id: workspace_id.clone(),
+                tab_id: "tab-history-mock".to_string(),
+                request_id: Some(request.id.clone()),
+                name: request.name.clone(),
+                description: request.description.clone(),
+                tags: request.tags.clone(),
+                collection_name: request.collection_name.clone().unwrap_or_default(),
+                method: request.method.clone(),
+                url: request.url.clone(),
+                params: request.params.clone(),
+                headers: request.headers.clone(),
+                body: RequestBodyDto::Json {
+                    value: "{\"ok\":true}".to_string(),
+                },
+                auth: request.auth.clone(),
+                tests: request.tests.clone(),
+                mock: Some(RequestMockStateDto {
+                    enabled: true,
+                    status: 200,
+                    status_text: "OK".to_string(),
+                    content_type: "application/json".to_string(),
+                    body: "{\"source\":\"mock\"}".to_string(),
+                    headers: Vec::new(),
+                }),
+            },
+            status: 200,
+            status_text: "OK".to_string(),
+            elapsed_ms: 1,
+            size_bytes: 24,
+            content_type: "application/json".to_string(),
+            response_headers: Vec::new(),
+            response_preview: "{\"source\":\"mock\"}".to_string(),
+            truncated: false,
+            executed_at_epoch_ms: 1_717_171_717_100,
+            execution_source: "mock".to_string(),
+        };
+
+        let persisted = insert_history_item(&db_path, &workspace_id, &history).expect("history inserted");
+
+        assert_eq!(persisted.execution_source, "mock");
+        assert_eq!(
+            persisted.request_snapshot.expect("request snapshot").mock.expect("mock snapshot").body,
+            "{\"source\":\"mock\"}",
+        );
 
         let _ = fs::remove_file(db_path);
     }

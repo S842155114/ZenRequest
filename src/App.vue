@@ -369,6 +369,31 @@ const updateTab = (tabId: string, updater: (tab: RequestTabState) => RequestTabS
   openTabs.value = openTabs.value.map((tab) => (tab.id === tabId ? updater(tab) : tab))
 }
 
+const handleCreateMockTemplate = () => {
+  if (!activeTab.value) return
+
+  if (activeTab.value.mock && !window.confirm(text.value.request.mockOverwriteConfirm)) {
+    return
+  }
+
+  updateTab(activeTab.value.id, (tab) => ({
+    ...tab,
+    mock: {
+      enabled: false,
+      status: tab.response.status,
+      statusText: tab.response.statusText,
+      contentType: tab.response.contentType,
+      body: tab.response.responseBody,
+      headers: tab.response.headers.map((header) => ({
+        key: header.key,
+        value: header.value,
+        description: '',
+        enabled: true,
+      })),
+    },
+  }))
+}
+
 const setActiveTab = (tabId: string) => {
   if (openTabs.value.some((tab) => tab.id === tabId)) {
     activeTabId.value = tabId
@@ -1144,10 +1169,14 @@ const handleSend = async (payload: SendRequestPayload) => {
     binaryFileName: payload.binaryFileName,
     binaryMimeType: payload.binaryMimeType,
     auth: cloneAuth(payload.auth),
-    tests: cloneTests(payload.tests),
-    isSending: true,
-    executionState: 'pending',
-    response: cloneResponse({
+      tests: cloneTests(payload.tests),
+      mock: payload.mock ? {
+        ...payload.mock,
+        headers: cloneItems(payload.mock.headers),
+      } : undefined,
+      isSending: true,
+      executionState: 'pending',
+      response: cloneResponse({
       ...tab.response,
       state: 'pending',
       stale: tab.response.state !== 'idle',
@@ -1182,6 +1211,7 @@ const handleSend = async (payload: SendRequestPayload) => {
         }),
         state: resolveResponseStateFromStatus(response.data!.status),
         stale: false,
+        executionSource: response.data!.executionSource ?? 'live',
       },
     }))
 
@@ -1209,6 +1239,7 @@ const handleSend = async (payload: SendRequestPayload) => {
         testResults: [],
         state: 'transport-error',
         stale: false,
+        executionSource: 'live',
       },
     }))
   }
@@ -1574,9 +1605,11 @@ watch(isCompactLayout, async () => {
                       :request-url="activeTab?.response.requestUrl"
                       :state="activeTab?.response.state"
                       :stale="activeTab?.response.stale"
+                      :execution-source="activeTab?.response.executionSource"
                       :theme="resolvedTheme"
                       :collapsed="responsePanelCollapsed"
                       @toggle-collapsed="toggleResponsePanelCollapsed"
+                      @create-mock-template="handleCreateMockTemplate"
                     />
                   </div>
                 </ResizablePanel>
@@ -1664,9 +1697,11 @@ watch(isCompactLayout, async () => {
                   :request-url="activeTab?.response.requestUrl"
                   :state="activeTab?.response.state"
                   :stale="activeTab?.response.stale"
+                  :execution-source="activeTab?.response.executionSource"
                   :theme="resolvedTheme"
                   :collapsed="responsePanelCollapsed"
                   @toggle-collapsed="toggleResponsePanelCollapsed"
+                  @create-mock-template="handleCreateMockTemplate"
                 />
               </div>
             </ResizablePanel>

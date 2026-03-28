@@ -13,6 +13,7 @@ export type AuthType = 'none' | 'bearer' | 'basic' | 'apiKey'
 export type RequestTestSource = 'status' | 'header' | 'body'
 export type RequestTestOperator = 'equals' | 'contains' | 'exists'
 export type ResponseLifecycleState = 'idle' | 'pending' | 'success' | 'http-error' | 'transport-error'
+export type RequestExecutionSource = 'live' | 'mock'
 export type RequestTabOriginKind = 'resource' | 'replay' | 'scratch' | 'detached'
 export type RequestTabPersistenceState = 'saved' | 'unsaved' | 'unbound'
 export type RequestTabExecutionState = ResponseLifecycleState
@@ -46,6 +47,15 @@ export interface FormDataFieldSnapshot {
   enabled: boolean
   fileName?: string
   mimeType?: string
+}
+
+export interface RequestMockState {
+  enabled: boolean
+  status: number
+  statusText: string
+  contentType: string
+  body: string
+  headers: KeyValueItem[]
 }
 
 export type RequestBodySnapshot =
@@ -105,6 +115,7 @@ export interface RequestPreset {
   binaryMimeType?: string
   auth?: Partial<AuthConfig>
   tests?: RequestTestDefinition[]
+  mock?: RequestMockState
 }
 
 export interface RequestCollection {
@@ -131,6 +142,7 @@ export interface HistoryItem {
   responseHeaders?: ResponseHeaderItem[]
   responsePreview?: string
   requestSnapshot?: HistoryRequestSnapshot
+  executionSource?: RequestExecutionSource
 }
 
 export interface ResponseHeaderItem {
@@ -151,6 +163,7 @@ export interface ResponseState {
   testResults: RequestTestResult[]
   state?: ResponseLifecycleState
   stale?: boolean
+  executionSource?: RequestExecutionSource
 }
 
 export interface EnvironmentPreset {
@@ -188,6 +201,7 @@ export interface RequestTabState {
   binaryMimeType?: string
   auth: AuthConfig
   tests: RequestTestDefinition[]
+  mock?: RequestMockState
   response: ResponseState
   isSending: boolean
   isDirty?: boolean
@@ -212,6 +226,7 @@ export interface SendRequestPayload {
   binaryMimeType?: string
   auth: AuthConfig
   tests: RequestTestDefinition[]
+  mock?: RequestMockState
 }
 
 export interface WorkspaceSnapshot {

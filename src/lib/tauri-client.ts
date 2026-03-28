@@ -93,6 +93,7 @@ export interface SendRequestResult {
   responseBody: string
   headers: Array<{ key: string; value: string }>
   truncated: boolean
+  executionSource?: 'live' | 'mock'
   historyItem?: HistoryItem
 }
 
