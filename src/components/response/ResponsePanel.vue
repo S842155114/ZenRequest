@@ -8,7 +8,14 @@ import ResponseCodeViewer from './ResponseCodeViewer.vue'
 import ResponseHtmlPreview from './ResponseHtmlPreview.vue'
 import { CheckCircle2, ChevronDown, ChevronUp, Clock3, Copy, Download, HardDrive, XCircle } from 'lucide-vue-next'
 import { prepareResponseCodeView } from '@/lib/response-code-viewer'
-import type { AppLocale, RequestTestResult, ResponseHeaderItem, ResolvedTheme, ResponseLifecycleState } from '@/types/request'
+import type {
+  AppLocale,
+  RequestExecutionSource,
+  RequestTestResult,
+  ResponseHeaderItem,
+  ResolvedTheme,
+  ResponseLifecycleState,
+} from '@/types/request'
 
 defineOptions({
   name: 'ResponsePanel'
@@ -30,6 +37,7 @@ const props = withDefaults(defineProps<{
   theme?: ResolvedTheme
   state?: ResponseLifecycleState
   stale?: boolean
+  executionSource?: RequestExecutionSource
   collapsed?: boolean
 }>(), {
   responseBody: `{
@@ -51,11 +59,13 @@ const props = withDefaults(defineProps<{
   theme: 'dark',
   state: 'success',
   stale: false,
+  executionSource: 'live',
   collapsed: false,
 })
 
 const emit = defineEmits<{
   (e: 'toggle-collapsed'): void
+  (e: 'create-mock-template'): void
 }>()
 
 const activeTab = ref<'body' | 'headers' | 'cookies' | 'tests'>('body')
@@ -69,6 +79,11 @@ const preparedResponseView = computed(() => prepareResponseCodeView(props.respon
 const canPreviewHtml = computed(() => preparedResponseView.value.canPreviewAsHtml)
 const isHtmlPreviewMode = computed(() => canPreviewHtml.value && bodyViewMode.value === 'preview')
 const activeState = computed<ResponseLifecycleState>(() => props.state)
+const showCreateMockAction = computed(() => (
+  activeState.value !== 'idle'
+  && activeState.value !== 'pending'
+  && props.responseBody.trim().length > 0
+))
 const stateBadgeLabel = computed(() => {
   if (activeState.value === 'idle') return text.value.response.ready
   if (activeState.value === 'pending') return text.value.response.pending
@@ -188,6 +203,14 @@ const downloadCurrentContent = () => {
           >
             {{ text.response.stale }}
           </Badge>
+          <Badge
+            v-if="props.executionSource === 'mock'"
+            data-testid="response-source-badge"
+            variant="outline"
+            class="rounded-full border border-sky-500/25 bg-sky-500/10 px-2 py-0.5 text-[10px] font-semibold tracking-[0.16em] text-sky-700 dark:text-sky-200"
+          >
+            {{ text.response.mockSource }}
+          </Badge>
         </div>
         <button
           class="zr-tool-button inline-flex h-7 w-7 items-center justify-center rounded-md"
@@ -222,6 +245,16 @@ const downloadCurrentContent = () => {
         <Button variant="ghost" size="sm" :class="['h-7 rounded-md px-2.5 text-[10px]', activeTab === 'cookies' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="activeTab = 'cookies'">{{ text.response.cookies }}</Button>
         <Button variant="ghost" size="sm" :class="['h-7 rounded-md px-2.5 text-[10px]', activeTab === 'tests' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="activeTab = 'tests'">{{ text.response.tests }}</Button>
         <div class="flex-1"></div>
+        <Button
+          v-if="showCreateMockAction"
+          data-testid="response-create-mock-template"
+          variant="ghost"
+          size="sm"
+          class="zr-tool-button h-7 rounded-md px-2.5 text-[10px]"
+          @click="emit('create-mock-template')"
+        >
+          {{ text.response.createMockTemplate }}
+        </Button>
         <Button variant="ghost" size="icon-sm" class="zr-tool-button h-7 w-7 rounded-md" @click="copyCurrentContent">
           <Copy class="h-3 w-3" />
         </Button>

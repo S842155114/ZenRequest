@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::models::request::{
-    AuthConfigDto, KeyValueItemDto, RequestTestDefinitionDto, ResponseHeaderItemDto,
-    SendRequestPayloadDto,
+    AuthConfigDto, KeyValueItemDto, RequestMockStateDto, RequestTestDefinitionDto,
+    ResponseHeaderItemDto, SendRequestPayloadDto,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -33,6 +33,8 @@ pub struct ResponseStateDto {
     pub content_type: String,
     pub request_method: String,
     pub request_url: String,
+    #[serde(default = "default_execution_source")]
+    pub execution_source: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -65,6 +67,8 @@ pub struct RequestPresetDto {
     pub auth: AuthConfigDto,
     #[serde(default)]
     pub tests: Vec<RequestTestDefinitionDto>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mock: Option<RequestMockStateDto>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -117,6 +121,8 @@ pub struct HistoryItemDto {
     pub response_headers: Vec<ResponseHeaderItemDto>,
     #[serde(default)]
     pub response_preview: String,
+    #[serde(default = "default_execution_source")]
+    pub execution_source: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_snapshot: Option<SendRequestPayloadDto>,
 }
@@ -154,6 +160,8 @@ pub struct RequestTabStateDto {
     pub auth: AuthConfigDto,
     #[serde(default)]
     pub tests: Vec<RequestTestDefinitionDto>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mock: Option<RequestMockStateDto>,
     #[serde(default)]
     pub response: ResponseStateDto,
     #[serde(default)]
@@ -254,6 +262,8 @@ pub struct WorkspaceHistoryExportItemDto {
     pub response_headers: Vec<ResponseHeaderItemDto>,
     pub response_preview: String,
     pub truncated: bool,
+    #[serde(default = "default_execution_source")]
+    pub execution_source: String,
     pub executed_at_epoch_ms: u64,
 }
 
@@ -496,9 +506,15 @@ pub struct HistoryStoredPayloadDto {
     pub response_headers: Vec<ResponseHeaderItemDto>,
     pub response_preview: String,
     pub truncated: bool,
+    #[serde(default = "default_execution_source")]
+    pub execution_source: String,
     pub executed_at_epoch_ms: u64,
 }
 
 fn default_body_type() -> String {
     "json".to_string()
+}
+
+fn default_execution_source() -> String {
+    "live".to_string()
 }

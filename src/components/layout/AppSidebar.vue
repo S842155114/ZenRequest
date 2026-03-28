@@ -647,6 +647,14 @@ const worksetSummaryItems = computed(() => ([
                 >
                   {{ item.status }}
                 </span>
+                <Badge
+                  v-if="item.executionSource === 'mock'"
+                  :data-testid="`history-source-${item.id}`"
+                  variant="outline"
+                  class="rounded-full border border-sky-500/25 bg-sky-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-sky-700 dark:text-sky-200"
+                >
+                  {{ text.sidebar.mockSource }}
+                </Badge>
                 <span class="text-[10px] text-[var(--zr-text-muted)]">
                   {{ item.time }}
                 </span>

@@ -5,6 +5,7 @@ import type {
   HistoryItem,
   KeyValueItem,
   RequestCollection,
+  RequestMockState,
   RequestTabExecutionState,
   RequestTabOrigin,
   RequestTabOriginKind,
@@ -64,6 +65,7 @@ export const defaultResponseState = (overrides?: Partial<ResponseState>): Respon
   testResults: [],
   state: 'idle',
   stale: false,
+  executionSource: 'live',
   ...overrides,
 })
 
@@ -89,6 +91,14 @@ export const defaultEnvironments = (): EnvironmentPreset[] => ([
 
 export const cloneItems = (items?: KeyValueItem[]) => (items ?? []).map((item) => ({ ...item }))
 export const cloneTests = (tests?: RequestTestDefinition[]) => (tests ?? []).map((test) => ({ ...test }))
+export const cloneMock = (mock?: RequestMockState): RequestMockState | undefined => (
+  mock
+    ? {
+      ...mock,
+      headers: cloneItems(mock.headers),
+    }
+    : undefined
+)
 
 export const cloneAuth = (auth?: Partial<AuthConfig>): AuthConfig => ({
   ...defaultAuthConfig(),
@@ -105,6 +115,7 @@ export const cloneResponse = (response?: Partial<ResponseState>): ResponseState 
     ...merged,
     state: response?.state ?? resolveResponseStateFromStatus(merged.status),
     stale: response?.stale ?? false,
+    executionSource: response?.executionSource ?? merged.executionSource ?? 'live',
     headers: (response?.headers ?? []).map((header) => ({ ...header })),
     testResults: (response?.testResults ?? []).map((result) => ({ ...result })),
   }
@@ -124,6 +135,7 @@ export const clonePreset = (preset: RequestPreset): RequestPreset => ({
   formDataFields: (preset.formDataFields ?? []).map((field) => ({ ...field })),
   auth: cloneAuth(preset.auth),
   tests: cloneTests(preset.tests),
+  mock: cloneMock(preset.mock),
 })
 
 export const cloneCollection = (collection: RequestCollection): RequestCollection => ({
@@ -175,6 +187,7 @@ export const normalizeRequestTabState = (tab: RequestTabState): RequestTabState 
     origin,
     persistenceState: resolveTabPersistenceState(tab, origin),
     executionState: resolveTabExecutionState(tab),
+    mock: cloneMock(tab.mock),
   }
 }
 
@@ -204,9 +217,11 @@ export const createRequestTabFromPreset = (preset: RequestPreset): RequestTabSta
   binaryMimeType: preset.binaryMimeType,
   auth: cloneAuth(preset.auth),
   tests: cloneTests(preset.tests),
+  mock: cloneMock(preset.mock),
   response: defaultResponseState({
     requestMethod: preset.method,
     requestUrl: preset.url,
+    executionSource: 'live',
   }),
   isSending: false,
   isDirty: false,
@@ -253,6 +268,7 @@ export const cloneTab = (tab: RequestTabState): RequestTabState => ({
   auth: cloneAuth(tab.auth),
   tests: cloneTests(tab.tests),
   formDataFields: (tab.formDataFields ?? []).map((field) => ({ ...field })),
+  mock: cloneMock(tab.mock),
   response: cloneResponse(tab.response),
   origin: cloneTabOrigin(resolveTabOrigin(tab)),
   isDirty: tab.isDirty ?? false,
@@ -277,6 +293,7 @@ export const createPresetFromTab = (tab: RequestTabState): RequestPreset => ({
   binaryMimeType: tab.binaryMimeType,
   auth: cloneAuth(tab.auth),
   tests: cloneTests(tab.tests),
+  mock: cloneMock(tab.mock),
 })
 
 export const resolveResponseStateFromStatus = (status: number): ResponseLifecycleState => {
@@ -396,6 +413,7 @@ export const createHistoryEntry = (payload: {
   time: new Date().toLocaleTimeString('zh-CN', { hour12: false }),
   status: payload.status,
   url: payload.url,
+  executionSource: 'live',
 })
 
 const getHeaderValue = (headers: ResponseHeaderItem[], target: string) => {
@@ -517,9 +535,11 @@ export const createRequestTabFromHistorySnapshot = (
     binaryMimeType: 'binaryMimeType' in body ? body.binaryMimeType : undefined,
     auth: cloneAuth(snapshot.auth),
     tests: cloneTests(snapshot.tests),
+    mock: cloneMock(snapshot.mock),
     response: defaultResponseState({
       requestMethod: snapshot.method,
       requestUrl: snapshot.url,
+      executionSource: 'live',
     }),
     isSending: false,
     isDirty: true,
@@ -542,6 +562,7 @@ export const createResponseStateFromHistoryItem = (
   requestUrl,
   state: resolveResponseStateFromStatus(item.status),
   stale: false,
+  executionSource: item.executionSource ?? 'live',
 })
 
 export const resolveVariablesMap = (variables: KeyValueItem[]) => {
@@ -606,6 +627,7 @@ export const sanitizeSnapshot = (snapshot: Partial<WorkspaceSnapshot> | null | u
       ...item,
       id: item?.id || createLegacyId('history'),
       executedAtEpochMs: item?.executedAtEpochMs ?? 0,
+      executionSource: item?.executionSource ?? 'live',
     }))
     : []
 

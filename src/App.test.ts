@@ -420,6 +420,7 @@ const RequestPanelStub = defineComponent({
               bodyType: 'json',
               auth: baseAuth,
               tests: [],
+              mock: (current as { mock?: unknown }).mock,
             })
           },
         }, 'send'),
@@ -450,13 +451,16 @@ const ResponsePanelStub = defineComponent({
     headers: { type: Array, required: false, default: () => [] },
     state: { type: String, required: false, default: 'idle' },
     stale: { type: Boolean, required: false, default: false },
+    executionSource: { type: String, required: false, default: 'live' },
     collapsed: { type: Boolean, required: false, default: false },
   },
-  setup(props) {
+  emits: ['create-mock-template'],
+  setup(props, { emit }) {
     return () => h('div', {
       'data-testid': 'response-panel-stub',
       'data-state': props.state,
       'data-stale': props.stale ? 'true' : 'false',
+      'data-execution-source': props.executionSource,
       'data-collapsed': props.collapsed ? 'true' : 'false',
     }, [
       props.status,
@@ -468,6 +472,10 @@ const ResponsePanelStub = defineComponent({
       props.responseBody,
       ' ',
       JSON.stringify(props.headers),
+      h('button', {
+        'data-testid': 'response-panel-create-mock',
+        onClick: () => emit('create-mock-template'),
+      }, 'create-mock'),
     ])
   },
 })
@@ -1358,6 +1366,85 @@ describe('App workbench shell', () => {
     await nextTick()
 
     expect(getActiveRequestPanelTab(wrapper)?.isDirty).toBe(true)
+  })
+
+  it('creates a request-local mock template from the active completed response', async () => {
+    window.innerWidth = 1440
+
+    const wrapper = await mountApp()
+
+    await wrapper.get('[data-testid="response-panel-create-mock"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect(getActiveRequestPanelTab(wrapper)?.mock).toMatchObject({
+      enabled: false,
+      status: 201,
+      statusText: 'Created',
+      contentType: 'application/json',
+      body: '{"ok":true}',
+      headers: [],
+    })
+  })
+
+  it('forwards request-local mock templates through send and surfaces mock provenance', async () => {
+    window.innerWidth = 1440
+
+    const payload = createBootstrapPayload()
+    payload.session!.openTabs[1] = {
+      ...payload.session!.openTabs[1],
+      mock: {
+        enabled: true,
+        status: 202,
+        statusText: 'Accepted',
+        contentType: 'application/json',
+        body: '{"source":"mock"}',
+        headers: [],
+      },
+    }
+
+    const sendRequest = vi.fn(async (_payload: SendRequestPayloadDto) => ok({
+      requestMethod: 'POST',
+      requestUrl: 'https://example.com/orders',
+      status: 202,
+      statusText: 'Accepted',
+      elapsedMs: 1,
+      sizeBytes: 20,
+      contentType: 'application/json',
+      responseBody: '{"source":"mock"}',
+      headers: [],
+      truncated: false,
+      executionSource: 'mock' as const,
+      historyItem: {
+        id: 'history-mock-1',
+        name: 'Orders Lookup',
+        method: 'POST',
+        time: '10:00:00',
+        status: 202,
+        url: 'https://example.com/orders',
+        statusText: 'Accepted',
+        elapsedMs: 1,
+        sizeBytes: 20,
+        contentType: 'application/json',
+        truncated: false,
+        responseHeaders: [],
+        responsePreview: '{"source":"mock"}',
+        executionSource: 'mock' as const,
+      },
+    }))
+
+    setRuntimeAdapter(createAdapter(payload, { sendRequest }))
+
+    const wrapper = await mountApp()
+
+    await wrapper.get('[data-testid="request-panel-send"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect(sendRequest).toHaveBeenCalledTimes(1)
+    expect(sendRequest.mock.calls[0]?.[0].mock?.enabled).toBe(true)
+    expect(wrapper.get('[data-testid="response-panel-stub"]').attributes('data-execution-source')).toBe('mock')
+    expect((wrapper.findComponent(AppSidebarStub).props('historyItems') as HistoryItem[])[0]?.executionSource).toBe('mock')
   })
 
   it('reopens the save dialog with the last saved request description', async () => {
