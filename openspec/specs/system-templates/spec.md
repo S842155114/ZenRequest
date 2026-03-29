@@ -1,7 +1,7 @@
 # system-templates Specification
 
 ## Purpose
-TBD - created by archiving change align-runtime-domain-model. Update Purpose after archive.
+Define read-only system template sources that seed detached user workspaces without becoming editable runtime-owned data themselves.
 ## Requirements
 ### Requirement: System templates are read-only seed sources
 The system SHALL treat system templates as read-only seed sources and MUST NOT treat them as ordinary user-owned runtime data.
@@ -16,4 +16,3 @@ Copying a system template into a workspace SHALL create a fully detached workspa
 #### Scenario: Template-based workspace diverges
 - **WHEN** the user edits a workspace created from a system template
 - **THEN** those edits affect only the copied workspace and not the original template
-

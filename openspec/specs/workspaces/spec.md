@@ -1,7 +1,7 @@
 # workspaces Specification
 
 ## Purpose
-TBD - created by archiving change align-runtime-domain-model. Update Purpose after archive.
+Define multi-workspace ownership, first-run demo seeding, and workspace deletion semantics for the desktop runtime.
 ## Requirements
 ### Requirement: Multiple workspaces
 The system SHALL support multiple user workspaces as first-class entities, and each workspace MUST own its own collections, requests, environments, history, and workspace session.
@@ -27,4 +27,3 @@ Deleting a workspace SHALL require explicit user confirmation, and confirmed del
 #### Scenario: Confirmed workspace deletion
 - **WHEN** the user confirms deletion of a workspace
 - **THEN** the system deletes the workspace and all lower-layer data owned by that workspace
-

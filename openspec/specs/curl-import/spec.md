@@ -1,7 +1,7 @@
 # curl-import Specification
 
 ## Purpose
-TBD - created by archiving change align-local-api-workbench-architecture. Update Purpose after archive.
+Define curl-command import into editable workspace request drafts that map into the canonical request model without reusing backup-restore package contracts.
 ## Requirements
 ### Requirement: Curl import creates editable request drafts
 The system SHALL support importing a developer-provided curl command into the active workspace as an editable request draft.
@@ -23,4 +23,3 @@ Curl import SHALL be treated as a feature-grade import adapter and MUST NOT reus
 #### Scenario: Curl import does not require backup package format
 - **WHEN** the user imports a curl command
 - **THEN** the system parses it through the curl import adapter without requiring workspace/application package metadata or restore semantics
-

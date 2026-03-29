@@ -1,7 +1,7 @@
 # runtime-capability-seams Specification
 
 ## Purpose
-TBD - created by archiving change align-local-api-workbench-architecture. Update Purpose after archive.
+Define runtime-owned capability descriptors and reserved seams for protocols, import adapters, execution hooks, tool packaging, and plugin manifests.
 ## Requirements
 ### Requirement: Runtime declares capability descriptors for built-in seams
 The system SHALL let the runtime declare built-in capability descriptors for supported protocols, import adapters, execution hooks, tool-packaging paths, and plugin-manifest seams.
@@ -23,4 +23,3 @@ The system SHALL allow future-stage capabilities to exist as declared seams with
 #### Scenario: Future capability remains reserved
 - **WHEN** a capability belongs to a later roadmap stage such as MCP debugging, Tool Call debugging, or plugin execution
 - **THEN** the system may reserve its seam declaratively without treating that capability as implemented in the current stage
-

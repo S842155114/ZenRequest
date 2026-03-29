@@ -1,7 +1,7 @@
 # startup-experience Specification
 
 ## Purpose
-TBD - created by archiving change improve-startup-loading-experience. Update Purpose after archive.
+Define the launch placeholder, bootstrap handoff, and theme-consistent startup feedback for the desktop application.
 ## Requirements
 ### Requirement: Main window shows launch feedback before the app mounts
 The system SHALL render a visible startup placeholder in the main application window as soon as the launch document paints so startup never presents a blank white window while the frontend bundles are still loading.

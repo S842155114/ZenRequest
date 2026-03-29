@@ -1,7 +1,7 @@
 # runtime-execution-pipeline Specification
 
 ## Purpose
-TBD - created by archiving change align-local-api-workbench-architecture. Update Purpose after archive.
+Define the Rust-owned request execution pipeline, including request compilation, protocol dispatch, runtime-side assertion evaluation, and execution-artifact creation.
 ## Requirements
 ### Requirement: Runtime compiles executable requests from canonical request definitions
 The system SHALL compile each executable request inside the Rust runtime from a canonical request definition, active environment context, and runtime-owned resolution rules instead of treating a frontend-precompiled final payload as the authoritative execution input.
@@ -30,4 +30,3 @@ The system SHALL route dispatch through a runtime-owned protocol driver interfac
 #### Scenario: HTTP request dispatches through a protocol driver
 - **WHEN** the user executes a standard HTTP request
 - **THEN** the runtime dispatches that execution through the HTTP protocol driver rather than through frontend-specific protocol logic
-
