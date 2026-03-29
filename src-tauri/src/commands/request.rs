@@ -409,6 +409,7 @@ mod tests {
         assert!(result.response_body.contains("\"source\": \"mock\""));
     }
 
+    // [Gate A: Runtime Authority] — request compilation (variable resolution, protocol detection) is owned by the Rust runtime
     #[test]
     fn runtime_pipeline_compiles_requests_from_environment_variables() {
         let mut payload = SendRequestPayloadDto {
@@ -482,6 +483,7 @@ mod tests {
         assert_eq!(compiled.protocol_key, "http");
     }
 
+    // [Gate A: Runtime Authority] — assertion evaluation is authoritative in the Rust runtime
     #[test]
     fn runtime_pipeline_evaluates_assertions_authoritatively() {
         let results = crate::core::request_runtime::evaluate_assertions(
