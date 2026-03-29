@@ -1,7 +1,7 @@
 # workspace-sessions Specification
 
 ## Purpose
-TBD - created by archiving change align-runtime-domain-model. Update Purpose after archive.
+Define separately persisted workspace editing session state, including draft origin semantics, complete draft round-tripping, and active tab restoration.
 ## Requirements
 ### Requirement: Workspace session is separate from workspace business data
 The system SHALL persist workspace session state separately from workspace business entities. Workspace session data MUST be limited to UI and editing state such as open tabs, active tab, active environment, tab ordering, and dirty drafts.
@@ -37,4 +37,3 @@ The system SHALL persist enough request tab draft data to round-trip complete ed
 #### Scenario: Restart restores full editable request draft semantics
 - **WHEN** the user restarts the application with a dirty request tab using structured body metadata
 - **THEN** the workspace session restores the draft with the same editable request semantics instead of degrading it to a partial projection
-

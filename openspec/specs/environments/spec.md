@@ -1,7 +1,7 @@
 # environments Specification
 
 ## Purpose
-TBD - created by archiving change align-runtime-domain-model. Update Purpose after archive.
+Define workspace-scoped environment entities, active-environment session ownership, and an extensible variable contract that preserves provenance and future layering options.
 ## Requirements
 ### Requirement: Environments are workspace-scoped entities
 The system SHALL model environments as workspace-scoped entities, and each environment MUST belong to exactly one workspace.
@@ -37,4 +37,3 @@ The system SHALL preserve the ability to distinguish manually defined environmen
 #### Scenario: Environment values retain provenance semantics
 - **WHEN** environment data is persisted or exported
 - **THEN** the contract remains capable of representing whether a value is user-defined, imported, or runtime-extracted
-

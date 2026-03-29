@@ -1,7 +1,7 @@
 # legacy-migration Specification
 
 ## Purpose
-TBD - created by archiving change align-runtime-domain-model. Update Purpose after archive.
+Define one-time migration of recoverable legacy frontend-local data into runtime-owned workspace data when no migrated workspace state exists yet.
 ## Requirements
 ### Requirement: Legacy frontend-local data migrates into a default workspace
 The system SHALL migrate recoverable legacy frontend-local data into a default user workspace when migrated runtime workspace data does not yet exist.
@@ -16,4 +16,3 @@ The system SHALL avoid rerunning legacy migration once migrated runtime workspac
 #### Scenario: Migrated runtime data already exists
 - **WHEN** the app starts and migrated runtime workspace data already exists
 - **THEN** the system skips legacy migration and does not create a new default workspace from old local state
-

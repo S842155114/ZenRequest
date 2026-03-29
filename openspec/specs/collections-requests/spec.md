@@ -1,7 +1,7 @@
 # collections-requests Specification
 
 ## Purpose
-TBD - created by archiving change align-runtime-domain-model. Update Purpose after archive.
+Define the canonical workspace-scoped collection and saved-request model, including ownership, canonical save behavior, deletion semantics, and structured request-body round-tripping.
 ## Requirements
 ### Requirement: Collections are stable entities
 The system SHALL model each collection as a stable entity with its own id, and each collection MUST belong to exactly one workspace.
@@ -70,4 +70,3 @@ The system SHALL treat saved request definitions as the canonical target for fea
 #### Scenario: Feature import maps to saved request definitions
 - **WHEN** a feature-grade import creates or updates requests
 - **THEN** the imported data is mapped into canonical request definitions owned by the workspace and collection model
-

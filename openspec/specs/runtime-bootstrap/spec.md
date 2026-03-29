@@ -1,7 +1,7 @@
 # runtime-bootstrap Specification
 
 ## Purpose
-TBD - created by archiving change align-runtime-domain-model. Update Purpose after archive.
+Define the typed runtime bootstrap payload used to hydrate settings, workspaces, active workspace data, session state, and capability awareness for the desktop workbench.
 ## Requirements
 ### Requirement: Bootstrap hydrates typed workspace runtime state
 The system SHALL provide a typed bootstrap response that hydrates application settings, workspace list, active workspace identity, and the active workspace's collections, environments, history, and session state.
@@ -30,4 +30,3 @@ The system SHALL remain compatible with future runtime capability descriptors so
 #### Scenario: Frontend becomes capability-aware through bootstrap-compatible contracts
 - **WHEN** future runtime capability descriptors are introduced
 - **THEN** the bootstrap contract can include or reference that capability state without collapsing resource and session boundaries
-

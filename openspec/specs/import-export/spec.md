@@ -1,7 +1,7 @@
 # import-export Specification
 
 ## Purpose
-TBD - created by archiving change align-runtime-domain-model. Update Purpose after archive.
+Define versioned workspace and application backup packages, restore semantics, and conflict handling that remain distinct from feature-grade imports such as curl.
 ## Requirements
 ### Requirement: Workspace export is the default export scope
 The system SHALL default export operations to single-workspace export and MUST also provide an explicit full-application export option.
@@ -82,4 +82,3 @@ The system SHALL keep backup restore import/export contracts separate from featu
 #### Scenario: Feature import does not require backup metadata
 - **WHEN** the user performs a feature-grade import such as curl import
 - **THEN** the system maps external request data through the canonical import adapter path without requiring workspace/application package structure
-

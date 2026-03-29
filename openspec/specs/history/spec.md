@@ -1,7 +1,7 @@
 # history Specification
 
 ## Purpose
-TBD - created by archiving change align-runtime-domain-model. Update Purpose after archive.
+Define persisted workspace request history as a redacted execution projection with replay-safe snapshots and preserved execution provenance.
 ## Requirements
 ### Requirement: History is long-lived workspace data
 The system SHALL persist request history as long-lived, manageable data owned by a workspace rather than as transient UI-only state.
@@ -85,4 +85,3 @@ The system SHALL preserve execution provenance and replay-safe request snapshots
 #### Scenario: Replayed history entry keeps runtime provenance
 - **WHEN** the user reopens a history item recorded from a runtime-owned execution
 - **THEN** the replay draft is restored from the stored execution snapshot with the original execution provenance preserved
-

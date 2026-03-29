@@ -1,7 +1,7 @@
 # response-html-preview Specification
 
 ## Purpose
-TBD - created by archiving change add-response-html-preview. Update Purpose after archive.
+Define HTML response preview inside the response body surface while keeping rendered content isolated from the main application shell.
 ## Requirements
 ### Requirement: HTML responses expose a preview mode in the response body
 The system SHALL expose an HTML preview mode when the active response body resolves to HTML content, while keeping the existing response body tab as the entry point for inspection.
@@ -35,4 +35,3 @@ The system SHALL render HTML previews in an isolated embedded document so respon
 #### Scenario: Active response changes while preview mode is visible
 - **WHEN** the active response content changes while the response body view is open
 - **THEN** the preview surface updates to the latest HTML payload or falls back to source-only inspection if the new payload is not HTML
-
