@@ -99,15 +99,11 @@ fn load_active_environment_variables(
     };
 
     let environments = db::list_environments(&state.db_path, &payload.workspace_id)?;
-    environments
+    Ok(environments
         .into_iter()
         .find(|environment| environment.id == environment_id)
         .map(|environment| environment.variables)
-        .ok_or_else(|| AppError {
-            code: "ENVIRONMENT_NOT_FOUND".to_string(),
-            message: format!("active environment not found: {environment_id}"),
-            details: None,
-        })
+        .unwrap_or_default())
 }
 
 fn build_mock_normalized_response(
