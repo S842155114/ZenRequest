@@ -1,10 +1,13 @@
 import { invoke } from '@tauri-apps/api/core'
 import type {
+  AssertionResultSet,
   EnvironmentPreset,
+  ExecutionArtifact,
   FormDataFieldSnapshot,
   HistoryItem,
   RequestCollection,
   RequestPreset,
+  RequestTabState,
   SendRequestPayload,
   WorkspaceSessionSnapshot,
   WorkspaceSnapshot,
@@ -28,10 +31,58 @@ export interface AppSettings {
   locale: 'en' | 'zh-CN'
 }
 
+export interface RuntimeCapabilityDescriptor {
+  key: string
+  kind: 'protocol' | 'import_adapter' | 'execution_hook' | 'tool_packaging' | 'plugin_manifest'
+  displayName: string
+  availability: 'active' | 'reserved'
+}
+
+export interface RuntimeProtocolCapability {
+  key: string
+  displayName: string
+  schemes: string[]
+  availability: 'active' | 'reserved'
+}
+
+export interface RuntimeImportAdapterCapability {
+  key: string
+  displayName: string
+  availability: 'active' | 'reserved'
+}
+
+export interface RuntimeExecutionHookCapability {
+  key: string
+  displayName: string
+  availability: 'active' | 'reserved'
+}
+
+export interface RuntimeToolPackagingCapability {
+  key: string
+  displayName: string
+  availability: 'active' | 'reserved'
+}
+
+export interface RuntimePluginManifestCapability {
+  key: string
+  displayName: string
+  availability: 'active' | 'reserved'
+}
+
+export interface RuntimeCapabilities {
+  descriptors: RuntimeCapabilityDescriptor[]
+  protocols: RuntimeProtocolCapability[]
+  importAdapters: RuntimeImportAdapterCapability[]
+  executionHooks: RuntimeExecutionHookCapability[]
+  toolPackaging: RuntimeToolPackagingCapability[]
+  pluginManifests: RuntimePluginManifestCapability[]
+}
+
 export interface AppBootstrapPayload {
   settings: AppSettings
   workspaces: WorkspaceSummary[]
   activeWorkspaceId?: string
+  capabilities?: RuntimeCapabilities
   session?: WorkspaceSessionSnapshot | null
   collections: RequestCollection[]
   environments: EnvironmentPreset[]
@@ -79,6 +130,7 @@ export type RequestBodyDto =
 
 export type SendRequestPayloadDto = Omit<SendRequestPayload, 'body' | 'bodyType'> & {
   workspaceId: string
+  activeEnvironmentId?: string
   body: RequestBodyDto
 }
 
@@ -94,6 +146,8 @@ export interface SendRequestResult {
   headers: Array<{ key: string; value: string }>
   truncated: boolean
   executionSource?: 'live' | 'mock'
+  assertionResults?: AssertionResultSet
+  executionArtifact?: ExecutionArtifact
   historyItem?: HistoryItem
 }
 
@@ -105,6 +159,7 @@ export interface RuntimeAdapter {
   deleteWorkspace(workspaceId: string): Promise<ApiEnvelope<{ message: string }>>
   exportWorkspace(workspaceId: string, scope?: ExportPackageScope): Promise<ApiEnvelope<WorkspaceExportResult>>
   importWorkspace(packageJson: string, conflictStrategy?: ImportConflictStrategy): Promise<ApiEnvelope<WorkspaceImportResult>>
+  importCurlRequest(workspaceId: string, command: string): Promise<ApiEnvelope<RequestTabState>>
   createCollection(workspaceId: string, name: string): Promise<ApiEnvelope<RequestCollection>>
   renameCollection(workspaceId: string, collectionId: string, name: string): Promise<ApiEnvelope<RequestCollection>>
   deleteCollection(workspaceId: string, collectionId: string): Promise<ApiEnvelope<{ message: string }>>
@@ -191,8 +246,33 @@ const parseFormDataBody = (raw: string): FormDataFieldDto[] => raw
   .filter((item) => item.key.length > 0)
 
 export const toRequestBodyDto = (
-  payload: Pick<SendRequestPayload, 'body' | 'bodyType' | 'bodyContentType' | 'formDataFields' | 'binaryFileName' | 'binaryMimeType'>,
+  payload: Pick<SendRequestPayload, 'body' | 'bodyType' | 'bodyDefinition' | 'bodyContentType' | 'formDataFields' | 'binaryFileName' | 'binaryMimeType'>,
 ): RequestBodyDto => {
+  if (payload.bodyDefinition) {
+    switch (payload.bodyDefinition.kind) {
+      case 'json':
+        return { kind: 'json', value: payload.bodyDefinition.value }
+      case 'raw':
+        return {
+          kind: 'raw',
+          value: payload.bodyDefinition.value,
+          contentType: payload.bodyDefinition.contentType,
+        }
+      case 'formData':
+        return {
+          kind: 'formData',
+          fields: payload.bodyDefinition.fields.map((field) => ({ ...field })) as FormDataFieldDto[],
+        }
+      case 'binary':
+        return {
+          kind: 'binary',
+          bytesBase64: payload.bodyDefinition.bytesBase64,
+          fileName: payload.bodyDefinition.fileName,
+          mimeType: payload.bodyDefinition.mimeType,
+        }
+    }
+  }
+
   switch (payload.bodyType) {
     case 'json':
       return { kind: 'json', value: payload.body }
@@ -223,10 +303,12 @@ export const toRequestBodyDto = (
 
 export const toSendRequestPayloadDto = (
   workspaceId: string,
+  activeEnvironmentId: string | undefined,
   payload: SendRequestPayload,
 ): SendRequestPayloadDto => ({
   ...payload,
   workspaceId,
+  activeEnvironmentId,
   body: toRequestBodyDto(payload),
 })
 
@@ -268,6 +350,9 @@ const tauriAdapter: RuntimeAdapter = {
   }),
   importWorkspace: (packageJson, conflictStrategy = 'rename') => invokeEnvelope<WorkspaceImportResult>('import_workspace', {
     payload: { packageJson, conflictStrategy },
+  }),
+  importCurlRequest: (workspaceId, command) => invokeEnvelope<RequestTabState>('import_curl_request', {
+    payload: { workspaceId, command },
   }),
   createCollection: (workspaceId, name) => invokeEnvelope<RequestCollection>('create_collection', {
     payload: { workspaceId, name },
@@ -345,6 +430,7 @@ const mockAdapter: RuntimeAdapter = {
       activeWorkspaceId: `workspace-${Date.now()}`,
     },
   }),
+  importCurlRequest: async () => ({ ok: false, error: buildNotImplementedError('import_curl_request') }),
   createCollection: async (_workspaceId, name) => ({
     ok: true,
     data: { id: `collection-${Date.now()}`, name, expanded: true, requests: [] },
@@ -387,6 +473,7 @@ export const runtimeClient = {
   deleteWorkspace: (workspaceId: string) => activeAdapter.deleteWorkspace(workspaceId),
   exportWorkspace: (workspaceId: string, scope: ExportPackageScope = 'workspace') => activeAdapter.exportWorkspace(workspaceId, scope),
   importWorkspace: (packageJson: string, conflictStrategy: ImportConflictStrategy = 'rename') => activeAdapter.importWorkspace(packageJson, conflictStrategy),
+  importCurlRequest: (workspaceId: string, command: string) => activeAdapter.importCurlRequest(workspaceId, command),
   createCollection: (workspaceId: string, name: string) => activeAdapter.createCollection(workspaceId, name),
   renameCollection: (workspaceId: string, collectionId: string, name: string) => activeAdapter.renameCollection(workspaceId, collectionId, name),
   deleteCollection: (workspaceId: string, collectionId: string) => activeAdapter.deleteCollection(workspaceId, collectionId),
@@ -400,5 +487,6 @@ export const runtimeClient = {
   removeHistoryItem: (workspaceId: string, id: string) => activeAdapter.removeHistoryItem(workspaceId, id),
   getSettings: () => activeAdapter.getSettings(),
   updateSettings: (payload: AppSettings) => activeAdapter.updateSettings(payload),
-  sendRequest: (workspaceId: string, payload: SendRequestPayload) => activeAdapter.sendRequest(toSendRequestPayloadDto(workspaceId, payload)),
+  sendRequest: (workspaceId: string, activeEnvironmentId: string | undefined, payload: SendRequestPayload) =>
+    activeAdapter.sendRequest(toSendRequestPayloadDto(workspaceId, activeEnvironmentId, payload)),
 }

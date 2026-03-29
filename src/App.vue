@@ -29,7 +29,6 @@ import {
   createRequestTabFromPreset,
   createPresetFromTab,
   defaultEnvironments,
-  evaluateResponseTests,
   formatBytes,
   readWorkspaceSnapshot,
   resolveTemplate,
@@ -75,6 +74,7 @@ type DialogKind =
   | 'deleteCollection'
   | 'exportWorkspace'
   | 'importWorkspace'
+  | 'importCurl'
   | 'confirmCloseDirtyTab'
   | 'saveRequest'
   | 'createEnvironment'
@@ -761,6 +761,20 @@ const handleImportWorkspaceClick = () => {
   workspaceImportInput.value?.click()
 }
 
+const handleImportCurlClick = () => {
+  if (!activeWorkspaceId.value) return
+
+  openDialog({
+    kind: 'importCurl',
+    title: text.value.dialogs.importCurl.title,
+    description: text.value.dialogs.importCurl.description,
+    confirmText: text.value.dialogs.importCurl.confirm,
+    detailsLabel: text.value.dialogs.importCurl.commandLabel,
+    detailsPlaceholder: text.value.dialogs.importCurl.commandPlaceholder,
+    detailsValue: '',
+  })
+}
+
 const handleWorkspaceImportChange = async (event: Event) => {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
@@ -1056,6 +1070,22 @@ const handleDialogSubmit = async (payload: {
       )
       break
     }
+    case 'importCurl': {
+      const command = payload.detailsValue.trim()
+      if (!command) break
+
+      const result = await runtimeClient.importCurlRequest(activeWorkspaceId.value, command)
+      if (!result.ok || !result.data) {
+        showErrorToast(text.value.toasts.curlImportFailed, result.error?.message)
+        return
+      }
+
+      const importedTab = cloneTab(result.data)
+      openTabs.value = [...openTabs.value, importedTab]
+      activeTabId.value = importedTab.id
+      showToast({ ...text.value.toasts.curlImported(importedTab.name), tone: 'success' })
+      break
+    }
     case 'createEnvironment': {
       const name = payload.nameValue.trim()
       if (!name) break
@@ -1108,51 +1138,10 @@ const handleDialogSubmit = async (payload: {
   closeDialog()
 }
 
-const resolvePayloadTemplates = (payload: SendRequestPayload, variables: Record<string, string>): SendRequestPayload => ({
-  ...payload,
-  url: resolveTemplate(payload.url, variables),
-  params: payload.params.map((item) => ({
-    ...item,
-    key: resolveTemplate(item.key, variables),
-    value: resolveTemplate(item.value, variables),
-  })),
-  headers: payload.headers.map((item) => ({
-    ...item,
-    key: resolveTemplate(item.key, variables),
-    value: resolveTemplate(item.value, variables),
-  })),
-  body: resolveTemplate(payload.body, variables),
-  bodyContentType: payload.bodyContentType ? resolveTemplate(payload.bodyContentType, variables) : undefined,
-  formDataFields: payload.formDataFields?.map((field) => ({
-    ...field,
-    key: resolveTemplate(field.key, variables),
-    value: resolveTemplate(field.value, variables),
-    fileName: field.fileName ? resolveTemplate(field.fileName, variables) : undefined,
-    mimeType: field.mimeType ? resolveTemplate(field.mimeType, variables) : undefined,
-  })),
-  binaryFileName: payload.binaryFileName ? resolveTemplate(payload.binaryFileName, variables) : undefined,
-  binaryMimeType: payload.binaryMimeType ? resolveTemplate(payload.binaryMimeType, variables) : undefined,
-  auth: {
-    ...cloneAuth(payload.auth),
-    bearerToken: resolveTemplate(payload.auth.bearerToken, variables),
-    username: resolveTemplate(payload.auth.username, variables),
-    password: resolveTemplate(payload.auth.password, variables),
-    apiKeyKey: resolveTemplate(payload.auth.apiKeyKey, variables),
-    apiKeyValue: resolveTemplate(payload.auth.apiKeyValue, variables),
-  },
-  tests: payload.tests.map((test) => ({
-    ...test,
-    name: resolveTemplate(test.name, variables),
-    target: resolveTemplate(test.target ?? '', variables),
-    expected: resolveTemplate(test.expected ?? '', variables),
-  })),
-})
-
 const handleSend = async (payload: SendRequestPayload) => {
   const currentEnvironment = activeEnvironment.value
   if (!currentEnvironment || !activeWorkspaceId.value) return
 
-  const variables = resolveVariablesMap(currentEnvironment.variables)
   updateTab(payload.tabId, (tab) => ({
     ...tab,
     name: payload.name,
@@ -1184,34 +1173,34 @@ const handleSend = async (payload: SendRequestPayload) => {
   }))
 
   try {
-    const resolvedPayload = resolvePayloadTemplates(payload, variables)
-    const response = await runtimeClient.sendRequest(activeWorkspaceId.value, resolvedPayload)
+    const response = await runtimeClient.sendRequest(activeWorkspaceId.value, currentEnvironment.id, payload)
     if (!response.ok || !response.data) {
       throw new Error(response.error?.message || 'send_request failed')
     }
 
+    const artifact = response.data.executionArtifact
+    const normalizedResponse = artifact?.normalizedResponse
+    const compiledRequest = artifact?.compiledRequest
+    const assertionResults = response.data.assertionResults ?? artifact?.assertionResults
+
     updateTab(payload.tabId, (tab) => ({
       ...tab,
       isSending: false,
-      executionState: resolveResponseStateFromStatus(response.data!.status),
+      executionState: resolveResponseStateFromStatus(normalizedResponse?.status ?? response.data!.status),
       response: {
-        responseBody: response.data!.responseBody || '{\n  "message": "Empty response body"\n}',
-        status: response.data!.status,
-        statusText: response.data!.statusText || 'OK',
-        time: `${response.data!.elapsedMs} ms`,
-        size: formatBytes(response.data!.sizeBytes),
-        headers: response.data!.headers,
-        contentType: response.data!.contentType,
-        requestMethod: response.data!.requestMethod || payload.method,
-        requestUrl: response.data!.requestUrl || resolvedPayload.url,
-        testResults: evaluateResponseTests(resolvedPayload.tests, {
-          status: response.data!.status,
-          headers: response.data!.headers,
-          responseBody: response.data!.responseBody || '',
-        }),
-        state: resolveResponseStateFromStatus(response.data!.status),
+        responseBody: normalizedResponse?.body || response.data!.responseBody || '{\n  "message": "Empty response body"\n}',
+        status: normalizedResponse?.status ?? response.data!.status,
+        statusText: normalizedResponse?.statusText || response.data!.statusText || 'OK',
+        time: `${normalizedResponse?.elapsedMs ?? response.data!.elapsedMs} ms`,
+        size: formatBytes(normalizedResponse?.sizeBytes ?? response.data!.sizeBytes),
+        headers: normalizedResponse?.headers ?? response.data!.headers,
+        contentType: normalizedResponse?.contentType ?? response.data!.contentType,
+        requestMethod: compiledRequest?.method || response.data!.requestMethod || payload.method,
+        requestUrl: compiledRequest?.url || response.data!.requestUrl || payload.url,
+        testResults: assertionResults?.results ?? [],
+        state: resolveResponseStateFromStatus(normalizedResponse?.status ?? response.data!.status),
         stale: false,
-        executionSource: response.data!.executionSource ?? 'live',
+        executionSource: artifact?.executionSource ?? response.data!.executionSource ?? 'live',
       },
     }))
 
@@ -1220,7 +1209,6 @@ const handleSend = async (payload: SendRequestPayload) => {
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    const fallbackUrl = resolveTemplate(payload.url, variables)
 
     updateTab(payload.tabId, (tab) => ({
       ...tab,
@@ -1235,7 +1223,7 @@ const handleSend = async (payload: SendRequestPayload) => {
         headers: [],
         contentType: 'application/json',
         requestMethod: payload.method,
-        requestUrl: fallbackUrl,
+        requestUrl: payload.url,
         testResults: [],
         state: 'transport-error',
         stale: false,
@@ -1564,6 +1552,7 @@ watch(isCompactLayout, async () => {
                       @send="handleSend"
                       @save-request="handleSaveRequest"
                       @import-workspace="handleImportWorkspaceClick"
+                      @import-curl="handleImportCurlClick"
                       @export-workspace="handleExportWorkspace"
                       @toggle-collapsed="toggleRequestPanelCollapsed"
                     />
@@ -1656,6 +1645,7 @@ watch(isCompactLayout, async () => {
                   @send="handleSend"
                   @save-request="handleSaveRequest"
                   @import-workspace="handleImportWorkspaceClick"
+                  @import-curl="handleImportCurlClick"
                   @export-workspace="handleExportWorkspace"
                   @toggle-collapsed="toggleRequestPanelCollapsed"
                 />

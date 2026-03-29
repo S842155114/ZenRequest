@@ -1,4 +1,4 @@
-pub const BASELINE_SCHEMA_VERSION: i64 = 4;
+pub const BASELINE_SCHEMA_VERSION: i64 = 5;
 
 pub fn baseline_sql() -> &'static str {
     r#"
@@ -55,6 +55,10 @@ pub fn baseline_sql() -> &'static str {
       headers_json TEXT NOT NULL,
       body TEXT NOT NULL,
       body_type TEXT NOT NULL,
+      body_content_type TEXT,
+      form_data_fields_json TEXT NOT NULL DEFAULT '[]',
+      binary_file_name TEXT,
+      binary_mime_type TEXT,
       auth_json TEXT NOT NULL,
       tests_json TEXT NOT NULL DEFAULT '[]',
       mock_json TEXT NOT NULL DEFAULT 'null',

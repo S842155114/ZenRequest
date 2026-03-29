@@ -15,6 +15,7 @@ const messages = {
       enabled: 'ON',
       environment: 'Environment',
       exportJson: 'Export JSON',
+      importCurl: 'Import Curl',
       importJson: 'Import JSON',
       name: 'Name',
       open: 'Open',
@@ -309,6 +310,13 @@ const messages = {
         strategySkip: 'Skip if name exists',
         strategyOverwrite: 'Overwrite existing workspace',
       },
+      importCurl: {
+        title: 'Import Curl',
+        description: 'Paste a curl command to turn it into an editable request draft.',
+        confirm: 'Import Curl',
+        commandLabel: 'Curl Command',
+        commandPlaceholder: 'curl https://api.example.com/orders -H "Authorization: Bearer <token>"',
+      },
       saveRequest: {
         title: 'Save Request',
         description: 'Store the current tab as a reusable request in one of your collections.',
@@ -385,6 +393,10 @@ const messages = {
         title: 'Workspace imported',
         description: `"${name}" was loaded successfully.`,
       }),
+      curlImported: (name: string) => ({
+        title: 'Curl imported',
+        description: `"${name}" is ready to review in the workspace.`,
+      }),
       applicationImported: (count: number) => ({
         title: 'Application backup restored',
         description: `${count} workspace(s) were restored successfully.`,
@@ -436,6 +448,9 @@ const messages = {
       },
       workspaceImportFailed: {
         title: 'Import failed',
+      },
+      curlImportFailed: {
+        title: 'Curl import failed',
       },
       workspaceCreateFailed: {
         title: 'Workspace creation failed',
@@ -491,6 +506,7 @@ const messages = {
       enabled: '开',
       environment: '环境',
       exportJson: '导出 JSON',
+      importCurl: '导入 Curl',
       importJson: '导入 JSON',
       name: '名称',
       open: '打开',
@@ -785,6 +801,13 @@ const messages = {
         strategySkip: '已存在则跳过',
         strategyOverwrite: '覆盖现有工作区',
       },
+      importCurl: {
+        title: '导入 Curl',
+        description: '粘贴 curl 命令，将其转换为可编辑的请求草稿。',
+        confirm: '导入 Curl',
+        commandLabel: 'Curl 命令',
+        commandPlaceholder: 'curl https://api.example.com/orders -H "Authorization: Bearer <token>"',
+      },
       saveRequest: {
         title: '保存请求',
         description: '把当前标签页保存为可复用请求，并放入某个集合中。',
@@ -861,6 +884,10 @@ const messages = {
         title: '工作区已导入',
         description: `“${name}” 已成功载入。`,
       }),
+      curlImported: (name: string) => ({
+        title: 'Curl 已导入',
+        description: `“${name}” 已加入工作区，等待审阅。`,
+      }),
       applicationImported: (count: number) => ({
         title: '应用备份已恢复',
         description: `已成功恢复 ${count} 个工作区。`,
@@ -912,6 +939,9 @@ const messages = {
       },
       workspaceImportFailed: {
         title: '导入失败',
+      },
+      curlImportFailed: {
+        title: 'Curl 导入失败',
       },
       workspaceCreateFailed: {
         title: '创建工作区失败',

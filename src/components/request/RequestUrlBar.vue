@@ -16,7 +16,7 @@ import type {
   RequestTabOriginKind,
   RequestTabPersistenceState,
 } from '@/types/request'
-import { Download, Ellipsis, Globe, Save, Upload } from 'lucide-vue-next'
+import { Download, Ellipsis, Globe, Save, Terminal, Upload } from 'lucide-vue-next'
 
 defineOptions({
   name: 'RequestUrlBar'
@@ -55,6 +55,7 @@ const emit = defineEmits<{
   (e: 'send'): void
   (e: 'save'): void
   (e: 'import-workspace'): void
+  (e: 'import-curl'): void
   (e: 'export-workspace'): void
 }>()
 
@@ -201,6 +202,13 @@ const executionBadgeClass = computed(() => {
           >
             <Upload class="mr-2 h-3.5 w-3.5" />
             {{ text.common.importJson }}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            data-testid="request-command-overflow-import-curl"
+            @select="emit('import-curl')"
+          >
+            <Terminal class="mr-2 h-3.5 w-3.5" />
+            {{ text.common.importCurl }}
           </DropdownMenuItem>
           <DropdownMenuItem
             data-testid="request-command-overflow-export"

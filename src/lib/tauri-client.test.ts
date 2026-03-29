@@ -15,6 +15,7 @@ import type {
   EnvironmentPreset,
   RequestCollection,
   RequestPreset,
+  RequestTabState,
   SendRequestPayload,
   WorkspaceSessionSnapshot,
   WorkspaceSnapshot,
@@ -51,6 +52,47 @@ const createAdapter = (
       workspace: { id: 'workspace-1', name: 'Imported Workspace' },
       importedWorkspaceCount: 1,
       activeWorkspaceId: 'workspace-1',
+    }),
+  importCurlRequest: async (_workspaceId: string, _command: string) =>
+    ok<RequestTabState>({
+      id: 'tab-imported-curl',
+      name: 'Imported Curl Request',
+      description: '',
+      tags: [],
+      collectionName: 'Scratch Pad',
+      method: 'GET',
+      url: 'https://example.com/imported',
+      params: [],
+      headers: [],
+      body: '',
+      bodyType: 'json',
+      auth: {
+        type: 'none',
+        bearerToken: '',
+        username: '',
+        password: '',
+        apiKeyKey: '',
+        apiKeyValue: '',
+        apiKeyPlacement: 'header',
+      },
+      tests: [],
+      response: {
+        responseBody: '{}',
+        status: 0,
+        statusText: 'READY',
+        time: '0 ms',
+        size: '0 B',
+        headers: [],
+        contentType: 'application/json',
+        requestMethod: 'GET',
+        requestUrl: 'https://example.com/imported',
+        testResults: [],
+      },
+      origin: { kind: 'scratch' },
+      persistenceState: 'unsaved',
+      executionState: 'idle',
+      isSending: false,
+      isDirty: true,
     }),
   createCollection: async (_workspaceId: string, name: string) =>
     ok<RequestCollection>({ id: `collection-${name}`, name, expanded: true, requests: [] }),
@@ -126,6 +168,58 @@ describe('runtimeClient export scope forwarding', () => {
     await runtimeClient.exportWorkspace('workspace-1', 'application')
 
     expect(exportWorkspace).toHaveBeenCalledWith('workspace-1', 'application')
+  })
+})
+
+describe('runtimeClient curl import forwarding', () => {
+  it('forwards the workspace id and curl command to the active runtime adapter', async () => {
+    const importCurlRequest = vi.fn<RuntimeAdapter['importCurlRequest']>(async (_workspaceId, _command) =>
+      ok({
+        id: 'tab-imported-curl',
+        name: 'Imported Curl Request',
+        description: '',
+        tags: [],
+        collectionName: 'Scratch Pad',
+        method: 'GET',
+        url: 'https://example.com/imported',
+        params: [],
+        headers: [],
+        body: '',
+        bodyType: 'json' as const,
+        auth: {
+          type: 'none' as const,
+          bearerToken: '',
+          username: '',
+          password: '',
+          apiKeyKey: '',
+          apiKeyValue: '',
+          apiKeyPlacement: 'header' as const,
+        },
+        tests: [],
+        response: {
+          responseBody: '{}',
+          status: 0,
+          statusText: 'READY',
+          time: '0 ms',
+          size: '0 B',
+          headers: [],
+          contentType: 'application/json',
+          requestMethod: 'GET',
+          requestUrl: 'https://example.com/imported',
+          testResults: [],
+        },
+        origin: { kind: 'scratch' as const },
+        persistenceState: 'unsaved' as const,
+        executionState: 'idle' as const,
+        isSending: false,
+        isDirty: true,
+      }))
+
+    setRuntimeAdapter(createAdapter({ importCurlRequest }))
+
+    await runtimeClient.importCurlRequest('workspace-1', 'curl https://example.com/imported')
+
+    expect(importCurlRequest).toHaveBeenCalledWith('workspace-1', 'curl https://example.com/imported')
   })
 })
 

@@ -90,6 +90,41 @@ export interface RequestTestResult {
   message: string
 }
 
+export interface AssertionResultSet {
+  passed: boolean
+  results: RequestTestResult[]
+}
+
+export interface CompiledRequest {
+  protocolKey: string
+  method: string
+  url: string
+  params: KeyValueItem[]
+  headers: KeyValueItem[]
+  body: RequestBodySnapshot
+  auth: AuthConfig
+  tests: RequestTestDefinition[]
+}
+
+export interface NormalizedResponse {
+  status: number
+  statusText: string
+  elapsedMs: number
+  sizeBytes: number
+  contentType: string
+  body: string
+  headers: ResponseHeaderItem[]
+  truncated: boolean
+}
+
+export interface ExecutionArtifact {
+  executionSource: RequestExecutionSource
+  executedAtEpochMs?: number
+  compiledRequest: CompiledRequest
+  normalizedResponse: NormalizedResponse
+  assertionResults: AssertionResultSet
+}
+
 export type HistoryRequestSnapshot = Omit<SendRequestPayload, 'body' | 'bodyType'> & {
   body: string | RequestBodySnapshot
   bodyType?: RequestBodyType
@@ -109,6 +144,7 @@ export interface RequestPreset {
   headers?: KeyValueItem[]
   body?: string
   bodyType?: RequestBodyType
+  bodyDefinition?: RequestBodySnapshot
   bodyContentType?: string
   formDataFields?: FormDataFieldSnapshot[]
   binaryFileName?: string
@@ -195,6 +231,7 @@ export interface RequestTabState {
   headers: KeyValueItem[]
   body: string
   bodyType: RequestBodyType
+  bodyDefinition?: RequestBodySnapshot
   bodyContentType?: string
   formDataFields?: FormDataFieldSnapshot[]
   binaryFileName?: string
@@ -220,6 +257,7 @@ export interface SendRequestPayload {
   headers: KeyValueItem[]
   body: string
   bodyType: RequestBodyType
+  bodyDefinition?: RequestBodySnapshot
   bodyContentType?: string
   formDataFields?: FormDataFieldSnapshot[]
   binaryFileName?: string

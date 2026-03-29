@@ -1,7 +1,7 @@
 # 🧘‍♂️ ZenRequest 
 
-> A blazingly fast, purely local, and privacy-first API client. \
-> Say goodbye to bloated Electron apps and forced cloud syncing.
+> A blazingly fast, local-first, and privacy-first API workbench. \
+> Built for request authoring, runtime execution, history replay, and offline API engineering without forced cloud syncing.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Vue](https://img.shields.io/badge/Vue-3.x-brightgreen.svg)
@@ -10,9 +10,9 @@
 
 ## ✨ The Problem It Solves
 
-Modern API clients (like Postman and Insomnia) have become increasingly bloated, consuming gigabytes of RAM. Worse, they are aggressively pushing forced logins, cloud synchronization, and tracking. 
+Modern API tools (like Postman and Insomnia) have become increasingly bloated, consuming gigabytes of RAM. Worse, they are aggressively pushing forced logins, cloud synchronization, and tracking. 
 
-**ZenRequest** is built for developers who want a tool that just works:
+**ZenRequest** is built for developers who want a local-first API workbench that just works:
 - **Instant Startup:** Built with Rust and Tauri, it starts in milliseconds.
 - **Featherweight:** Uses a fraction of the memory compared to Electron-based alternatives (< 50MB RAM).
 - **100% Offline & Private:** No accounts, no telemetry, no cloud sync. Your data stays on your machine.

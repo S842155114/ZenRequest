@@ -269,6 +269,47 @@ const createAdapter = (
       importedWorkspaceCount: 1,
       activeWorkspaceId: 'workspace-1',
     }),
+  importCurlRequest: async (_workspaceId: string, _command: string) =>
+    ok({
+      id: 'tab-imported-curl',
+      name: 'Imported Curl Request',
+      description: '',
+      tags: ['imported'],
+      collectionName: 'Scratch Pad',
+      method: 'GET',
+      url: 'https://example.com/imported',
+      params: [],
+      headers: [],
+      body: '',
+      bodyType: 'json',
+      auth: {
+        type: 'none',
+        bearerToken: '',
+        username: '',
+        password: '',
+        apiKeyKey: '',
+        apiKeyValue: '',
+        apiKeyPlacement: 'header',
+      },
+      tests: [],
+      response: {
+        responseBody: '{}',
+        status: 0,
+        statusText: 'READY',
+        time: '0 ms',
+        size: '0 B',
+        headers: [],
+        contentType: 'application/json',
+        requestMethod: 'GET',
+        requestUrl: 'https://example.com/imported',
+        testResults: [],
+      },
+      origin: { kind: 'scratch' as const },
+      persistenceState: 'unsaved' as const,
+      executionState: 'idle' as const,
+      isSending: false,
+      isDirty: true,
+    }),
   createCollection: async (_workspaceId: string, name: string) =>
     ok<RequestCollection>({ id: `collection-${name}`, name, expanded: true, requests: [] }),
   renameCollection: async (_workspaceId: string, collectionId: string, name: string) =>
@@ -380,7 +421,7 @@ const RequestPanelStub = defineComponent({
       }),
     },
   },
-  emits: ['send', 'toggle-collapsed', 'save-tab', 'select-tab', 'close-tab'],
+  emits: ['send', 'toggle-collapsed', 'save-tab', 'select-tab', 'close-tab', 'import-curl'],
   setup(props, { emit }) {
     const baseAuth = {
       type: 'none',
@@ -428,6 +469,10 @@ const RequestPanelStub = defineComponent({
           'data-testid': 'request-panel-toggle-collapse',
           onClick: () => emit('toggle-collapsed'),
         }, 'toggle-collapse'),
+        h('button', {
+          'data-testid': 'request-panel-import-curl',
+          onClick: () => emit('import-curl'),
+        }, 'import-curl'),
         ...((props.tabs as Array<{ id: string; name: string }>).map((tab) => h('button', {
           'data-testid': `request-panel-save-${tab.id}`,
           onClick: () => emit('save-tab', tab.id),
@@ -449,6 +494,7 @@ const ResponsePanelStub = defineComponent({
     requestMethod: { type: String, required: false, default: '' },
     requestUrl: { type: String, required: false, default: '' },
     headers: { type: Array, required: false, default: () => [] },
+    testResults: { type: Array, required: false, default: () => [] },
     state: { type: String, required: false, default: 'idle' },
     stale: { type: Boolean, required: false, default: false },
     executionSource: { type: String, required: false, default: 'live' },
@@ -472,6 +518,8 @@ const ResponsePanelStub = defineComponent({
       props.responseBody,
       ' ',
       JSON.stringify(props.headers),
+      ' ',
+      JSON.stringify(props.testResults),
       h('button', {
         'data-testid': 'response-panel-create-mock',
         onClick: () => emit('create-mock-template'),
@@ -817,6 +865,205 @@ describe('App workbench shell', () => {
     expect(wrapper.get('[data-testid="header-stub"]').attributes('data-workspace-busy')).toBe('false')
   })
 
+  it('starts normally when bootstrap includes runtime capability descriptors', async () => {
+    window.innerWidth = 1440
+
+    const payload = createBootstrapPayload()
+    payload.capabilities = {
+      descriptors: [
+        { key: 'protocol.http', kind: 'protocol', displayName: 'HTTP', availability: 'active' },
+        { key: 'import.backup', kind: 'import_adapter', displayName: 'Backup Restore', availability: 'active' },
+      ],
+      protocols: [
+        { key: 'http', displayName: 'HTTP', schemes: ['http', 'https'], availability: 'active' },
+      ],
+      importAdapters: [
+        { key: 'backup', displayName: 'Backup Restore', availability: 'active' },
+      ],
+      executionHooks: [],
+      toolPackaging: [
+        { key: 'tool_packaging.reserved', displayName: 'Tool Packaging Seam', availability: 'reserved' },
+      ],
+      pluginManifests: [
+        { key: 'plugin_manifest.reserved', displayName: 'Plugin Manifest Seam', availability: 'reserved' },
+      ],
+    }
+
+    setRuntimeAdapter(createAdapter(payload))
+
+    const wrapper = await mountApp()
+
+    expect(wrapper.find('[data-testid="request-panel-stub"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="response-panel-stub"]').exists()).toBe(true)
+  })
+
+  it('imports a curl command into a new editable draft tab', async () => {
+    window.innerWidth = 1440
+
+    const importCurlRequest = vi.fn(async (_workspaceId: string, _command: string) => ok({
+      id: 'tab-imported-curl',
+      name: 'Imported Curl Request',
+      description: '',
+      tags: ['curl'],
+      collectionName: 'Scratch Pad',
+      method: 'POST',
+      url: 'https://example.com/orders',
+      headers: [{ key: 'Content-Type', value: 'application/json', enabled: true }],
+      params: [],
+      body: '{"ok":true}',
+      bodyType: 'json' as const,
+      auth: {
+        type: 'none' as const,
+        bearerToken: '',
+        username: '',
+        password: '',
+        apiKeyKey: '',
+        apiKeyValue: '',
+        apiKeyPlacement: 'header' as const,
+      },
+      tests: [],
+      response: {
+        responseBody: '{}',
+        status: 0,
+        statusText: 'READY',
+        time: '0 ms',
+        size: '0 B',
+        headers: [],
+        contentType: 'application/json',
+        requestMethod: 'POST',
+        requestUrl: 'https://example.com/orders',
+        testResults: [],
+      },
+      origin: { kind: 'scratch' as const },
+      persistenceState: 'unsaved' as const,
+      executionState: 'idle' as const,
+      isSending: false,
+      isDirty: true,
+    }))
+
+    setRuntimeAdapter(createAdapter(createBootstrapPayload(), { importCurlRequest }))
+
+    const wrapper = await mountApp()
+
+    await wrapper.get('[data-testid="request-panel-import-curl"]').trigger('click')
+    await nextTick()
+
+    expect(wrapper.get('[data-testid="dialog-stub"]').attributes('data-open')).toBe('true')
+
+    await wrapper.get('[data-testid="dialog-details-input"]').setValue(`curl -X POST https://example.com/orders -H "Content-Type: application/json" -d '{"ok":true}'`)
+    await wrapper.get('[data-testid="dialog-submit"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect(importCurlRequest).toHaveBeenCalledWith(
+      'workspace-1',
+      `curl -X POST https://example.com/orders -H "Content-Type: application/json" -d '{"ok":true}'`,
+    )
+    expect(getActiveRequestPanelTab(wrapper)?.name).toBe('Imported Curl Request')
+    expect(getActiveRequestPanelTab(wrapper)?.origin?.kind).toBe('scratch')
+    expect(getActiveRequestPanelTab(wrapper)?.persistenceState).toBe('unsaved')
+  })
+
+  it('saves imported curl drafts without losing canonical body metadata', async () => {
+    window.innerWidth = 1440
+
+    const createCollection = vi.fn(async (_workspaceId: string, name: string) => ok({
+      id: 'collection-scratch-pad',
+      name,
+      expanded: true,
+      requests: [],
+    }))
+    const saveRequest = vi.fn(async (_workspaceId: string, _collectionId: string, request: RequestPreset) => ok({
+      ...request,
+      id: 'request-imported-curl',
+      collectionId: 'collection-scratch-pad',
+      collectionName: 'Scratch Pad',
+    }))
+    const importCurlRequest = vi.fn(async (_workspaceId: string, _command: string) => ok({
+      id: 'tab-imported-formdata',
+      name: 'Imported Multipart Curl',
+      description: '',
+      tags: ['curl'],
+      collectionName: 'Scratch Pad',
+      method: 'POST',
+      url: 'https://example.com/upload',
+      headers: [],
+      params: [],
+      body: 'file=',
+      bodyType: 'formdata' as const,
+      formDataFields: [
+        { key: 'file', value: '', enabled: true, fileName: 'demo.txt', mimeType: 'text/plain' },
+      ],
+      auth: {
+        type: 'none' as const,
+        bearerToken: '',
+        username: '',
+        password: '',
+        apiKeyKey: '',
+        apiKeyValue: '',
+        apiKeyPlacement: 'header' as const,
+      },
+      tests: [],
+      response: {
+        responseBody: '{}',
+        status: 0,
+        statusText: 'READY',
+        time: '0 ms',
+        size: '0 B',
+        headers: [],
+        contentType: 'application/json',
+        requestMethod: 'POST',
+        requestUrl: 'https://example.com/upload',
+        testResults: [],
+      },
+      origin: { kind: 'scratch' as const },
+      persistenceState: 'unsaved' as const,
+      executionState: 'idle' as const,
+      isSending: false,
+      isDirty: true,
+    }))
+
+    setRuntimeAdapter(createAdapter(createBootstrapPayload(), {
+      importCurlRequest,
+      createCollection,
+      saveRequest,
+    }))
+
+    const wrapper = await mountApp()
+
+    await wrapper.get('[data-testid="request-panel-import-curl"]').trigger('click')
+    await wrapper.get('[data-testid="dialog-details-input"]').setValue(`curl https://example.com/upload -F "file=@demo.txt;type=text/plain"`)
+    await wrapper.get('[data-testid="dialog-submit"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    await wrapper.get('[data-testid="request-panel-save-tab-imported-formdata"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    await wrapper.get('[data-testid="dialog-submit"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect(createCollection).toHaveBeenCalledWith('workspace-1', 'Scratch Pad')
+    expect(saveRequest).toHaveBeenCalledTimes(1)
+    expect(saveRequest.mock.calls[0]?.[2]).toMatchObject({
+      name: 'Imported Multipart Curl',
+      method: 'POST',
+      url: 'https://example.com/upload',
+      bodyType: 'formdata',
+      formDataFields: [
+        { key: 'file', value: '', enabled: true, fileName: 'demo.txt', mimeType: 'text/plain' },
+      ],
+      bodyDefinition: {
+        kind: 'formData',
+        fields: [
+          { key: 'file', value: '', enabled: true, fileName: 'demo.txt', mimeType: 'text/plain' },
+        ],
+      },
+    })
+  })
+
   it('collapses the request pane as a layout state and restores it on the next toggle', async () => {
     window.innerWidth = 1440
     setRuntimeAdapter(createAdapter())
@@ -1126,6 +1373,89 @@ describe('App workbench shell', () => {
 
     expect(getRequestPanelTabs(wrapper)).toHaveLength(initialTabCount + 1)
     expect(getActiveRequestPanelTab(wrapper)?.id).toBe(firstReplay?.id)
+  })
+
+  it('restores runtime-owned history snapshots into canonical replay drafts after send', async () => {
+    window.innerWidth = 1440
+
+    setRuntimeAdapter(createAdapter(createBootstrapPayload(), {
+      sendRequest: async () => ok({
+        requestMethod: 'POST',
+        requestUrl: 'https://example.com/upload',
+        status: 201,
+        statusText: 'Created',
+        elapsedMs: 14,
+        sizeBytes: 48,
+        contentType: 'application/json',
+        responseBody: '{"ok":true}',
+        headers: [],
+        truncated: false,
+        historyItem: {
+          id: 'history-upload-1',
+          name: 'Imported Upload',
+          method: 'POST',
+          time: '10:00:00',
+          status: 201,
+          url: 'https://example.com/upload',
+          statusText: 'Created',
+          elapsedMs: 14,
+          sizeBytes: 48,
+          contentType: 'application/json',
+          truncated: false,
+          responseHeaders: [],
+          responsePreview: '{"ok":true}',
+          executionSource: 'live' as const,
+          requestSnapshot: {
+            workspaceId: 'workspace-1',
+            activeEnvironmentId: 'env-local',
+            tabId: 'tab-upload-1',
+            name: 'Imported Upload',
+            description: '',
+            tags: ['curl'],
+            collectionName: 'Scratch Pad',
+            method: 'POST',
+            url: 'https://example.com/upload',
+            params: [],
+            headers: [],
+            body: {
+              kind: 'formData' as const,
+              fields: [
+                { key: 'file', value: '', enabled: true, fileName: 'demo.txt', mimeType: 'text/plain' },
+              ],
+            },
+            bodyType: 'formdata' as const,
+            auth: {
+              type: 'none',
+              bearerToken: '',
+              username: '',
+              password: '',
+              apiKeyKey: '',
+              apiKeyValue: '',
+              apiKeyPlacement: 'header' as const,
+            },
+            tests: [],
+          },
+        },
+      }),
+    }))
+
+    const wrapper = await mountApp()
+
+    await wrapper.get('[data-testid="request-panel-send"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    await wrapper.get('[data-testid="sidebar-select-history"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    const replayTab = getActiveRequestPanelTab(wrapper)
+    expect(replayTab?.origin?.kind).toBe('replay')
+    expect(replayTab?.origin?.historyItemId).toBe('history-upload-1')
+    expect(replayTab?.bodyType).toBe('formdata')
+    expect(replayTab?.formDataFields).toEqual([
+      { key: 'file', value: '', enabled: true, fileName: 'demo.txt', mimeType: 'text/plain' },
+    ])
   })
 
   it('saves the tab that triggered save even when it is not the active tab', async () => {
@@ -1445,6 +1775,121 @@ describe('App workbench shell', () => {
     expect(sendRequest.mock.calls[0]?.[0].mock?.enabled).toBe(true)
     expect(wrapper.get('[data-testid="response-panel-stub"]').attributes('data-execution-source')).toBe('mock')
     expect((wrapper.findComponent(AppSidebarStub).props('historyItems') as HistoryItem[])[0]?.executionSource).toBe('mock')
+  })
+
+  it('forwards the active environment to the runtime and uses runtime-owned assertion results', async () => {
+    window.innerWidth = 1440
+
+    const payload = createBootstrapPayload()
+    payload.environments = [{
+      id: 'env-local',
+      name: 'Local',
+      variables: [
+        { key: 'baseUrl', value: 'https://runtime.example', enabled: true },
+        { key: 'token', value: 'runtime-token', enabled: true },
+      ],
+    }]
+    payload.session!.openTabs[1] = {
+      ...payload.session!.openTabs[1],
+      url: '{{baseUrl}}/orders',
+      headers: [{ key: 'Authorization', value: 'Bearer {{token}}', enabled: true }],
+      tests: [{
+        id: 'test-status',
+        name: 'Status is 200',
+        source: 'status',
+        operator: 'equals',
+        expected: '200',
+      }],
+    }
+
+    const sendRequest = vi.fn(async (_payload: SendRequestPayloadDto) => ok({
+      requestMethod: 'POST',
+      requestUrl: 'https://runtime.example/orders',
+      status: 200,
+      statusText: 'OK',
+      elapsedMs: 12,
+      sizeBytes: 32,
+      contentType: 'application/json',
+      responseBody: '{"ok":true}',
+      headers: [],
+      truncated: false,
+      assertionResults: {
+        passed: false,
+        results: [{
+          id: 'test-status',
+          name: 'Status is 200',
+          passed: false,
+          message: 'Runtime assertion failed',
+        }],
+      },
+      executionArtifact: {
+        executionSource: 'live' as const,
+        executedAtEpochMs: 123,
+        compiledRequest: {
+          protocolKey: 'http',
+          method: 'POST',
+          url: 'https://runtime.example/orders',
+          params: [],
+          headers: [{ key: 'Authorization', value: 'Bearer runtime-token', enabled: true }],
+          body: {
+            kind: 'json' as const,
+            value: '',
+          },
+          auth: {
+            type: 'none' as const,
+            bearerToken: '',
+            username: '',
+            password: '',
+            apiKeyKey: '',
+            apiKeyValue: '',
+            apiKeyPlacement: 'header' as const,
+          },
+          tests: [{
+            id: 'test-status',
+            name: 'Status is 200',
+            source: 'status' as const,
+            operator: 'equals' as const,
+            expected: '200',
+          }],
+        },
+        normalizedResponse: {
+          status: 200,
+          statusText: 'OK',
+          elapsedMs: 12,
+          sizeBytes: 32,
+          contentType: 'application/json',
+          body: '{"ok":true}',
+          headers: [],
+          truncated: false,
+        },
+        assertionResults: {
+          passed: false,
+          results: [{
+            id: 'test-status',
+            name: 'Status is 200',
+            passed: false,
+            message: 'Runtime assertion failed',
+          }],
+        },
+      },
+    }))
+
+    setRuntimeAdapter(createAdapter(payload, { sendRequest }))
+
+    const wrapper = await mountApp()
+
+    await wrapper.get('[data-testid="request-panel-send"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect(sendRequest).toHaveBeenCalledTimes(1)
+    expect(sendRequest.mock.calls[0]?.[0].activeEnvironmentId).toBe('env-local')
+    expect(wrapper.findComponent(ResponsePanelStub).props('testResults')).toEqual([{
+      id: 'test-status',
+      name: 'Status is 200',
+      passed: false,
+      message: 'Runtime assertion failed',
+    }])
   })
 
   it('reopens the save dialog with the last saved request description', async () => {

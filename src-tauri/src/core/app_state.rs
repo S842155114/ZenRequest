@@ -1,6 +1,9 @@
 use std::path::PathBuf;
 use tauri::Manager;
 
+use super::runtime_capabilities::{
+    CapabilityRegistry, HookRegistry, ImportRegistry, ProtocolRegistry,
+};
 use crate::errors::AppError;
 use crate::models::AppSettings;
 use crate::storage::db;
@@ -10,6 +13,13 @@ pub struct AppState {
     pub settings_cache: std::sync::RwLock<Option<AppSettings>>,
     pub http_client: reqwest::Client,
     pub db_path: PathBuf,
+    #[allow(dead_code)]
+    pub capability_registry: CapabilityRegistry,
+    pub protocol_registry: ProtocolRegistry,
+    #[allow(dead_code)]
+    pub import_registry: ImportRegistry,
+    #[allow(dead_code)]
+    pub hook_registry: HookRegistry,
 }
 
 impl AppState {
@@ -33,6 +43,10 @@ impl AppState {
             settings_cache: std::sync::RwLock::new(Some(settings)),
             http_client: client,
             db_path,
+            capability_registry: CapabilityRegistry::with_builtin_defaults(),
+            protocol_registry: ProtocolRegistry::with_builtin_defaults(),
+            import_registry: ImportRegistry::with_builtin_defaults(),
+            hook_registry: HookRegistry::with_builtin_defaults(),
         })
     }
 }

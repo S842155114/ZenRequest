@@ -5,8 +5,8 @@ use reqwest::header::{HeaderMap, HeaderName, HeaderValue, AUTHORIZATION, CONTENT
 use reqwest::{Method, Url};
 
 use crate::errors::AppError;
-use crate::models::request::{RequestBodyDto, ResponseHeaderItemDto};
-use crate::models::{SendRequestPayloadDto, SendRequestResultDto};
+use crate::models::request::{CompiledRequestDto, RequestBodyDto, ResponseHeaderItemDto};
+use crate::models::NormalizedResponseDto;
 
 const RESPONSE_PREVIEW_LIMIT_BYTES: usize = 2 * 1024 * 1024;
 
@@ -20,8 +20,15 @@ fn error(code: &str, message: impl Into<String>) -> AppError {
 
 pub async fn execute_request(
     client: &reqwest::Client,
-    payload: &SendRequestPayloadDto,
-) -> Result<SendRequestResultDto, AppError> {
+    payload: &CompiledRequestDto,
+) -> Result<NormalizedResponseDto, AppError> {
+    if payload.protocol_key != "http" {
+        return Err(error(
+            "UNSUPPORTED_PROTOCOL",
+            format!("unsupported protocol: {}", payload.protocol_key),
+        ));
+    }
+
     let method = payload.method.parse::<Method>().map_err(|_| {
         error(
             "INVALID_METHOD",
@@ -168,7 +175,6 @@ pub async fn execute_request(
         .map_err(|err| error("HTTP_REQUEST_FAILED", err.to_string()))?;
     let elapsed_ms = started_at.elapsed().as_millis() as u64;
 
-    let request_url = response.url().to_string();
     let status = response.status();
     let status_code = status.as_u16();
     let status_text = status.canonical_reason().unwrap_or("UNKNOWN").to_string();
@@ -208,18 +214,14 @@ pub async fn execute_request(
         }
     }
 
-    Ok(SendRequestResultDto {
-        request_method: method.as_str().to_string(),
-        request_url,
+    Ok(NormalizedResponseDto {
         status: status_code,
         status_text,
         elapsed_ms,
         size_bytes,
         content_type,
-        response_body,
+        body: response_body,
         headers: response_headers,
         truncated,
-        execution_source: "live".to_string(),
-        history_item: None,
     })
 }

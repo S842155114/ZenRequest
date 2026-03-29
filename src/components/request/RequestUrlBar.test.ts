@@ -72,9 +72,11 @@ describe('RequestUrlBar', () => {
     expect(wrapper.get('[data-testid="request-identity-origin"]').text()).toContain('Resource')
 
     await wrapper.get('[data-testid="request-command-overflow-import"]').trigger('click')
+    await wrapper.get('[data-testid="request-command-overflow-import-curl"]').trigger('click')
     await wrapper.get('[data-testid="request-command-overflow-export"]').trigger('click')
 
     expect(wrapper.emitted('import-workspace')).toHaveLength(1)
+    expect(wrapper.emitted('import-curl')).toHaveLength(1)
     expect(wrapper.emitted('export-workspace')).toHaveLength(1)
   })
 

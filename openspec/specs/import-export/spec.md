@@ -72,3 +72,14 @@ The system SHALL continue importing existing workspace-scoped export packages af
 - **WHEN** the user imports a previously generated workspace export package
 - **THEN** the system accepts the file and restores it as a workspace-scoped import without requiring manual migration
 
+### Requirement: Backup restore import/export remains distinct from feature-grade imports
+The system SHALL keep backup restore import/export contracts separate from feature-grade import adapters such as curl and future OpenAPI import.
+
+#### Scenario: Restore import remains package-based
+- **WHEN** the user imports a workspace or application backup package
+- **THEN** the system applies restore semantics for versioned packages rather than feature-import mapping semantics
+
+#### Scenario: Feature import does not require backup metadata
+- **WHEN** the user performs a feature-grade import such as curl import
+- **THEN** the system maps external request data through the canonical import adapter path without requiring workspace/application package structure
+

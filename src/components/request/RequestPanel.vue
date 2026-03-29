@@ -70,6 +70,7 @@ const emit = defineEmits<{
   (e: 'send', payload: SendRequestPayload): void
   (e: 'save-request'): void
   (e: 'import-workspace'): void
+  (e: 'import-curl'): void
   (e: 'export-workspace'): void
   (e: 'toggle-collapsed'): void
 }>()
@@ -510,6 +511,7 @@ const requestReadiness = computed<RequestReadinessState>(() => {
             @send="handleSend"
             @save="emit('save-request')"
             @import-workspace="emit('import-workspace')"
+            @import-curl="emit('import-curl')"
             @export-workspace="emit('export-workspace')"
           />
 

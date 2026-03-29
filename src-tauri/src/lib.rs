@@ -24,6 +24,7 @@ pub fn run() {
             commands::workspace::set_active_workspace,
             commands::workspace::export_workspace,
             commands::workspace::import_workspace,
+            commands::importing::import_curl_request,
             commands::collections::list_collections,
             commands::collections::create_collection,
             commands::collections::rename_collection,

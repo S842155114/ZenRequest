@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::models::request::{
-    AuthConfigDto, KeyValueItemDto, RequestMockStateDto, RequestTestDefinitionDto,
-    ResponseHeaderItemDto, SendRequestPayloadDto,
+    AuthConfigDto, FormDataFieldDto, KeyValueItemDto, RequestAssertionResultDto,
+    RequestMockStateDto, RequestTestDefinitionDto, ResponseHeaderItemDto, SendRequestPayloadDto,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -33,6 +33,12 @@ pub struct ResponseStateDto {
     pub content_type: String,
     pub request_method: String,
     pub request_url: String,
+    #[serde(default)]
+    pub test_results: Vec<RequestAssertionResultDto>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub state: Option<String>,
+    #[serde(default)]
+    pub stale: bool,
     #[serde(default = "default_execution_source")]
     pub execution_source: String,
 }
@@ -63,6 +69,14 @@ pub struct RequestPresetDto {
     pub body: String,
     #[serde(default = "default_body_type")]
     pub body_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body_content_type: Option<String>,
+    #[serde(default)]
+    pub form_data_fields: Vec<FormDataFieldDto>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub binary_file_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub binary_mime_type: Option<String>,
     #[serde(default)]
     pub auth: AuthConfigDto,
     #[serde(default)]
@@ -129,11 +143,27 @@ pub struct HistoryItemDto {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+pub struct RequestTabOriginDto {
+    pub kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub history_item_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct RequestTabStateDto {
     #[serde(default)]
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub origin: Option<RequestTabOriginDto>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub persistence_state: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub execution_state: Option<String>,
     #[serde(default)]
     pub name: String,
     #[serde(default)]
@@ -156,6 +186,14 @@ pub struct RequestTabStateDto {
     pub body: String,
     #[serde(default = "default_body_type")]
     pub body_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body_content_type: Option<String>,
+    #[serde(default)]
+    pub form_data_fields: Vec<FormDataFieldDto>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub binary_file_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub binary_mime_type: Option<String>,
     #[serde(default)]
     pub auth: AuthConfigDto,
     #[serde(default)]
@@ -191,6 +229,73 @@ pub struct WorkspaceSummaryDto {
     pub description: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_template_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeCapabilityDescriptorDto {
+    pub key: String,
+    pub kind: String,
+    pub display_name: String,
+    pub availability: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeProtocolCapabilityDto {
+    pub key: String,
+    pub display_name: String,
+    pub schemes: Vec<String>,
+    pub availability: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeImportAdapterCapabilityDto {
+    pub key: String,
+    pub display_name: String,
+    pub availability: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeExecutionHookCapabilityDto {
+    pub key: String,
+    pub display_name: String,
+    pub availability: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeToolPackagingCapabilityDto {
+    pub key: String,
+    pub display_name: String,
+    pub availability: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimePluginManifestCapabilityDto {
+    pub key: String,
+    pub display_name: String,
+    pub availability: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeCapabilitiesDto {
+    #[serde(default)]
+    pub descriptors: Vec<RuntimeCapabilityDescriptorDto>,
+    #[serde(default)]
+    pub protocols: Vec<RuntimeProtocolCapabilityDto>,
+    #[serde(default)]
+    pub import_adapters: Vec<RuntimeImportAdapterCapabilityDto>,
+    #[serde(default)]
+    pub execution_hooks: Vec<RuntimeExecutionHookCapabilityDto>,
+    #[serde(default)]
+    pub tool_packaging: Vec<RuntimeToolPackagingCapabilityDto>,
+    #[serde(default)]
+    pub plugin_manifests: Vec<RuntimePluginManifestCapabilityDto>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -361,6 +466,8 @@ pub struct AppBootstrapPayload {
     pub workspaces: Vec<WorkspaceSummaryDto>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub active_workspace_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<RuntimeCapabilitiesDto>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session: Option<WorkspaceSessionDto>,
     #[serde(default)]

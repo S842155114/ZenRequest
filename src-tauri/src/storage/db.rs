@@ -144,6 +144,58 @@ fn ensure_requests_mock_column(connection: &Connection) -> Result<(), AppError> 
     Ok(())
 }
 
+fn ensure_requests_body_metadata_columns(connection: &Connection) -> Result<(), AppError> {
+    let mut statement = connection
+        .prepare("PRAGMA table_info(requests)")
+        .map_err(|err| db_error("failed to inspect requests schema", Some(err.to_string())))?;
+    let rows = statement
+        .query_map([], |row| row.get::<_, String>(1))
+        .map_err(|err| db_error("failed to query requests schema", Some(err.to_string())))?;
+
+    let mut columns = Vec::new();
+    for row in rows {
+        columns.push(row.map_err(|err| db_error("failed to read requests schema", Some(err.to_string())))?);
+    }
+
+    if !columns.iter().any(|column| column == "body_content_type") {
+        connection
+            .execute(
+                "ALTER TABLE requests ADD COLUMN body_content_type TEXT",
+                [],
+            )
+            .map_err(|err| db_error("failed to migrate requests body content type column", Some(err.to_string())))?;
+    }
+
+    if !columns.iter().any(|column| column == "form_data_fields_json") {
+        connection
+            .execute(
+                "ALTER TABLE requests ADD COLUMN form_data_fields_json TEXT NOT NULL DEFAULT '[]'",
+                [],
+            )
+            .map_err(|err| db_error("failed to migrate requests form data column", Some(err.to_string())))?;
+    }
+
+    if !columns.iter().any(|column| column == "binary_file_name") {
+        connection
+            .execute(
+                "ALTER TABLE requests ADD COLUMN binary_file_name TEXT",
+                [],
+            )
+            .map_err(|err| db_error("failed to migrate requests binary file name column", Some(err.to_string())))?;
+    }
+
+    if !columns.iter().any(|column| column == "binary_mime_type") {
+        connection
+            .execute(
+                "ALTER TABLE requests ADD COLUMN binary_mime_type TEXT",
+                [],
+            )
+            .map_err(|err| db_error("failed to migrate requests binary mime type column", Some(err.to_string())))?;
+    }
+
+    Ok(())
+}
+
 fn ensure_history_execution_source_column(connection: &Connection) -> Result<(), AppError> {
     let mut statement = connection
         .prepare("PRAGMA table_info(history_items)")
@@ -192,6 +244,7 @@ pub fn initialize_database(db_path: &Path) -> Result<(), AppError> {
     })?;
     ensure_requests_tests_column(&connection)?;
     ensure_requests_mock_column(&connection)?;
+    ensure_requests_body_metadata_columns(&connection)?;
     ensure_history_execution_source_column(&connection)?;
     connection
         .pragma_update(None, "user_version", BASELINE_SCHEMA_VERSION)
@@ -543,6 +596,7 @@ pub fn ensure_bootstrap_data(
         settings,
         workspaces,
         active_workspace_id,
+        capabilities: None,
         session: session.flatten(),
         collections,
         environments,
@@ -748,12 +802,13 @@ fn import_workspace_data_with_connection(
             let auth_json = serialize_json(&request.auth, "request auth")?;
             let tests_json = serialize_json(&request.tests, "request tests")?;
             let mock_json = serialize_json(&request.mock, "request mock")?;
+            let form_data_fields_json = serialize_json(&request.form_data_fields, "request form data fields")?;
 
             connection
                 .execute(
                     "INSERT INTO requests
-                     (id, workspace_id, collection_id, name, description, tags_json, method, url, params_json, headers_json, body, body_type, auth_json, tests_json, mock_json, sort_order, created_at_epoch_ms, updated_at_epoch_ms)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
+                     (id, workspace_id, collection_id, name, description, tags_json, method, url, params_json, headers_json, body, body_type, body_content_type, form_data_fields_json, binary_file_name, binary_mime_type, auth_json, tests_json, mock_json, sort_order, created_at_epoch_ms, updated_at_epoch_ms)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)",
                     params![
                         new_request_id,
                         workspace.id,
@@ -767,6 +822,10 @@ fn import_workspace_data_with_connection(
                         headers_json,
                         request.body,
                         request.body_type,
+                        request.body_content_type,
+                        form_data_fields_json,
+                        request.binary_file_name,
+                        request.binary_mime_type,
                         auth_json,
                         tests_json,
                         mock_json,
@@ -970,13 +1029,14 @@ pub fn save_request(
     let auth_json = serialize_json(&payload.request.auth, "request auth")?;
     let tests_json = serialize_json(&payload.request.tests, "request tests")?;
     let mock_json = serialize_json(&payload.request.mock, "request mock")?;
+    let form_data_fields_json = serialize_json(&payload.request.form_data_fields, "request form data fields")?;
     let sort_order = next_sort_order(&connection, "requests", "collection_id", &payload.collection_id)?;
 
     connection
         .execute(
             "INSERT INTO requests
-             (id, workspace_id, collection_id, name, description, tags_json, method, url, params_json, headers_json, body, body_type, auth_json, tests_json, mock_json, sort_order, created_at_epoch_ms, updated_at_epoch_ms)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
+             (id, workspace_id, collection_id, name, description, tags_json, method, url, params_json, headers_json, body, body_type, body_content_type, form_data_fields_json, binary_file_name, binary_mime_type, auth_json, tests_json, mock_json, sort_order, created_at_epoch_ms, updated_at_epoch_ms)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)
              ON CONFLICT(id) DO UPDATE SET
                workspace_id = excluded.workspace_id,
                collection_id = excluded.collection_id,
@@ -989,6 +1049,10 @@ pub fn save_request(
                headers_json = excluded.headers_json,
                body = excluded.body,
                body_type = excluded.body_type,
+               body_content_type = excluded.body_content_type,
+               form_data_fields_json = excluded.form_data_fields_json,
+               binary_file_name = excluded.binary_file_name,
+               binary_mime_type = excluded.binary_mime_type,
                auth_json = excluded.auth_json,
                tests_json = excluded.tests_json,
                mock_json = excluded.mock_json,
@@ -1006,6 +1070,10 @@ pub fn save_request(
                 headers_json,
                 payload.request.body,
                 payload.request.body_type,
+                payload.request.body_content_type,
+                form_data_fields_json,
+                payload.request.binary_file_name,
+                payload.request.binary_mime_type,
                 auth_json,
                 tests_json,
                 mock_json,
@@ -1256,7 +1324,7 @@ fn load_request_with_collection_name(
 ) -> Result<RequestPresetDto, AppError> {
     connection
         .query_row(
-            "SELECT r.id, r.workspace_id, r.collection_id, c.name, r.name, r.description, r.tags_json, r.method, r.url, r.params_json, r.headers_json, r.body, r.body_type, r.auth_json, r.tests_json, r.mock_json
+            "SELECT r.id, r.workspace_id, r.collection_id, c.name, r.name, r.description, r.tags_json, r.method, r.url, r.params_json, r.headers_json, r.body, r.body_type, r.body_content_type, r.form_data_fields_json, r.binary_file_name, r.binary_mime_type, r.auth_json, r.tests_json, r.mock_json
              FROM requests r
              JOIN collections c ON c.id = r.collection_id
              WHERE r.id = ?1",
@@ -1270,9 +1338,10 @@ fn map_request_row(row: &Row<'_>) -> rusqlite::Result<RequestPresetDto> {
     let tags_json: String = row.get(6)?;
     let params_json: String = row.get(9)?;
     let headers_json: String = row.get(10)?;
-    let auth_json: String = row.get(13)?;
-    let tests_json: String = row.get(14)?;
-    let mock_json: String = row.get(15)?;
+    let form_data_fields_json: String = row.get(14)?;
+    let auth_json: String = row.get(17)?;
+    let tests_json: String = row.get(18)?;
+    let mock_json: String = row.get(19)?;
 
     Ok(RequestPresetDto {
         id: row.get(0)?,
@@ -1288,6 +1357,10 @@ fn map_request_row(row: &Row<'_>) -> rusqlite::Result<RequestPresetDto> {
         headers: serde_json::from_str(&headers_json).unwrap_or_default(),
         body: row.get(11)?,
         body_type: row.get(12)?,
+        body_content_type: row.get(13)?,
+        form_data_fields: serde_json::from_str(&form_data_fields_json).unwrap_or_default(),
+        binary_file_name: row.get(15)?,
+        binary_mime_type: row.get(16)?,
         auth: serde_json::from_str(&auth_json).unwrap_or_default(),
         tests: serde_json::from_str(&tests_json).unwrap_or_default(),
         mock: serde_json::from_str(&mock_json).unwrap_or_default(),
@@ -1335,8 +1408,7 @@ fn load_collections_with_connection(
             row.map_err(|err| db_error("failed to map collection row", Some(err.to_string())))?;
         let mut request_statement = connection
             .prepare(
-                "SELECT r.id, r.workspace_id, r.collection_id, c.name, r.name, r.description, r.tags_json, r.method, r.url, r.params_json, r.headers_json, r.body, r.body_type, r.auth_json
-                 , r.tests_json, r.mock_json
+                "SELECT r.id, r.workspace_id, r.collection_id, c.name, r.name, r.description, r.tags_json, r.method, r.url, r.params_json, r.headers_json, r.body, r.body_type, r.body_content_type, r.form_data_fields_json, r.binary_file_name, r.binary_mime_type, r.auth_json, r.tests_json, r.mock_json
                  FROM requests r
                  JOIN collections c ON c.id = r.collection_id
                  WHERE r.collection_id = ?1
@@ -1580,6 +1652,10 @@ fn seed_demo_workspace_with_connection(connection: &Connection) -> Result<Worksp
                 }],
                 body: String::new(),
                 body_type: "json".to_string(),
+                body_content_type: None,
+                form_data_fields: Vec::new(),
+                binary_file_name: None,
+                binary_mime_type: None,
                 auth: crate::models::AuthConfigDto::default(),
                 tests: Vec::new(),
                 mock: None,
@@ -1603,6 +1679,10 @@ fn seed_demo_workspace_with_connection(connection: &Connection) -> Result<Worksp
                 }],
                 body: "{\n  \"title\": \"hello\",\n  \"body\": \"world\",\n  \"userId\": 1\n}".to_string(),
                 body_type: "json".to_string(),
+                body_content_type: None,
+                form_data_fields: Vec::new(),
+                binary_file_name: None,
+                binary_mime_type: None,
                 auth: crate::models::AuthConfigDto::default(),
                 tests: Vec::new(),
                 mock: None,
@@ -1623,10 +1703,11 @@ fn seed_demo_workspace_with_connection(connection: &Connection) -> Result<Worksp
         let auth_json = serialize_json(&request.auth, "request auth")?;
         let tests_json = serialize_json(&request.tests, "request tests")?;
         let mock_json = serialize_json(&request.mock, "request mock")?;
+        let form_data_fields_json = serialize_json(&request.form_data_fields, "request form data fields")?;
         connection.execute(
             "INSERT INTO requests
-             (id, workspace_id, collection_id, name, description, tags_json, method, url, params_json, headers_json, body, body_type, auth_json, tests_json, mock_json, sort_order, created_at_epoch_ms, updated_at_epoch_ms)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
+             (id, workspace_id, collection_id, name, description, tags_json, method, url, params_json, headers_json, body, body_type, body_content_type, form_data_fields_json, binary_file_name, binary_mime_type, auth_json, tests_json, mock_json, sort_order, created_at_epoch_ms, updated_at_epoch_ms)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)",
             params![
                 request.id,
                 workspace.id,
@@ -1640,6 +1721,10 @@ fn seed_demo_workspace_with_connection(connection: &Connection) -> Result<Worksp
                 headers_json,
                 request.body,
                 request.body_type,
+                request.body_content_type,
+                form_data_fields_json,
+                request.binary_file_name,
+                request.binary_mime_type,
                 auth_json,
                 tests_json,
                 mock_json,
@@ -1656,6 +1741,13 @@ fn seed_demo_workspace_with_connection(connection: &Connection) -> Result<Worksp
         open_tabs: vec![RequestTabStateDto {
             id: generate_id("tab"),
             request_id: Some(collection.requests[0].id.clone()),
+            origin: Some(crate::models::RequestTabOriginDto {
+                kind: "resource".to_string(),
+                request_id: Some(collection.requests[0].id.clone()),
+                history_item_id: None,
+            }),
+            persistence_state: Some("saved".to_string()),
+            execution_state: Some("idle".to_string()),
             name: collection.requests[0].name.clone(),
             description: collection.requests[0].description.clone(),
             tags: collection.requests[0].tags.clone(),
@@ -1667,6 +1759,10 @@ fn seed_demo_workspace_with_connection(connection: &Connection) -> Result<Worksp
             headers: collection.requests[0].headers.clone(),
             body: collection.requests[0].body.clone(),
             body_type: collection.requests[0].body_type.clone(),
+            body_content_type: collection.requests[0].body_content_type.clone(),
+            form_data_fields: collection.requests[0].form_data_fields.clone(),
+            binary_file_name: collection.requests[0].binary_file_name.clone(),
+            binary_mime_type: collection.requests[0].binary_mime_type.clone(),
             auth: collection.requests[0].auth.clone(),
             tests: collection.requests[0].tests.clone(),
             mock: collection.requests[0].mock.clone(),
@@ -1750,10 +1846,11 @@ fn migrate_legacy_snapshot_with_connection(
             let auth_json = serialize_json(&request.auth, "request auth")?;
             let tests_json = serialize_json(&request.tests, "request tests")?;
             let mock_json = serialize_json(&request.mock, "request mock")?;
+            let form_data_fields_json = serialize_json(&request.form_data_fields, "request form data fields")?;
             connection.execute(
                 "INSERT INTO requests
-                 (id, workspace_id, collection_id, name, description, tags_json, method, url, params_json, headers_json, body, body_type, auth_json, tests_json, mock_json, sort_order, created_at_epoch_ms, updated_at_epoch_ms)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
+                 (id, workspace_id, collection_id, name, description, tags_json, method, url, params_json, headers_json, body, body_type, body_content_type, form_data_fields_json, binary_file_name, binary_mime_type, auth_json, tests_json, mock_json, sort_order, created_at_epoch_ms, updated_at_epoch_ms)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)",
                 params![
                     if request.id.is_empty() { generate_id("request") } else { request.id.clone() },
                     workspace.id,
@@ -1767,6 +1864,10 @@ fn migrate_legacy_snapshot_with_connection(
                     headers_json,
                     request.body,
                     request.body_type,
+                    request.body_content_type,
+                    form_data_fields_json,
+                    request.binary_file_name,
+                    request.binary_mime_type,
                     auth_json,
                     tests_json,
                     mock_json,
@@ -1781,6 +1882,7 @@ fn migrate_legacy_snapshot_with_connection(
     for history_item in &snapshot.history_items {
         let request_snapshot = SendRequestPayloadDto {
             workspace_id: workspace.id.clone(),
+            active_environment_id: None,
             tab_id: generate_id("tab"),
             request_id: history_item.request_id.clone(),
             name: history_item.name.clone(),
@@ -1937,6 +2039,10 @@ mod tests {
                     headers: Vec::new(),
                     body: String::new(),
                     body_type: "json".to_string(),
+                    body_content_type: None,
+                    form_data_fields: Vec::new(),
+                    binary_file_name: None,
+                    binary_mime_type: None,
                     auth: Default::default(),
                     tests: Vec::new(),
                     mock: None,
@@ -1983,6 +2089,13 @@ mod tests {
                     open_tabs: vec![crate::models::RequestTabStateDto {
                         id: "tab-import-test".to_string(),
                         request_id: Some(request.id.clone()),
+                        origin: Some(crate::models::RequestTabOriginDto {
+                            kind: "resource".to_string(),
+                            request_id: Some(request.id.clone()),
+                            history_item_id: None,
+                        }),
+                        persistence_state: Some("saved".to_string()),
+                        execution_state: Some("idle".to_string()),
                         name: request.name.clone(),
                         description: request.description.clone(),
                         tags: request.tags.clone(),
@@ -1994,6 +2107,10 @@ mod tests {
                         headers: request.headers.clone(),
                         body: request.body.clone(),
                         body_type: request.body_type.clone(),
+                        body_content_type: request.body_content_type.clone(),
+                        form_data_fields: request.form_data_fields.clone(),
+                        binary_file_name: request.binary_file_name.clone(),
+                        binary_mime_type: request.binary_mime_type.clone(),
                         auth: request.auth.clone(),
                         tests: request.tests.clone(),
                         mock: request.mock.clone(),
@@ -2013,6 +2130,7 @@ mod tests {
             request_url: request.url.clone(),
             request_snapshot: SendRequestPayloadDto {
                 workspace_id: workspace_id.clone(),
+                active_environment_id: None,
                 tab_id: "tab-import-test".to_string(),
                 request_id: Some(request.id.clone()),
                 name: request.name.clone(),
@@ -2137,6 +2255,135 @@ mod tests {
     }
 
     #[test]
+    fn save_request_roundtrips_structured_body_metadata() {
+        let db_path = temp_db_path("request-structured-body-roundtrip");
+        initialize_database(&db_path).expect("database initialized");
+
+        let bootstrap = ensure_bootstrap_data(&db_path, None).expect("bootstrap payload");
+        let workspace_id = bootstrap
+            .active_workspace_id
+            .clone()
+            .expect("active workspace id");
+        let collection = bootstrap.collections[0].clone();
+
+        let saved = save_request(&db_path, &SaveRequestPayloadDto {
+            workspace_id: workspace_id.clone(),
+            collection_id: collection.id.clone(),
+            request: RequestPresetDto {
+                id: "request-raw-body".to_string(),
+                name: "GraphQL".to_string(),
+                description: String::new(),
+                tags: Vec::new(),
+                method: "POST".to_string(),
+                url: "https://example.com/graphql".to_string(),
+                workspace_id: Some(workspace_id.clone()),
+                collection_id: Some(collection.id.clone()),
+                collection_name: Some(collection.name.clone()),
+                params: Vec::new(),
+                headers: Vec::new(),
+                body: "query { viewer { id } }".to_string(),
+                body_type: "raw".to_string(),
+                body_content_type: Some("application/graphql".to_string()),
+                form_data_fields: Vec::new(),
+                binary_file_name: None,
+                binary_mime_type: None,
+                auth: Default::default(),
+                tests: Vec::new(),
+                mock: None,
+            },
+        }).expect("request saved");
+
+        assert_eq!(saved.body_content_type, Some("application/graphql".to_string()));
+
+        let connection = open_connection(&db_path).expect("connection opened");
+        let collections = load_collections_with_connection(&connection, &workspace_id).expect("collections loaded");
+        let persisted = collections[0].requests
+            .iter()
+            .find(|request| request.id == "request-raw-body")
+            .expect("saved request persisted");
+        assert_eq!(persisted.body_type, "raw");
+        assert_eq!(persisted.body_content_type, Some("application/graphql".to_string()));
+
+        let _ = fs::remove_file(db_path);
+    }
+
+    #[test]
+    fn save_workspace_session_roundtrips_draft_origin_and_body_metadata() {
+        let db_path = temp_db_path("session-canonical-roundtrip");
+        initialize_database(&db_path).expect("database initialized");
+
+        let bootstrap = ensure_bootstrap_data(&db_path, None).expect("bootstrap payload");
+        let workspace_id = bootstrap
+            .active_workspace_id
+            .clone()
+            .expect("active workspace id");
+
+        save_workspace_session(
+            &db_path,
+            &SaveWorkspacePayloadDto {
+                workspace_id: workspace_id.clone(),
+                session: WorkspaceSessionDto {
+                    active_tab_id: Some("tab-formdata".to_string()),
+                    active_environment_id: bootstrap.environments.first().map(|environment| environment.id.clone()),
+                    open_tabs: vec![crate::models::RequestTabStateDto {
+                        id: "tab-formdata".to_string(),
+                        request_id: None,
+                        origin: Some(crate::models::RequestTabOriginDto {
+                            kind: "scratch".to_string(),
+                            request_id: None,
+                            history_item_id: None,
+                        }),
+                        persistence_state: Some("unsaved".to_string()),
+                        execution_state: Some("idle".to_string()),
+                        name: "Multipart Upload".to_string(),
+                        description: String::new(),
+                        tags: Vec::new(),
+                        collection_name: "Scratch Pad".to_string(),
+                        collection_id: None,
+                        method: "POST".to_string(),
+                        url: "https://example.com/upload".to_string(),
+                        params: Vec::new(),
+                        headers: Vec::new(),
+                        body: String::new(),
+                        body_type: "formdata".to_string(),
+                        body_content_type: None,
+                        form_data_fields: vec![crate::models::request::FormDataFieldDto {
+                            key: "file".to_string(),
+                            value: "payload".to_string(),
+                            enabled: true,
+                            file_name: Some("demo.txt".to_string()),
+                            mime_type: Some("text/plain".to_string()),
+                        }],
+                        binary_file_name: None,
+                        binary_mime_type: None,
+                        auth: Default::default(),
+                        tests: Vec::new(),
+                        mock: None,
+                        response: crate::models::ResponseStateDto::default(),
+                        is_sending: false,
+                        is_dirty: true,
+                    }],
+                },
+            },
+        ).expect("session saved");
+
+        let connection = open_connection(&db_path).expect("connection opened");
+        let session = load_workspace_session_with_connection(&connection, &workspace_id)
+            .expect("session query")
+            .expect("session exists");
+        let tab = &session.open_tabs[0];
+
+        assert_eq!(tab.origin.as_ref().map(|origin| origin.kind.as_str()), Some("scratch"));
+        assert_eq!(tab.persistence_state.as_deref(), Some("unsaved"));
+        assert_eq!(tab.execution_state.as_deref(), Some("idle"));
+        assert_eq!(tab.body_type, "formdata");
+        assert_eq!(tab.form_data_fields.len(), 1);
+        assert_eq!(tab.form_data_fields[0].file_name.as_deref(), Some("demo.txt"));
+
+        let _ = fs::remove_file(db_path);
+    }
+
+    #[test]
     fn insert_history_item_roundtrips_execution_source() {
         let db_path = temp_db_path("history-execution-source");
         initialize_database(&db_path).expect("database initialized");
@@ -2155,6 +2402,7 @@ mod tests {
             request_url: request.url.clone(),
             request_snapshot: SendRequestPayloadDto {
                 workspace_id: workspace_id.clone(),
+                active_environment_id: None,
                 tab_id: "tab-history-mock".to_string(),
                 request_id: Some(request.id.clone()),
                 name: request.name.clone(),
@@ -2198,6 +2446,74 @@ mod tests {
             persisted.request_snapshot.expect("request snapshot").mock.expect("mock snapshot").body,
             "{\"source\":\"mock\"}",
         );
+
+        let _ = fs::remove_file(db_path);
+    }
+
+    #[test]
+    fn insert_history_item_roundtrips_structured_request_snapshot() {
+        let db_path = temp_db_path("history-structured-request-roundtrip");
+        initialize_database(&db_path).expect("database initialized");
+
+        let bootstrap = ensure_bootstrap_data(&db_path, None).expect("bootstrap payload");
+        let workspace_id = bootstrap
+            .active_workspace_id
+            .clone()
+            .expect("active workspace id");
+        let request = bootstrap.collections[0].requests[0].clone();
+        let environment_id = bootstrap.environments[0].id.clone();
+
+        let history = HistoryStoredPayloadDto {
+            request_id: Some(request.id.clone()),
+            request_name: request.name.clone(),
+            request_method: request.method.clone(),
+            request_url: request.url.clone(),
+            request_snapshot: SendRequestPayloadDto {
+                workspace_id: workspace_id.clone(),
+                active_environment_id: Some(environment_id),
+                tab_id: "tab-history-binary".to_string(),
+                request_id: Some(request.id.clone()),
+                name: request.name.clone(),
+                description: request.description.clone(),
+                tags: request.tags.clone(),
+                collection_name: request.collection_name.clone().unwrap_or_default(),
+                method: request.method.clone(),
+                url: request.url.clone(),
+                params: request.params.clone(),
+                headers: request.headers.clone(),
+                body: RequestBodyDto::Binary {
+                    bytes_base64: "ZmFrZS1ieXRlcw==".to_string(),
+                    file_name: Some("payload.bin".to_string()),
+                    mime_type: Some("application/octet-stream".to_string()),
+                },
+                auth: request.auth.clone(),
+                tests: request.tests.clone(),
+                mock: None,
+            },
+            status: 200,
+            status_text: "OK".to_string(),
+            elapsed_ms: 3,
+            size_bytes: 12,
+            content_type: "application/octet-stream".to_string(),
+            response_headers: Vec::new(),
+            response_preview: "binary-preview".to_string(),
+            truncated: false,
+            execution_source: "mock".to_string(),
+            executed_at_epoch_ms: 1_717_171_717_100,
+        };
+
+        let persisted = insert_history_item(&db_path, &workspace_id, &history).expect("history inserted");
+        let snapshot = persisted.request_snapshot.expect("history request snapshot");
+
+        assert_eq!(persisted.execution_source, "mock");
+        assert_eq!(snapshot.active_environment_id.as_deref(), Some(bootstrap.environments[0].id.as_str()));
+        match snapshot.body {
+            RequestBodyDto::Binary { file_name, mime_type, .. } => {
+                assert_eq!(file_name.as_deref(), Some("payload.bin"));
+                assert_eq!(mime_type.as_deref(), Some("application/octet-stream"));
+            }
+            other => panic!("unexpected history request body: {other:?}"),
+        }
 
         let _ = fs::remove_file(db_path);
     }

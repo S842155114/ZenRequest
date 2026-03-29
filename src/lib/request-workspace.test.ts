@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest'
 
 import {
   cloneResponse,
+  cloneTab,
+  createPresetFromTab,
   createRequestTabFromHistorySnapshot,
   createRequestTabFromPreset,
   createResponseStateFromHistoryItem,
 } from './request-workspace'
-import type { HistoryItem, RequestPreset } from '@/types/request'
+import type { HistoryItem, RequestPreset, RequestTabState } from '@/types/request'
 
 describe('request workspace mock state helpers', () => {
   it('preserves request-local mock templates when opening a saved request', () => {
@@ -110,5 +112,102 @@ describe('request workspace mock state helpers', () => {
     )
 
     expect(historyResponse.executionSource).toBe('mock')
+  })
+
+  it('prefers canonical body definitions when opening and saving editable requests', () => {
+    const preset: RequestPreset = {
+      id: 'request-formdata',
+      name: 'Upload',
+      method: 'POST',
+      url: 'https://example.com/upload',
+      body: 'legacy=ignored',
+      bodyType: 'json',
+      bodyDefinition: {
+        kind: 'formData',
+        fields: [
+          { key: 'file', value: 'payload', enabled: true, fileName: 'demo.txt', mimeType: 'text/plain' },
+        ],
+      },
+      headers: [],
+      params: [],
+    }
+
+    const tab = createRequestTabFromPreset(preset)
+
+    expect(tab.bodyType).toBe('formdata')
+    expect(tab.formDataFields).toEqual([
+      { key: 'file', value: 'payload', enabled: true, fileName: 'demo.txt', mimeType: 'text/plain' },
+    ])
+
+    const roundtripPreset = createPresetFromTab(tab)
+    expect(roundtripPreset.bodyDefinition).toEqual({
+      kind: 'formData',
+      fields: [
+        { key: 'file', value: 'payload', enabled: true, fileName: 'demo.txt', mimeType: 'text/plain' },
+      ],
+    })
+  })
+
+  it('retains canonical draft identity fields when cloning tabs for session persistence', () => {
+    const tab: RequestTabState = {
+      id: 'tab-detached',
+      requestId: 'request-orders',
+      origin: {
+        kind: 'detached',
+        requestId: 'request-orders',
+      },
+      persistenceState: 'unbound',
+      executionState: 'success',
+      name: 'Detached Orders',
+      description: 'detached draft',
+      tags: ['orders'],
+      collectionName: 'Scratch Pad',
+      method: 'POST',
+      url: 'https://example.com/orders',
+      params: [],
+      headers: [],
+      body: 'ZmFrZS1ieXRlcw==',
+      bodyType: 'binary',
+      binaryFileName: 'orders.bin',
+      binaryMimeType: 'application/octet-stream',
+      auth: {
+        type: 'none',
+        bearerToken: '',
+        username: '',
+        password: '',
+        apiKeyKey: 'X-API-Key',
+        apiKeyValue: '',
+        apiKeyPlacement: 'header',
+      },
+      tests: [],
+      response: {
+        responseBody: '{"ok":true}',
+        status: 200,
+        statusText: 'OK',
+        time: '12 ms',
+        size: '128 B',
+        headers: [],
+        contentType: 'application/json',
+        requestMethod: 'POST',
+        requestUrl: 'https://example.com/orders',
+        testResults: [],
+        state: 'success',
+        stale: false,
+        executionSource: 'live',
+      },
+      isSending: false,
+      isDirty: true,
+    }
+
+    const cloned = cloneTab(tab)
+
+    expect(cloned.origin).toEqual({
+      kind: 'detached',
+      requestId: 'request-orders',
+    })
+    expect(cloned.persistenceState).toBe('unbound')
+    expect(cloned.executionState).toBe('success')
+    expect(cloned.binaryFileName).toBe('orders.bin')
+    expect(cloned.binaryMimeType).toBe('application/octet-stream')
   })
 })

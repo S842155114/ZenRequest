@@ -6,6 +6,7 @@ import type {
   KeyValueItem,
   RequestCollection,
   RequestMockState,
+  RequestBodySnapshot,
   RequestTabExecutionState,
   RequestTabOrigin,
   RequestTabOriginKind,
@@ -132,6 +133,7 @@ export const clonePreset = (preset: RequestPreset): RequestPreset => ({
   tags: [...(preset.tags ?? [])],
   params: cloneItems(preset.params),
   headers: cloneItems(preset.headers),
+  bodyDefinition: preset.bodyDefinition ? cloneBodyDefinition(preset.bodyDefinition) : createRequestBodyDefinition(preset),
   formDataFields: (preset.formDataFields ?? []).map((field) => ({ ...field })),
   auth: cloneAuth(preset.auth),
   tests: cloneTests(preset.tests),
@@ -180,6 +182,118 @@ const resolveTabExecutionState = (tab: Partial<RequestTabState>): RequestTabExec
   ?? resolveResponseStateFromStatus(tab.response?.status ?? 0)
 )
 
+const cloneBodyDefinition = (bodyDefinition: RequestBodySnapshot): RequestBodySnapshot => {
+  if (bodyDefinition.kind === 'json') {
+    return { kind: 'json', value: bodyDefinition.value }
+  }
+
+  if (bodyDefinition.kind === 'raw') {
+    return {
+      kind: 'raw',
+      value: bodyDefinition.value,
+      contentType: bodyDefinition.contentType,
+    }
+  }
+
+  if (bodyDefinition.kind === 'formData') {
+    return {
+      kind: 'formData',
+      fields: bodyDefinition.fields.map((field: { key: string; value: string; enabled: boolean; fileName?: string; mimeType?: string }) => ({ ...field })),
+    }
+  }
+
+  return {
+    kind: 'binary',
+    bytesBase64: bodyDefinition.bytesBase64,
+    fileName: bodyDefinition.fileName,
+    mimeType: bodyDefinition.mimeType,
+  }
+}
+
+export const createRequestBodyDefinition = (
+  payload: Pick<RequestPreset | RequestTabState | SendRequestPayload, 'body' | 'bodyType' | 'bodyContentType' | 'formDataFields' | 'binaryFileName' | 'binaryMimeType'> & {
+    bodyDefinition?: RequestBodySnapshot
+  },
+): RequestBodySnapshot => {
+  if (payload.bodyDefinition) {
+    return cloneBodyDefinition(payload.bodyDefinition)
+  }
+
+  switch (payload.bodyType) {
+    case 'raw':
+      return {
+        kind: 'raw',
+        value: payload.body ?? '',
+        contentType: payload.bodyContentType,
+      }
+    case 'formdata':
+      return {
+        kind: 'formData',
+        fields: (payload.formDataFields ?? []).map((field: { key: string; value: string; enabled: boolean; fileName?: string; mimeType?: string }) => ({ ...field })),
+      }
+    case 'binary':
+      return {
+        kind: 'binary',
+        bytesBase64: payload.body ?? '',
+        fileName: payload.binaryFileName,
+        mimeType: payload.binaryMimeType,
+      }
+    case 'json':
+    default:
+      return {
+        kind: 'json',
+        value: payload.body ?? '',
+      }
+  }
+}
+
+export const applyRequestBodyDefinition = (bodyDefinition: RequestBodySnapshot): Pick<RequestTabState, 'body' | 'bodyType' | 'bodyContentType' | 'formDataFields' | 'binaryFileName' | 'binaryMimeType'> => {
+  if (bodyDefinition.kind === 'json') {
+    return {
+      body: bodyDefinition.value,
+      bodyType: 'json',
+      bodyContentType: undefined,
+      formDataFields: [],
+      binaryFileName: undefined,
+      binaryMimeType: undefined,
+    }
+  }
+
+  if (bodyDefinition.kind === 'raw') {
+    return {
+      body: bodyDefinition.value,
+      bodyType: 'raw',
+      bodyContentType: bodyDefinition.contentType,
+      formDataFields: [],
+      binaryFileName: undefined,
+      binaryMimeType: undefined,
+    }
+  }
+
+  if (bodyDefinition.kind === 'formData') {
+    return {
+      body: bodyDefinition.fields
+        .filter((field: { key: string; value: string; enabled: boolean }) => field.enabled && field.key.trim())
+        .map((field: { key: string; value: string }) => `${field.key}=${field.value}`)
+        .join('\n'),
+      bodyType: 'formdata',
+      bodyContentType: undefined,
+      formDataFields: bodyDefinition.fields.map((field) => ({ ...field })),
+      binaryFileName: undefined,
+      binaryMimeType: undefined,
+    }
+  }
+
+  return {
+    body: bodyDefinition.bytesBase64,
+    bodyType: 'binary',
+    bodyContentType: undefined,
+    formDataFields: [],
+    binaryFileName: bodyDefinition.fileName,
+    binaryMimeType: bodyDefinition.mimeType,
+  }
+}
+
 export const normalizeRequestTabState = (tab: RequestTabState): RequestTabState => {
   const origin = resolveTabOrigin(tab)
   return {
@@ -192,6 +306,7 @@ export const normalizeRequestTabState = (tab: RequestTabState): RequestTabState 
 }
 
 export const createRequestTabFromPreset = (preset: RequestPreset): RequestTabState => ({
+  ...applyRequestBodyDefinition(createRequestBodyDefinition(preset)),
   id: createTabId(),
   requestId: preset.id,
   origin: {
@@ -209,12 +324,7 @@ export const createRequestTabFromPreset = (preset: RequestPreset): RequestTabSta
   url: preset.url,
   params: cloneItems(preset.params),
   headers: cloneItems(preset.headers),
-  body: preset.body ?? '',
-  bodyType: preset.bodyType ?? 'json',
-  bodyContentType: preset.bodyContentType,
-  formDataFields: (preset.formDataFields ?? []).map((field) => ({ ...field })),
-  binaryFileName: preset.binaryFileName,
-  binaryMimeType: preset.binaryMimeType,
+  bodyDefinition: createRequestBodyDefinition(preset),
   auth: cloneAuth(preset.auth),
   tests: cloneTests(preset.tests),
   mock: cloneMock(preset.mock),
@@ -265,6 +375,7 @@ export const cloneTab = (tab: RequestTabState): RequestTabState => ({
   tags: [...(tab.tags ?? [])],
   params: cloneItems(tab.params),
   headers: cloneItems(tab.headers),
+  bodyDefinition: createRequestBodyDefinition(tab),
   auth: cloneAuth(tab.auth),
   tests: cloneTests(tab.tests),
   formDataFields: (tab.formDataFields ?? []).map((field) => ({ ...field })),
@@ -287,6 +398,7 @@ export const createPresetFromTab = (tab: RequestTabState): RequestPreset => ({
   headers: cloneItems(tab.headers),
   body: tab.body,
   bodyType: tab.bodyType,
+  bodyDefinition: createRequestBodyDefinition(tab),
   bodyContentType: tab.bodyContentType,
   formDataFields: (tab.formDataFields ?? []).map((field) => ({ ...field })),
   binaryFileName: tab.binaryFileName,
@@ -465,48 +577,18 @@ export const evaluateResponseTests = (
   }
 })
 
-const requestBodyDtoToTabBody = (payload: HistoryRequestSnapshot['body']) => {
-  if (typeof payload === 'string') {
-    return { body: payload, bodyType: 'raw' as const }
-  }
-
-  if (payload.kind === 'json') {
-    return { body: payload.value, bodyType: 'json' as const }
-  }
-
-  if (payload.kind === 'raw') {
-    return {
-      body: payload.value,
-      bodyType: 'raw' as const,
-      bodyContentType: payload.contentType,
-    }
-  }
-
-  if (payload.kind === 'formData') {
-    return {
-      body: payload.fields
-        .filter((field) => field.enabled && field.key.trim())
-        .map((field) => `${field.key}=${field.value}`)
-        .join('\n'),
-      bodyType: 'formdata' as const,
-      formDataFields: payload.fields.map((field) => ({ ...field })),
-    }
-  }
-
-  return {
-    body: payload.bytesBase64,
-    bodyType: 'binary' as const,
-    binaryFileName: payload.fileName,
-    binaryMimeType: payload.mimeType,
-  }
-}
-
 export const createRequestTabFromHistorySnapshot = (
   snapshot: HistoryRequestSnapshot,
   fallbackName: string,
   historyItemId?: string,
 ): RequestTabState => {
-  const body = requestBodyDtoToTabBody(snapshot.body)
+  const bodyDefinition = typeof snapshot.body === 'string'
+    ? createRequestBodyDefinition({
+      body: snapshot.body,
+      bodyType: snapshot.bodyType ?? 'raw',
+    } as Pick<RequestTabState, 'body' | 'bodyType'>)
+    : cloneBodyDefinition(snapshot.body)
+  const body = applyRequestBodyDefinition(bodyDefinition)
 
   return {
     id: createTabId(),
@@ -529,6 +611,7 @@ export const createRequestTabFromHistorySnapshot = (
     headers: cloneItems(snapshot.headers),
     body: body.body,
     bodyType: snapshot.bodyType ?? body.bodyType,
+    bodyDefinition,
     bodyContentType: 'bodyContentType' in body ? body.bodyContentType : undefined,
     formDataFields: 'formDataFields' in body ? body.formDataFields : [],
     binaryFileName: 'binaryFileName' in body ? body.binaryFileName : undefined,

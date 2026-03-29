@@ -58,6 +58,15 @@ pub struct RequestTestDefinitionDto {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+pub struct RequestAssertionResultDto {
+    pub id: String,
+    pub name: String,
+    pub passed: bool,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct FormDataFieldDto {
     pub key: String,
     #[serde(default)]
@@ -122,6 +131,8 @@ impl Default for RequestBodyDto {
 #[serde(rename_all = "camelCase")]
 pub struct SendRequestPayloadDto {
     pub workspace_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_environment_id: Option<String>,
     pub tab_id: String,
     pub request_id: Option<String>,
     pub name: String,
@@ -142,9 +153,75 @@ pub struct SendRequestPayloadDto {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+pub struct AssertionResultSetDto {
+    #[serde(default)]
+    pub passed: bool,
+    #[serde(default)]
+    pub results: Vec<RequestAssertionResultDto>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct ResponseHeaderItemDto {
     pub key: String,
     pub value: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CompiledRequestDto {
+    #[serde(default)]
+    pub protocol_key: String,
+    #[serde(default)]
+    pub method: String,
+    #[serde(default)]
+    pub url: String,
+    #[serde(default)]
+    pub params: Vec<KeyValueItemDto>,
+    #[serde(default)]
+    pub headers: Vec<KeyValueItemDto>,
+    #[serde(default)]
+    pub body: RequestBodyDto,
+    #[serde(default)]
+    pub auth: AuthConfigDto,
+    #[serde(default)]
+    pub tests: Vec<RequestTestDefinitionDto>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct NormalizedResponseDto {
+    #[serde(default)]
+    pub status: u16,
+    #[serde(default)]
+    pub status_text: String,
+    #[serde(default)]
+    pub elapsed_ms: u64,
+    #[serde(default)]
+    pub size_bytes: usize,
+    #[serde(default)]
+    pub content_type: String,
+    #[serde(default)]
+    pub body: String,
+    #[serde(default)]
+    pub headers: Vec<ResponseHeaderItemDto>,
+    #[serde(default)]
+    pub truncated: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ExecutionArtifactDto {
+    #[serde(default = "default_execution_source")]
+    pub execution_source: String,
+    #[serde(default)]
+    pub executed_at_epoch_ms: u64,
+    #[serde(default)]
+    pub compiled_request: CompiledRequestDto,
+    #[serde(default)]
+    pub normalized_response: NormalizedResponseDto,
+    #[serde(default)]
+    pub assertion_results: AssertionResultSetDto,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -163,6 +240,10 @@ pub struct SendRequestResultDto {
     #[serde(default = "default_execution_source")]
     pub execution_source: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub assertion_results: Option<AssertionResultSetDto>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub execution_artifact: Option<ExecutionArtifactDto>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub history_item: Option<HistoryItemDto>,
 }
 
@@ -180,6 +261,8 @@ impl Default for SendRequestResultDto {
             headers: Vec::new(),
             truncated: false,
             execution_source: default_execution_source(),
+            assertion_results: None,
+            execution_artifact: None,
             history_item: None,
         }
     }
