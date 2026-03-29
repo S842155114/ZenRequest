@@ -174,6 +174,8 @@ const resolvedTheme = computed(() => {
   return themeMode.value
 })
 const text = computed(() => getMessages(locale.value))
+// UI-only display calculation: resolveTemplate is used solely to render the URL in the address bar.
+// It has no role in the request execution path — the Rust runtime re-resolves variables independently.
 const resolvedActiveUrl = computed(() => {
   if (!activeTab.value || !activeEnvironment.value) return ''
   return resolveTemplate(activeTab.value.url, resolveVariablesMap(activeEnvironment.value.variables))

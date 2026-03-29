@@ -229,6 +229,7 @@ mod tests {
         assert!(hook_registry.descriptors().is_empty());
     }
 
+    // [Gate D: Stage Discipline] — future-stage capability seams remain reserved until explicitly enabled.
     #[test]
     fn future_capability_seams_remain_reserved_until_enabled() {
         let capability_registry = CapabilityRegistry::with_builtin_defaults();
