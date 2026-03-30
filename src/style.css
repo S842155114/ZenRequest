@@ -76,37 +76,39 @@
   --sidebar-border: oklch(0.87 0.006 65);
   --sidebar-ring: oklch(0.7 0.19 42 / 0.55);
   --zr-body-bg:
-    radial-gradient(circle at 16% 0%, rgba(255, 108, 55, 0.08), transparent 22%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.3), transparent 18%),
-    linear-gradient(180deg, #f2f5f8 0%, #e9eef4 56%, #e2e8ef 100%);
+    radial-gradient(circle at 14% 0%, rgba(202, 111, 67, 0.08), transparent 20%),
+    radial-gradient(circle at 78% 4%, rgba(23, 165, 124, 0.04), transparent 18%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.34), transparent 18%),
+    linear-gradient(180deg, #f4f6f8 0%, #edf2f5 54%, #e7edf1 100%);
   --zr-app-glow:
-    radial-gradient(circle at 16% 0%, rgba(255, 108, 55, 0.08), transparent 18%),
+    radial-gradient(circle at 15% 0%, rgba(202, 111, 67, 0.08), transparent 18%),
+    radial-gradient(circle at 82% 6%, rgba(23, 165, 124, 0.04), transparent 18%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.16), transparent 28%);
-  --zr-panel-bg: rgba(244, 247, 250, 0.9);
-  --zr-header-bg: rgba(240, 244, 248, 0.92);
-  --zr-elevated: rgba(255, 255, 255, 0.97);
+  --zr-panel-bg: rgba(246, 248, 250, 0.94);
+  --zr-header-bg: rgba(243, 246, 248, 0.94);
+  --zr-elevated: rgba(255, 255, 255, 0.98);
   --zr-code-bg: rgba(248, 250, 252, 0.98);
   --zr-input-bg: rgba(255, 255, 255, 0.98);
-  --zr-chip-bg: rgba(236, 240, 244, 0.94);
-  --zr-soft-bg: rgba(236, 240, 244, 0.76);
-  --zr-panel-muted: rgba(230, 235, 241, 0.74);
-  --zr-control-bg: rgba(247, 249, 251, 0.92);
-  --zr-control-hover: rgba(18, 28, 45, 0.06);
+  --zr-chip-bg: rgba(239, 243, 246, 0.96);
+  --zr-soft-bg: rgba(236, 240, 244, 0.82);
+  --zr-panel-muted: rgba(232, 237, 242, 0.82);
+  --zr-control-bg: rgba(251, 252, 253, 0.96);
+  --zr-control-hover: rgba(30, 41, 59, 0.07);
   --zr-control-active: rgba(255, 108, 55, 0.12);
   --zr-soft-hover: rgba(18, 28, 45, 0.05);
-  --zr-border: rgba(15, 23, 42, 0.1);
-  --zr-border-soft: rgba(15, 23, 42, 0.06);
+  --zr-border: rgba(21, 31, 43, 0.11);
+  --zr-border-soft: rgba(21, 31, 43, 0.07);
   --zr-divider: rgba(15, 23, 42, 0.08);
   --zr-focus-ring: rgba(255, 108, 55, 0.24);
-  --zr-text-primary: #18212c;
-  --zr-text-secondary: #4f6070;
-  --zr-text-muted: #768291;
+  --zr-text-primary: #16212b;
+  --zr-text-secondary: #526170;
+  --zr-text-muted: #7b8795;
   --zr-shadow: 0 14px 28px rgba(15, 23, 42, 0.08);
   --zr-shadow-soft: 0 4px 12px rgba(15, 23, 42, 0.06);
   --zr-handle: #a1acb8;
   --zr-handle-bg: rgba(148, 163, 184, 0.4);
   --zr-handle-active: #ff6c37;
-  --zr-workbench-carrier-bg: rgba(229, 234, 240, 0.72);
+  --zr-workbench-carrier-bg: rgba(234, 239, 243, 0.78);
   --zr-workbench-carrier-border: rgba(15, 23, 42, 0.09);
   --zr-workbench-carrier-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
   --zr-workbench-seam-gap: 0.3rem;
@@ -121,10 +123,12 @@
   --zr-response-accent:
     linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 78%),
     linear-gradient(90deg, rgba(255, 108, 55, 0.035), transparent 26%);
-  --zr-nav-surface: rgba(243, 246, 250, 0.94);
-  --zr-accent-soft: rgba(255, 108, 55, 0.1);
-  --zr-accent-border: rgba(255, 108, 55, 0.26);
-  --zr-accent-strong: #ff6c37;
+  --zr-nav-surface: rgba(244, 247, 250, 0.96);
+  --zr-accent-soft: rgba(202, 111, 67, 0.1);
+  --zr-accent-border: rgba(202, 111, 67, 0.28);
+  --zr-accent-strong: #ca6f43;
+  --zr-signal-soft: rgba(23, 165, 124, 0.12);
+  --zr-signal-strong: #17a57c;
 }
 
 [data-theme='dark'] {
@@ -148,21 +152,23 @@
   --sidebar-accent-foreground: oklch(0.95 0.01 60);
   --sidebar-border: oklch(0.31 0.01 45);
   --zr-body-bg:
-    radial-gradient(circle at 18% 0%, rgba(255, 108, 55, 0.12), transparent 22%),
+    radial-gradient(circle at 16% 0%, rgba(202, 111, 67, 0.14), transparent 22%),
+    radial-gradient(circle at 80% 4%, rgba(62, 196, 154, 0.06), transparent 18%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 18%),
-    linear-gradient(180deg, #10151b 0%, #0b1016 54%, #070b10 100%);
+    linear-gradient(180deg, #10151b 0%, #0b1117 54%, #070c11 100%);
   --zr-app-glow:
-    radial-gradient(circle at 18% 0%, rgba(255, 108, 55, 0.1), transparent 18%),
+    radial-gradient(circle at 16% 0%, rgba(202, 111, 67, 0.1), transparent 18%),
+    radial-gradient(circle at 82% 5%, rgba(62, 196, 154, 0.05), transparent 18%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 24%);
-  --zr-panel-bg: rgba(16, 21, 28, 0.94);
-  --zr-header-bg: rgba(18, 22, 29, 0.94);
-  --zr-elevated: rgba(24, 30, 38, 0.98);
+  --zr-panel-bg: rgba(15, 20, 27, 0.96);
+  --zr-header-bg: rgba(18, 24, 31, 0.95);
+  --zr-elevated: rgba(24, 31, 39, 0.98);
   --zr-code-bg: rgba(12, 16, 22, 0.98);
   --zr-input-bg: rgba(14, 19, 26, 0.98);
-  --zr-chip-bg: rgba(24, 30, 38, 0.96);
-  --zr-soft-bg: rgba(22, 28, 36, 0.86);
-  --zr-panel-muted: rgba(20, 26, 34, 0.76);
-  --zr-control-bg: rgba(23, 29, 37, 0.92);
+  --zr-chip-bg: rgba(25, 32, 41, 0.96);
+  --zr-soft-bg: rgba(23, 30, 38, 0.88);
+  --zr-panel-muted: rgba(24, 30, 38, 0.84);
+  --zr-control-bg: rgba(21, 28, 36, 0.94);
   --zr-control-hover: rgba(255, 255, 255, 0.07);
   --zr-control-active: rgba(255, 108, 55, 0.14);
   --zr-soft-hover: rgba(255, 255, 255, 0.06);
@@ -170,15 +176,15 @@
   --zr-border-soft: rgba(255, 255, 255, 0.07);
   --zr-divider: rgba(255, 255, 255, 0.08);
   --zr-focus-ring: rgba(255, 108, 55, 0.28);
-  --zr-text-primary: #e7edf5;
-  --zr-text-secondary: #b5c0ce;
-  --zr-text-muted: #7e8999;
+  --zr-text-primary: #e8eef5;
+  --zr-text-secondary: #bac4d1;
+  --zr-text-muted: #8691a0;
   --zr-shadow: 0 18px 36px rgba(0, 0, 0, 0.28);
   --zr-shadow-soft: 0 6px 16px rgba(0, 0, 0, 0.2);
   --zr-handle: #7f8594;
   --zr-handle-bg: rgba(74, 85, 104, 0.65);
   --zr-handle-active: #ff6c37;
-  --zr-workbench-carrier-bg: rgba(13, 18, 25, 0.82);
+  --zr-workbench-carrier-bg: rgba(14, 19, 26, 0.84);
   --zr-workbench-carrier-border: rgba(255, 255, 255, 0.08);
   --zr-workbench-carrier-shadow: 0 18px 34px rgba(0, 0, 0, 0.3);
   --zr-workbench-seam-gap: 0.3rem;
@@ -193,10 +199,12 @@
   --zr-response-accent:
     linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 72%),
     linear-gradient(90deg, rgba(255, 108, 55, 0.05), transparent 24%);
-  --zr-nav-surface: rgba(15, 20, 27, 0.98);
-  --zr-accent-soft: rgba(255, 108, 55, 0.12);
-  --zr-accent-border: rgba(255, 108, 55, 0.32);
-  --zr-accent-strong: #ff7a4a;
+  --zr-nav-surface: rgba(15, 21, 28, 0.98);
+  --zr-accent-soft: rgba(202, 111, 67, 0.14);
+  --zr-accent-border: rgba(202, 111, 67, 0.34);
+  --zr-accent-strong: #d17a4f;
+  --zr-signal-soft: rgba(23, 165, 124, 0.16);
+  --zr-signal-strong: #3ec49a;
 }
 
 @layer base {
@@ -352,6 +360,36 @@
     color: var(--zr-text-secondary);
   }
 
+  .zr-status-pill {
+    border: 1px solid color-mix(in srgb, var(--zr-border) 84%, transparent);
+    background: color-mix(in srgb, var(--zr-chip-bg) 94%, transparent);
+    color: var(--zr-text-secondary);
+  }
+
+  .zr-status-pill-neutral {
+    background: color-mix(in srgb, var(--zr-chip-bg) 94%, transparent);
+    color: var(--zr-text-secondary);
+  }
+
+  .zr-status-pill-signal,
+  .zr-status-pill-success {
+    border-color: color-mix(in srgb, var(--zr-signal-strong) 34%, var(--zr-border));
+    background: color-mix(in srgb, var(--zr-signal-soft) 88%, var(--zr-chip-bg));
+    color: color-mix(in srgb, var(--zr-signal-strong) 86%, white 14%);
+  }
+
+  .zr-status-pill-warn {
+    border-color: rgba(245, 158, 11, 0.28);
+    background: rgba(245, 158, 11, 0.1);
+    color: rgb(180 83 9);
+  }
+
+  .zr-status-pill-error {
+    border-color: rgba(244, 63, 94, 0.28);
+    background: rgba(244, 63, 94, 0.1);
+    color: rgb(190 24 93);
+  }
+
   .zr-brand-badge {
     display: inline-flex;
     height: 2.15rem;
@@ -367,6 +405,34 @@
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.18),
       0 8px 16px rgba(255, 108, 55, 0.14);
+  }
+
+  .zr-brand-wordmark {
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--zr-text-primary);
+  }
+
+  .zr-brand-context {
+    font-size: 0.625rem;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--zr-text-muted);
+  }
+
+  .zr-brand-compact-mark {
+    display: inline-flex;
+    height: 2rem;
+    width: 2rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.6rem;
+    border: 1px solid color-mix(in srgb, var(--zr-accent-border) 78%, var(--zr-border));
+    background: color-mix(in srgb, var(--zr-accent-soft) 78%, var(--zr-elevated));
+    color: var(--zr-text-primary);
+    font-size: 0.7rem;
+    font-weight: 700;
   }
 
   .zr-startup-panel {
@@ -705,6 +771,12 @@
       var(--zr-shadow-soft);
   }
 
+  .zr-workset-pill {
+    border: 1px solid color-mix(in srgb, var(--zr-border) 84%, transparent);
+    background: color-mix(in srgb, var(--zr-chip-bg) 94%, transparent);
+    color: var(--zr-text-secondary);
+  }
+
   .zr-folder-icon,
   .zr-history-icon {
     display: inline-flex;
@@ -748,6 +820,20 @@
     color: var(--zr-text-muted);
   }
 
+  .zr-request-row-signal {
+    width: 0.25rem;
+    min-height: 2rem;
+    background: color-mix(in srgb, var(--zr-border-soft) 88%, transparent);
+  }
+
+  .zr-request-row-signal-active {
+    background: linear-gradient(180deg, var(--zr-accent-strong), var(--zr-signal-strong));
+  }
+
+  .zr-request-row-signal-idle {
+    opacity: 0.5;
+  }
+
   .zr-sidebar-empty {
     border: 1px dashed var(--zr-border);
     border-radius: 0.625rem;
@@ -765,6 +851,16 @@
 
   .zr-request-shell-header {
     background: linear-gradient(180deg, color-mix(in srgb, var(--zr-elevated) 18%, transparent), transparent 92%);
+  }
+
+  .zr-compose-rail {
+    border-color: color-mix(in srgb, var(--zr-border) 88%, transparent);
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--zr-elevated) 18%, transparent), transparent 84%),
+      color-mix(in srgb, var(--zr-control-bg) 88%, var(--zr-panel-muted));
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--zr-elevated) 18%, transparent),
+      0 1px 0 color-mix(in srgb, var(--zr-border-soft) 28%, transparent);
   }
 
   .zr-request-tab-strip {
@@ -860,6 +956,12 @@
 
   .zr-response-panel-surface {
     background-image: linear-gradient(180deg, color-mix(in srgb, var(--zr-elevated) 8%, transparent), transparent 78%);
+  }
+
+  .zr-response-readout {
+    border: 1px solid color-mix(in srgb, var(--zr-border) 84%, transparent);
+    background: color-mix(in srgb, var(--zr-chip-bg) 94%, transparent);
+    color: var(--zr-text-secondary);
   }
 
   .zr-summary-card {

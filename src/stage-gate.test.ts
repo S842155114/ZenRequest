@@ -98,32 +98,34 @@ const RequestPanelStub = defineComponent({
   emits: ['send', 'toggle-collapsed', 'save-tab', 'select-tab', 'close-tab', 'import-curl'],
   setup(props, { emit }) {
     return () => {
-      const tabs = props.tabs as Array<Record<string, unknown>>
-      const current = tabs.find((tab) => tab['id'] === props.activeTabId)
+      const tabs = props.tabs as RequestTabState[]
+      const current = tabs.find((tab) => tab.id === props.activeTabId)
       return h('div', { 'data-testid': 'request-panel-stub' }, [
-        current?.['name'] ?? 'no-active-tab',
+        current?.name ?? 'no-active-tab',
         h('button', {
           'data-testid': 'request-panel-send',
           onClick: () => {
             if (!current) return
             emit('send', {
-              tabId: current['id'],
-              name: current['name'],
+              tabId: current.id,
+              requestId: current.requestId,
+              name: current.name,
               description: '',
               tags: [],
               collectionName: 'Scratch Pad',
-              method: current['method'] ?? 'GET',
-              url: current['url'] ?? 'https://example.com',
+              method: current.method,
+              url: current.url,
               params: [],
               headers: [],
               body: '',
-              bodyType: current['bodyType'] ?? 'json',
-              bodyContentType: current['bodyContentType'],
-              formDataFields: current['formDataFields'],
-              binaryFileName: current['binaryFileName'],
-              auth: current['auth'] ?? { type: 'none', bearerToken: '', username: '', password: '', apiKeyKey: '', apiKeyValue: '', apiKeyPlacement: 'header' },
-              tests: current['tests'] ?? [],
-              mock: current['mock'],
+              bodyType: current.bodyType,
+              bodyContentType: current.bodyContentType,
+              formDataFields: current.formDataFields,
+              binaryFileName: current.binaryFileName,
+              binaryMimeType: current.binaryMimeType,
+              auth: current.auth,
+              tests: current.tests,
+              mock: current.mock,
             })
           },
         }, 'send'),
@@ -167,10 +169,23 @@ import { setRuntimeAdapter } from '@/lib/tauri-client'
 import type {
   ApiEnvelope,
   AppBootstrapPayload,
+  AppSettings,
   RuntimeAdapter,
+  RuntimeCapabilityDescriptor,
   SendRequestPayloadDto,
+  WorkspaceExportResult,
+  WorkspaceImportResult,
+  WorkspaceSaveResult,
 } from '@/lib/tauri-client'
-import type { HistoryItem } from '@/types/request'
+import type {
+  EnvironmentPreset,
+  HistoryItem,
+  RequestCollection,
+  RequestPreset,
+  RequestTabState,
+  WorkspaceSessionSnapshot,
+  WorkspaceSummary,
+} from '@/types/request'
 
 const ok = <T>(data: T): ApiEnvelope<T> => ({ ok: true, data })
 
@@ -233,18 +248,20 @@ const createAdapter = (
   overrides: Partial<RuntimeAdapter> = {},
 ): RuntimeAdapter => ({
   bootstrapApp: async () => ok(bootstrapPayload),
-  saveWorkspaceSession: async () => ok({ savedAtEpochMs: Date.now() }),
-  setActiveWorkspace: async () => ok({ message: 'ok' }),
-  createWorkspace: async (name) => ok({ id: `workspace-${name}`, name }),
-  deleteWorkspace: async () => ok({ message: 'ok' }),
-  exportWorkspace: async () => ok({ fileName: 'export.json', packageJson: '{}', scope: 'workspace' as const }),
-  importWorkspace: async () => ok({
-    scope: 'workspace' as const,
+  saveWorkspaceSession: async (_workspaceId: string, _session: WorkspaceSessionSnapshot) =>
+    ok<WorkspaceSaveResult>({ savedAtEpochMs: Date.now() }),
+  setActiveWorkspace: async (_workspaceId: string) => ok({ message: 'ok' }),
+  createWorkspace: async (name: string) => ok<WorkspaceSummary>({ id: `workspace-${name}`, name }),
+  deleteWorkspace: async (_workspaceId: string) => ok({ message: 'ok' }),
+  exportWorkspace: async (_workspaceId: string) =>
+    ok<WorkspaceExportResult>({ fileName: 'export.json', packageJson: '{}', scope: 'workspace' }),
+  importWorkspace: async (_packageJson: string) => ok<WorkspaceImportResult>({
+    scope: 'workspace',
     workspace: { id: 'workspace-1', name: 'Imported' },
     importedWorkspaceCount: 1,
     activeWorkspaceId: 'workspace-1',
   }),
-  importCurlRequest: async () => ok({
+  importCurlRequest: async (_workspaceId: string, _command: string) => ok<RequestTabState>({
     id: 'tab-curl',
     name: 'Curl',
     description: '',
@@ -273,16 +290,24 @@ const createAdapter = (
     isSending: false,
     isDirty: true,
   }),
-  createCollection: async (_workspaceId, name) => ok({ id: `collection-${name}`, name, expanded: true, requests: [] }),
-  renameCollection: async (_workspaceId, collectionId, name) => ok({ id: collectionId, name, expanded: true, requests: [] }),
-  deleteCollection: async () => ok({ message: 'ok' }),
-  saveRequest: async (_workspaceId, _collectionId, request) => ok(request),
-  deleteRequest: async () => ok({ message: 'ok' }),
-  createEnvironment: async (_workspaceId, name) => ok({ id: `env-${name}`, name, variables: [] }),
-  updateEnvironment: async (_workspaceId, env) => ok(env),
-  deleteEnvironment: async () => ok({ message: 'ok' }),
-  removeHistoryItem: async () => ok({ message: 'ok' }),
-  updateSettings: async (payload) => ok(payload),
+  createCollection: async (_workspaceId: string, name: string) =>
+    ok<RequestCollection>({ id: `collection-${name}`, name, expanded: true, requests: [] }),
+  renameCollection: async (_workspaceId: string, collectionId: string, name: string) =>
+    ok<RequestCollection>({ id: collectionId, name, expanded: true, requests: [] }),
+  deleteCollection: async (_workspaceId: string, _collectionId: string) => ok({ message: 'ok' }),
+  saveRequest: async (_workspaceId: string, _collectionId: string, request: RequestPreset) => ok(request),
+  deleteRequest: async (_workspaceId: string, _requestId: string) => ok({ message: 'ok' }),
+  createEnvironment: async (_workspaceId: string, name: string) =>
+    ok<EnvironmentPreset>({ id: `env-${name}`, name, variables: [] }),
+  renameEnvironment: async (_workspaceId: string, environmentId: string, name: string) =>
+    ok<EnvironmentPreset>({ id: environmentId, name, variables: [] }),
+  deleteEnvironment: async (_workspaceId: string, _environmentId: string) => ok({ message: 'ok' }),
+  updateEnvironmentVariables: async (_workspaceId: string, environmentId: string, variables) =>
+    ok<EnvironmentPreset>({ id: environmentId, name: 'Environment', variables }),
+  clearHistory: async (_workspaceId: string) => ok({ message: 'ok' }),
+  removeHistoryItem: async (_workspaceId: string, _id: string) => ok({ message: 'ok' }),
+  getSettings: async () => ok<AppSettings>({ themeMode: 'dark', locale: 'en' }),
+  updateSettings: async (payload: AppSettings) => ok(payload),
   sendRequest: async (_payload: SendRequestPayloadDto) =>
     ({ ok: false, error: { code: 'NOT_IMPLEMENTED', message: 'not implemented' } }),
   ...overrides,
@@ -333,11 +358,11 @@ const mountApp = async () => {
 }
 
 const getRequestPanelTabs = (wrapper: Awaited<ReturnType<typeof mountApp>>) =>
-  wrapper.findComponent(RequestPanelStub).props('tabs') as Array<Record<string, unknown>>
+  wrapper.findComponent(RequestPanelStub).props('tabs') as RequestTabState[]
 
 const getActiveRequestPanelTab = (wrapper: Awaited<ReturnType<typeof mountApp>>) => {
   const activeTabId = wrapper.findComponent(RequestPanelStub).props('activeTabId') as string
-  return getRequestPanelTabs(wrapper).find((tab) => tab['id'] === activeTabId)
+  return getRequestPanelTabs(wrapper).find((tab) => tab.id === activeTabId)
 }
 
 const matchMediaStub = (query: string) => ({
@@ -474,11 +499,11 @@ describe('Stage Gate Tests', () => {
     await nextTick()
 
     const restoredTab = getActiveRequestPanelTab(wrapper)
-    expect(restoredTab?.['bodyType']).toBe('formdata')
-    expect(restoredTab?.['formDataFields']).toEqual([{ key: 'file', value: '', enabled: true, fileName: 'report.csv', mimeType: 'text/csv' }])
-    expect((restoredTab?.['auth'] as Record<string, unknown>)?.['type']).toBe('bearer')
-    expect((restoredTab?.['auth'] as Record<string, unknown>)?.['bearerToken']).toBe('my-token')
-    expect(restoredTab?.['tests']).toEqual([{ id: 'test-1', name: 'Status is 200', source: 'status', operator: 'equals', expected: '200' }])
+    expect(restoredTab?.bodyType).toBe('formdata')
+    expect(restoredTab?.formDataFields).toEqual([{ key: 'file', value: '', enabled: true, fileName: 'report.csv', mimeType: 'text/csv' }])
+    expect(restoredTab?.auth.type).toBe('bearer')
+    expect(restoredTab?.auth.bearerToken).toBe('my-token')
+    expect(restoredTab?.tests).toEqual([{ id: 'test-1', name: 'Status is 200', source: 'status', operator: 'equals', expected: '200' }])
   })
 
   // ---------------------------------------------------------------------------
@@ -599,7 +624,7 @@ describe('Stage Gate Tests', () => {
     expect(wrapper.find('[data-testid="request-panel-stub"]').exists()).toBe(true)
 
     // No future-stage capability kind may be active
-    const futureKinds = ['execution_hook', 'tool_packaging', 'plugin_manifest']
+    const futureKinds: RuntimeCapabilityDescriptor['kind'][] = ['execution_hook', 'tool_packaging', 'plugin_manifest']
     const activeFuture = payload.capabilities!.descriptors.filter(
       (d) => futureKinds.includes(d.kind) && d.availability === 'active',
     )
@@ -607,9 +632,8 @@ describe('Stage Gate Tests', () => {
 
     // openapi kind must not appear at all (not even reserved yet)
     const openapiDescriptors = payload.capabilities!.descriptors.filter(
-      (d) => d.kind === 'openapi' || d.key.startsWith('openapi'),
+      (d) => d.key.startsWith('openapi'),
     )
     expect(openapiDescriptors).toHaveLength(0)
   })
 })
-

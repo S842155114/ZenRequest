@@ -246,6 +246,20 @@ describe('AppHeader', () => {
     expect(wrapper.emitted('update:locale')?.[0]).toEqual(['zh-CN'])
   })
 
+  it('uses a wordmark-first desktop brand and a compact fallback mark', () => {
+    const desktop = mountHeader()
+
+    expect(desktop.get('[data-testid="header-brand-wordmark"]').text()).toBe('ZenRequest')
+    expect(desktop.find('[data-testid="header-brand-compact-mark"]').exists()).toBe(false)
+
+    const compact = mountHeader({
+      isCompactLayout: true,
+    })
+
+    expect(compact.find('[data-testid="header-brand-wordmark"]').exists()).toBe(false)
+    expect(compact.get('[data-testid="header-brand-compact-mark"]').text()).toBe('ZR')
+  })
+
   it('disables both workspace and environment context controls while workspace data is reloading', () => {
     const wrapper = mountHeader({
       workspaceBusy: true,

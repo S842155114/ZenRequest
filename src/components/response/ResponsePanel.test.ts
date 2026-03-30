@@ -109,6 +109,19 @@ describe('ResponsePanel i18n copy', () => {
     expect(headersButton!.classes()).toContain('zr-tab-button-active')
   })
 
+  it('renders response readouts and state badges with shared diagnostic chrome', () => {
+    const wrapper = mount(ResponsePanel, {
+      props: {
+        locale: 'en',
+      },
+    })
+
+    expect(wrapper.get('[data-testid="response-state-badge"]').classes()).toContain('zr-status-pill')
+    expect(wrapper.get('[data-testid="response-readout-request"]').classes()).toContain('zr-response-readout')
+    expect(wrapper.get('[data-testid="response-readout-time"]').classes()).toContain('zr-response-readout')
+    expect(wrapper.get('[data-testid="response-readout-size"]').classes()).toContain('zr-response-readout')
+  })
+
   it('renders the response body inside a read-only code viewer with detected language', () => {
     const wrapper = mount(ResponsePanel, {
       props: {
