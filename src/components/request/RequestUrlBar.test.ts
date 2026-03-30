@@ -112,4 +112,14 @@ describe('RequestUrlBar', () => {
     expect(wrapper.get('[data-testid="request-identity-origin"]').text()).not.toContain('Saved')
     expect(wrapper.get('[data-testid="request-identity-persistence"]').text()).toContain('Draft')
   })
+
+  it('separates context chips from action controls and uses a signal pill for environment metadata', () => {
+    const wrapper = mountUrlBar()
+
+    expect(wrapper.find('[data-testid="request-command-context"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="request-command-actions"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="request-command-meta-environment"]').classes()).toContain(
+      'zr-status-pill-signal',
+    )
+  })
 })

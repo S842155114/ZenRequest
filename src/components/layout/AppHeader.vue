@@ -121,13 +121,22 @@ watch(() => props.isCompactLayout, (isCompactLayout) => {
             <TooltipContent>{{ text.header.openExplorer }}</TooltipContent>
           </Tooltip>
 
-          <div class="zr-brand-badge">ZR</div>
+          <div
+            v-if="isCompactLayout"
+            data-testid="header-brand-compact-mark"
+            class="zr-brand-compact-mark"
+          >
+            ZR
+          </div>
 
-          <div v-if="!isCompactLayout" class="min-w-0">
-            <div class="truncate text-[13px] font-semibold leading-none tracking-[0.01em] text-[var(--zr-text-primary)]">
+          <div v-else class="min-w-0">
+            <div
+              data-testid="header-brand-wordmark"
+              class="zr-brand-wordmark truncate"
+            >
               {{ text.header.appName }}
             </div>
-            <div class="mt-0.5 hidden truncate text-[9px] uppercase tracking-[0.14em] text-[var(--zr-text-muted)] xl:block">
+            <div class="zr-brand-context mt-0.5 truncate">
               {{ activeWorkspaceName }}
             </div>
           </div>

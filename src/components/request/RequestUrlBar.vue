@@ -153,11 +153,11 @@ const executionBadgeClass = computed(() => {
         <div class="mt-1 truncate text-sm font-semibold text-[var(--zr-text-primary)]">
           {{ displayRequestName }}
         </div>
-        <div data-testid="request-command-identity" class="mt-1.5 flex flex-wrap items-center gap-1.5">
+        <div data-testid="request-command-context" class="mt-1.5 flex flex-wrap items-center gap-1.5">
           <span
             data-testid="request-identity-origin"
             :class="[
-              'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em]',
+              'zr-status-pill rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em]',
               originBadgeClass,
             ]"
           >
@@ -166,7 +166,7 @@ const executionBadgeClass = computed(() => {
           <span
             data-testid="request-identity-persistence"
             :class="[
-              'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em]',
+              'zr-status-pill rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em]',
               persistenceBadgeClass,
             ]"
           >
@@ -175,7 +175,7 @@ const executionBadgeClass = computed(() => {
           <span
             data-testid="request-identity-execution"
             :class="[
-              'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em]',
+              'zr-status-pill rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em]',
               executionBadgeClass,
             ]"
           >
@@ -288,7 +288,7 @@ const executionBadgeClass = computed(() => {
         />
       </div>
 
-      <div class="flex items-center gap-2">
+      <div data-testid="request-command-actions" class="flex items-center gap-2">
         <Button
           data-testid="request-command-send"
           @click="emit('send')"
@@ -310,7 +310,12 @@ const executionBadgeClass = computed(() => {
 
     <div class="zr-request-command-meta flex flex-wrap items-center gap-1.5 border-t border-[color:var(--zr-border-soft)] px-3 py-1.5 text-[10px] text-[var(--zr-text-muted)]">
       <span class="zr-chip rounded-full px-2 py-0.5">{{ text.request.collection }}: {{ displayCollectionName }}</span>
-      <span class="rounded-full border border-[var(--zr-accent-border)] bg-[var(--zr-accent-soft)] px-2 py-0.5 text-orange-700 dark:text-orange-300">{{ text.request.environment }}: {{ environmentName }}</span>
+      <span
+        data-testid="request-command-meta-environment"
+        class="zr-status-pill zr-status-pill-signal rounded-full px-2 py-0.5"
+      >
+        {{ text.request.environment }}: {{ environmentName }}
+      </span>
       <span class="zr-chip max-w-full truncate rounded-full px-2 py-0.5 font-mono">{{ text.request.resolved }}: {{ resolvedUrl }}</span>
     </div>
   </div>

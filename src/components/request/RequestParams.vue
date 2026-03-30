@@ -543,7 +543,7 @@ defineExpose({
     class="flex min-h-0 flex-1 flex-col overflow-hidden"
     @update:model-value="handleSectionChange"
   >
-    <TabsList class="zr-input mx-3 mt-3 w-fit shrink-0 rounded-lg p-0.5">
+    <TabsList data-testid="request-compose-rail" class="zr-input zr-compose-rail mx-3 mt-3 w-fit shrink-0 rounded-lg p-0.5">
       <TabsTrigger value="params" data-testid="request-section-trigger-params" class="zr-tab-trigger">
         {{ text.request.params }}
         <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ enabledParamsCount }}</Badge>

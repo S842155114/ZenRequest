@@ -231,6 +231,15 @@ describe('AppSidebar', () => {
     expect(wrapper.emitted('delete-collection')?.[0]).toEqual(['Orders'])
   })
 
+  it('renders workset pills and a dedicated active-row signal rail', () => {
+    const wrapper = mountSidebar()
+
+    expect(wrapper.get('[data-testid="sidebar-workset-open"]').classes()).toContain('zr-workset-pill')
+    expect(wrapper.get('[data-testid="request-row-signal-request-orders-list"]').classes()).toContain(
+      'zr-request-row-signal-active',
+    )
+  })
+
   it('groups history items by relative day and keeps status as secondary metadata', async () => {
     const now = Date.now()
     const wrapper = mountSidebar({
