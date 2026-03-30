@@ -147,6 +147,15 @@ describe('RequestParams compact chrome', () => {
     )
   })
 
+  it('uses a dedicated compose rail for primary and secondary request sections', () => {
+    const wrapper = mountRequestParams()
+
+    expect(wrapper.get('[data-testid="request-compose-rail"]').classes()).toContain('zr-compose-rail')
+    expect(wrapper.get('[data-testid="request-section-trigger-mock"]').attributes('data-request-secondary')).toBe(
+      'true',
+    )
+  })
+
   it('keeps the compose body as the shrinkable scroll boundary for request sections', () => {
     const wrapper = mountRequestParams({
       locale: 'zh-CN',

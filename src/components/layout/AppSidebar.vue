@@ -391,7 +391,7 @@ const worksetSummaryItems = computed(() => ([
           v-for="item in worksetSummaryItems"
           :key="item.key"
           :data-testid="`sidebar-workset-${item.key}`"
-          class="rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-2 py-0.5 text-[10px] font-medium text-[var(--zr-text-secondary)]"
+          class="zr-workset-pill rounded-full px-2 py-0.5 text-[10px] font-medium"
         >
           {{ item.label }} {{ item.value }}
         </span>
@@ -518,6 +518,15 @@ const worksetSummaryItems = computed(() => ([
                       ]"
                       @click="emit('select-request', request)"
                     >
+                      <span
+                        :data-testid="`request-row-signal-${getTestIdKey(request.id)}`"
+                        :class="[
+                          'zr-request-row-signal mt-0.5 shrink-0 rounded-full',
+                          requestRowIsActive(request.id)
+                            ? 'zr-request-row-signal-active'
+                            : 'zr-request-row-signal-idle'
+                        ]"
+                      />
                       <Badge
                         variant="outline"
                         :class="['mt-0.5 min-w-[2.8rem] justify-center rounded-md border text-[10px] font-semibold tracking-[0.16em]', getMethodBadgeClass(request.method)]"

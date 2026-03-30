@@ -96,26 +96,26 @@ const stateMeta = computed(() => {
       return {
         icon: Clock3,
         iconClass: 'text-slate-600 dark:text-slate-400',
-        badgeClass: 'border-slate-500/25 bg-slate-500/10 text-slate-700 dark:text-slate-200',
+        badgeClass: 'zr-status-pill zr-status-pill-neutral',
       }
     case 'pending':
       return {
         icon: Clock3,
         iconClass: 'text-amber-600 dark:text-amber-300',
-        badgeClass: 'border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-200',
+        badgeClass: 'zr-status-pill zr-status-pill-warn',
       }
     case 'http-error':
     case 'transport-error':
       return {
         icon: XCircle,
         iconClass: 'text-rose-600 dark:text-rose-300',
-        badgeClass: 'border-rose-500/25 bg-rose-500/12 text-rose-700 dark:text-rose-200',
+        badgeClass: 'zr-status-pill zr-status-pill-error',
       }
     default:
       return {
         icon: CheckCircle2,
         iconClass: 'text-emerald-600 dark:text-emerald-400',
-        badgeClass: 'border-emerald-500/25 bg-emerald-500/12 text-emerald-700 dark:text-emerald-300',
+        badgeClass: 'zr-status-pill zr-status-pill-success',
       }
   }
 })
@@ -220,16 +220,25 @@ const downloadCurrentContent = () => {
         </button>
       </div>
       <div class="zr-response-meta-strip mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
-        <span class="zr-chip inline-flex max-w-[320px] items-center gap-1.5 rounded-full px-1.5 py-0.5 text-[var(--zr-text-secondary)]">
+        <span
+          data-testid="response-readout-request"
+          class="zr-response-readout inline-flex max-w-[320px] items-center gap-1.5 rounded-full px-1.5 py-0.5"
+        >
           <span class="font-semibold text-orange-700 dark:text-orange-300">{{ requestMethod }}</span>
           <span class="truncate font-mono text-[var(--zr-text-primary)]">{{ requestUrl }}</span>
         </span>
-        <span class="zr-chip inline-flex items-center gap-1.5 rounded-full px-1.5 py-0.5 text-[var(--zr-text-secondary)]">
-          <Clock3 class="h-3.5 w-3.5 text-[#ff8b5f]" />
+        <span
+          data-testid="response-readout-time"
+          class="zr-response-readout inline-flex items-center gap-1.5 rounded-full px-1.5 py-0.5"
+        >
+          <Clock3 class="h-3.5 w-3.5 text-[var(--zr-signal-strong)]" />
           <span class="font-mono text-[var(--zr-text-primary)]">{{ time }}</span>
         </span>
-        <span class="zr-chip inline-flex items-center gap-1.5 rounded-full px-1.5 py-0.5 text-[var(--zr-text-secondary)]">
-          <HardDrive class="h-3.5 w-3.5 text-[#ff8b5f]" />
+        <span
+          data-testid="response-readout-size"
+          class="zr-response-readout inline-flex items-center gap-1.5 rounded-full px-1.5 py-0.5"
+        >
+          <HardDrive class="h-3.5 w-3.5 text-[var(--zr-text-muted)]" />
           <span class="font-mono text-[var(--zr-text-primary)]">{{ size }}</span>
         </span>
       </div>
