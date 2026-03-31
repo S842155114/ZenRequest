@@ -7,7 +7,7 @@
 [![Tauri 2](https://img.shields.io/badge/Tauri-2.0-ffc131.svg)](https://v2.tauri.app/)
 [![Rust](https://img.shields.io/badge/Rust-1.70+-orange.svg)](https://www.rust-lang.org/)
 
-[中文](README.md)
+[中文](README.md) | [Download Latest](https://github.com/S842155114/ZenRequest/releases/tag/latest)
 
 ---
 

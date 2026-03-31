@@ -113,3 +113,10 @@ jobs:
               release_id: ${{ needs.create-release.outputs.release_id }},
               draft: false,
             });
+
+      - name: Move latest tag
+        run: |
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          git tag -f latest
+          git push origin latest --force
