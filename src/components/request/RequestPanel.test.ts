@@ -351,7 +351,7 @@ describe('RequestPanel i18n copy', () => {
     await wrapper.get('input').trigger('contextmenu')
     await nextTick()
 
-    expect(document.body.querySelector('[data-testid="request-tab-context-menu"]')).toBeNull()
+    expect(document.body.querySelector('[data-testid="request-tab-context-save-tab-1"]')).toBeNull()
   })
 
   it('compresses tab lifecycle states into a single compact indicator in the tab strip', () => {

@@ -122,7 +122,6 @@ const handleOpenChange = (nextOpen: boolean) => {
 <template>
   <Dialog :open="open" @update:open="handleOpenChange">
     <DialogContent
-      data-testid="workspace-dialog"
       :class="[
         'zr-dialog-shell max-w-xl border-[var(--zr-border)] bg-[var(--zr-elevated)] p-0 text-[var(--zr-text-primary)] shadow-[var(--zr-shadow)] sm:rounded-lg',
         isDirtyCloseDialog && 'overflow-hidden sm:max-w-[36rem]',

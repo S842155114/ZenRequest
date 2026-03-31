@@ -294,7 +294,6 @@ watch(() => props.isCompactLayout, (isCompactLayout) => {
               <DropdownMenuContent
                 align="end"
                 class="zr-dropdown w-[240px] p-1"
-                data-testid="header-settings-menu"
               >
                 <DropdownMenuLabel class="px-2 py-1.5 text-xs font-semibold text-[var(--zr-text-primary)]">
                   {{ text.header.settings }}
