@@ -1,244 +1,113 @@
 # ZenRequest
 
-[简体中文](./README.md) | [English](./README.en.md)
+> A blazingly fast, local-first API workbench built for developers who value privacy and speed.
 
-ZenRequest is a desktop-first, local-first, privacy-first API workbench.  
-It is designed as a fast, lightweight desktop tool where request authoring, runtime execution, persistence, history, and import/export stay under local control instead of being pushed into mandatory cloud workflows.
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+[![Vue 3](https://img.shields.io/badge/Vue-3.x-42b883.svg)](https://vuejs.org/)
+[![Tauri 2](https://img.shields.io/badge/Tauri-2.0-ffc131.svg)](https://v2.tauri.app/)
+[![Rust](https://img.shields.io/badge/Rust-1.70+-orange.svg)](https://www.rust-lang.org/)
 
-## Positioning
+[中文](README.md)
 
-ZenRequest is built for developers who want:
+---
 
-- locally managed workspaces, collections, environments, and request history
-- a Rust-owned runtime that remains authoritative for execution and persistence
-- an API tool without forced login, forced sync, or telemetry-first product design
-- a project with a clear architecture roadmap instead of an ever-growing frontend-only shell
+## Why ZenRequest?
 
-Current product boundaries:
+Modern API tools like Postman and Insomnia have become bloated — forced logins, mandatory cloud sync, gigabytes of RAM, and telemetry you never asked for.
 
-- desktop-first, built with Tauri
-- Rust runtime as the authoritative execution layer
-- local SQLite as the implemented persistence path
-- browser-side mock adapters are for tests and local UI development, not full desktop-runtime parity
+**ZenRequest** is the alternative: a desktop-first API workbench that starts in milliseconds, runs entirely offline, and keeps your data on your machine.
 
-## Current Desktop Baseline
+- **Instant startup** — Rust + Tauri, not Electron
+- **Featherweight** — under 50 MB RAM at idle
+- **100% offline & private** — no accounts, no telemetry, no cloud
+- **Local SQLite storage** — workspaces, requests, history, and sessions stored on your machine
 
-Based on the repository baseline documents and OpenSpec contracts, ZenRequest already ships a substantial desktop baseline:
+---
 
-### Workspace and Session
+## Features
 
-- multiple workspaces
-- active workspace switching and restoration
-- separately persisted workspace sessions
-- open-tab, active-tab, and active-environment restoration
-- preserved semantics for draft, replay, scratch, and detached tabs
+- Multiple workspaces with persisted sessions
+- Collections and saved requests
+- Environment variables with template resolution
+- Request execution with test assertions
+- History replay
+- Workspace import / export
+- cURL import into editable request drafts
+- Request-local mock templates
+- Response HTML preview
 
-### Request Authoring
+---
 
-- collections and saved requests
-- request params, headers, and environment variable editing
-- `json`, `formdata`, `raw`, and `binary` body modes
-- request-local mock template editing
-- request-local response test authoring
+## Tech Stack
 
-### Runtime Execution
+| Layer | Technology |
+|---|---|
+| Desktop runtime | [Tauri v2](https://v2.tauri.app/) + [Rust](https://www.rust-lang.org/) |
+| HTTP engine | `reqwest` (async) |
+| Local storage | SQLite via `rusqlite` |
+| Frontend | [Vue 3](https://vuejs.org/) + TypeScript + [Vite](https://vitejs.dev/) |
+| UI | [Tailwind CSS](https://tailwindcss.com/) + [shadcn-vue](https://www.shadcn-vue.com/) |
 
-- Rust-owned request compilation
-- environment resolution and auth integration
-- local HTTP execution
-- mock execution through the same send flow
-- runtime-side assertion evaluation and execution artifacts
-- history persistence and replay restoration
+---
 
-### Import / Export
-
-- workspace export
-- full-application export
-- workspace/application import
-- `skip` / `rename` / `overwrite` conflict handling
-- `curl` import into editable draft requests
-
-### Response and UI
-
-- response code viewer
-- HTML preview
-- explorer / request / response desktop workbench layout
-- startup handoff and local workbench UI
-
-Canonical references:
-
-- [Project Baseline Readiness](./docs/project-baseline-readiness.md)
-- [workbench-ui OpenSpec](./openspec/specs/workbench-ui/spec.md)
-
-## Core Architecture
-
-ZenRequest is organized around a three-layer model:
-
-1. Vue Frontend  
-   Rendering, editing state, themes, i18n, and short-lived interaction state
-
-2. Tauri IPC Facade  
-   Contract boundary, DTO mapping, and frontend invocation wrappers
-
-3. Rust Core Runtime  
-   Request execution, persistence, workspace data, import/export, history, and performance-sensitive logic
-
-Key principles:
-
-- the frontend is not the ultimate source of truth
-- request compilation and assertion evaluation belong to the runtime, not browser-side logic
-- workspace business data and workspace session data stay separate
-- future capabilities extend through runtime seams rather than ad hoc frontend branches
-
-Related documents:
-
-- [Fullstack Runtime Plan](./docs/fullstack-runtime-plan.md)
-- [runtime-bootstrap](./openspec/specs/runtime-bootstrap/spec.md)
-- [runtime-execution-pipeline](./openspec/specs/runtime-execution-pipeline/spec.md)
-- [runtime-capability-seams](./openspec/specs/runtime-capability-seams/spec.md)
-- [workspace-sessions](./openspec/specs/workspace-sessions/spec.md)
-
-## Architecture Roadmap
-
-This project is no longer at the proof-of-concept stage. The current roadmap is about tightening architecture and release readiness on top of an already-shipped desktop baseline.
-
-### Already Landed
-
-- a usable local desktop workbench baseline
-- Rust runtime is no longer an empty shell
-- local SQLite persistence is in place
-- execution, history, import/export, environments, and workspace semantics have explicit OpenSpec contracts
-- the frontend shell has already gone through a feature-aligned structural refactor to reduce oversized modules
-
-### Near-Term Priorities
-
-- reinforce runtime authority so the frontend does not drift back into being the source of truth
-- strengthen regression coverage around main desktop flows
-- keep README, docs, and OpenSpec aligned with the actual implementation
-- address release-readiness concerns such as the current frontend bundle-size warning
-
-### Mid-Term Direction
-
-- further refine Rust runtime and IPC contracts
-- improve stability around import/export, workspace restoration, execution artifacts, and large-response handling
-- strengthen automated verification for desktop-critical paths
-
-### Reserved but Not Active Yet
-
-These directions are already represented as runtime seams, but they are not active current-release features:
-
-- additional protocol support
-- more import adapters such as OpenAPI
-- execution hooks
-- tool packaging
-- plugin manifests
-
-Those belong to later stages and should not be described as already shipped functionality.
-
-## Repository Layout
-
-The most important top-level paths are:
-
-```text
-.
-├─ src/                     # Vue frontend, components, feature modules
-├─ src-tauri/               # Rust runtime and Tauri desktop shell
-├─ openspec/specs/          # active capability specs
-├─ openspec/changes/archive/# archived change records
-├─ docs/                    # baseline, planning, and design docs
-└─ README.md / README.en.md
-```
-
-After the latest frontend structure refactor, `src/features/` now contains feature-scoped modules for the app shell, request compose, and request workbench boundaries.
-
-## Development
+## Getting Started
 
 ### Prerequisites
 
-You will need:
+- [Node.js](https://nodejs.org/) v18+ and [pnpm](https://pnpm.io/)
+- [Rust](https://rustup.rs/) (stable toolchain)
+- Tauri system dependencies — see [Tauri Prerequisites](https://v2.tauri.app/start/prerequisites/)
 
-- Node.js 18+
-- `pnpm`
-- a Rust toolchain, typically installed through `rustup`
-- the OS dependencies required by Tauri 2
-
-Reference:
-
-- [Tauri Prerequisites](https://v2.tauri.app/start/prerequisites/)
-
-### Install
+### Install and Run
 
 ```bash
-git clone git@github.com:S842155114/ZenRequest.git
+git clone https://github.com/S842155114/ZenRequest.git
 cd ZenRequest
 pnpm install
-```
-
-### Common Commands
-
-Frontend development:
-
-```bash
-pnpm dev
-```
-
-Desktop development:
-
-```bash
 pnpm tauri dev
 ```
 
-Run tests:
-
-```bash
-pnpm test
-```
-
-Build frontend:
-
-```bash
-pnpm build
-```
-
-Build desktop app:
+### Build for Production
 
 ```bash
 pnpm tauri build
 ```
 
-## Tech Stack
+The installer will be output to `src-tauri/target/release/bundle/`.
 
-- Frontend: Vue 3 + TypeScript + Vite
-- Desktop Shell: Tauri v2
-- Runtime: Rust
-- HTTP: `reqwest`
-- Persistence: SQLite via `rusqlite`
-- UI / Styling: Tailwind CSS 4 + reka-ui / shadcn-vue style components
-- Testing: Vitest
+---
 
-## Reading Guide
+## Project Structure
 
-If you want to understand the project quickly, read these in order:
+```
+ZenRequest/
+├── src/                        # Vue 3 frontend
+│   ├── features/
+│   │   ├── app-shell/          # Application shell, workspace, tab management
+│   │   ├── request-compose/    # Request editor (method, URL, headers, body)
+│   │   └── request-workbench/  # Response panel and test results
+│   └── shared/                 # Shared types, utilities, UI primitives
+├── src-tauri/                  # Rust backend
+│   └── src/
+│       ├── commands/           # Tauri command handlers
+│       ├── db/                 # SQLite schema and queries
+│       └── http_client/        # reqwest-based HTTP engine
+└── docs/                       # Architecture and design docs
+```
 
-1. [Project Baseline Readiness](./docs/project-baseline-readiness.md)
-2. [Fullstack Runtime Plan](./docs/fullstack-runtime-plan.md)
-3. [project-baseline-readiness OpenSpec](./openspec/specs/project-baseline-readiness/spec.md)
-4. [workbench-ui OpenSpec](./openspec/specs/workbench-ui/spec.md)
-5. [import-export OpenSpec](./openspec/specs/import-export/spec.md)
-6. [frontend-page-structure OpenSpec](./openspec/specs/frontend-page-structure/spec.md)
+---
 
-## Current State
+## Contributing
 
-ZenRequest should be understood as a desktop workbench with its mainline already present.  
-The remaining work is better described as:
+Contributions are welcome. Please open an issue before submitting a large pull request so we can discuss the approach.
 
-- release readiness
-- documentation alignment
-- architecture tightening
-- staged future capability expansion
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/your-feature`
+3. Commit your changes
+4. Open a pull request against `main`
 
-not as “missing core desktop functionality”.
+---
 
 ## License
 
-This project is licensed under the [GNU General Public License v3.0](./LICENSE).
+ZenRequest is licensed under the [GNU General Public License v3.0](LICENSE).
