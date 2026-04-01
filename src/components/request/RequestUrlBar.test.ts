@@ -41,6 +41,7 @@ const mountUrlBar = (props: Record<string, unknown> = {}) => mount(RequestUrlBar
     originKind: 'resource',
     persistenceState: 'saved',
     executionState: 'success',
+    showOpenApiImport: true,
     readiness: {
       blockers: [],
       advisories: [],
@@ -72,12 +73,22 @@ describe('RequestUrlBar', () => {
     expect(wrapper.get('[data-testid="request-identity-origin"]').text()).toContain('Resource')
 
     await wrapper.get('[data-testid="request-command-overflow-import"]').trigger('click')
+    await wrapper.get('[data-testid="request-command-overflow-import-openapi"]').trigger('click')
     await wrapper.get('[data-testid="request-command-overflow-import-curl"]').trigger('click')
     await wrapper.get('[data-testid="request-command-overflow-export"]').trigger('click')
 
     expect(wrapper.emitted('import-workspace')).toHaveLength(1)
+    expect(wrapper.emitted('import-openapi')).toHaveLength(1)
     expect(wrapper.emitted('import-curl')).toHaveLength(1)
     expect(wrapper.emitted('export-workspace')).toHaveLength(1)
+  })
+
+  it('hides the OpenAPI import action when the runtime capability is unavailable', () => {
+    const wrapper = mountUrlBar({
+      showOpenApiImport: false,
+    })
+
+    expect(wrapper.find('[data-testid="request-command-overflow-import-openapi"]').exists()).toBe(false)
   })
 
   it('shows readiness blockers and disables send until the request is runnable', () => {

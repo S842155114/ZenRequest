@@ -1,0 +1,52 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Diagnostic Pets",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.example.com"
+    }
+  ],
+  "paths": {
+    "/pets": {
+      "get": {
+        "summary": "List pets",
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/owners": {
+      "get": {
+        "summary": "List owners",
+        "parameters": [
+          {
+            "$ref": "./shared.yaml#/components/parameters/TraceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/vets": {
+      "post": {
+        "summary": "Create vet",
+        "requestBody": {
+          "$ref": "#/components/requestBodies/MissingBody"
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    }
+  }
+}

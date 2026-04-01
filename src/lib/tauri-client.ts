@@ -114,6 +114,47 @@ export interface ImportPackageMeta {
   workspaceCount: number
 }
 
+export interface ImportDiagnostic {
+  code: string
+  severity: 'warning' | 'skipped' | 'fatal'
+  message: string
+  location?: string
+}
+
+export interface OpenApiImportCandidate {
+  collectionName: string
+  request: RequestPreset
+}
+
+export interface OpenApiCollectionSuggestion {
+  name: string
+  requestCount: number
+}
+
+export interface OpenApiImportSummary {
+  totalOperationCount: number
+  importableRequestCount: number
+  skippedOperationCount: number
+  warningDiagnosticCount: number
+}
+
+export interface OpenApiImportAnalysis {
+  version: string
+  workspaceId: string
+  sourceKind: string
+  summary: OpenApiImportSummary
+  diagnostics: ImportDiagnostic[]
+  groupingSuggestions: OpenApiCollectionSuggestion[]
+  candidates: OpenApiImportCandidate[]
+}
+
+export interface OpenApiImportApplyResult {
+  importedRequestCount: number
+  skippedOperationCount: number
+  warningDiagnosticCount: number
+  collectionNames: string[]
+}
+
 export interface FormDataFieldDto {
   key: string
   value: string
@@ -160,6 +201,8 @@ export interface RuntimeAdapter {
   exportWorkspace(workspaceId: string, scope?: ExportPackageScope): Promise<ApiEnvelope<WorkspaceExportResult>>
   importWorkspace(packageJson: string, conflictStrategy?: ImportConflictStrategy): Promise<ApiEnvelope<WorkspaceImportResult>>
   importCurlRequest(workspaceId: string, command: string): Promise<ApiEnvelope<RequestTabState>>
+  analyzeOpenApiImport(workspaceId: string, document: string): Promise<ApiEnvelope<OpenApiImportAnalysis>>
+  applyOpenApiImport(workspaceId: string, analysis: OpenApiImportAnalysis): Promise<ApiEnvelope<OpenApiImportApplyResult>>
   createCollection(workspaceId: string, name: string): Promise<ApiEnvelope<RequestCollection>>
   renameCollection(workspaceId: string, collectionId: string, name: string): Promise<ApiEnvelope<RequestCollection>>
   deleteCollection(workspaceId: string, collectionId: string): Promise<ApiEnvelope<{ message: string }>>
@@ -354,6 +397,12 @@ const tauriAdapter: RuntimeAdapter = {
   importCurlRequest: (workspaceId, command) => invokeEnvelope<RequestTabState>('import_curl_request', {
     payload: { workspaceId, command },
   }),
+  analyzeOpenApiImport: (workspaceId, document) => invokeEnvelope<OpenApiImportAnalysis>('analyze_openapi_import', {
+    payload: { workspaceId, document },
+  }),
+  applyOpenApiImport: (workspaceId, analysis) => invokeEnvelope<OpenApiImportApplyResult>('apply_openapi_import', {
+    payload: { workspaceId, analysis },
+  }),
   createCollection: (workspaceId, name) => invokeEnvelope<RequestCollection>('create_collection', {
     payload: { workspaceId, name },
   }),
@@ -431,6 +480,8 @@ const mockAdapter: RuntimeAdapter = {
     },
   }),
   importCurlRequest: async () => ({ ok: false, error: buildNotImplementedError('import_curl_request') }),
+  analyzeOpenApiImport: async () => ({ ok: false, error: buildNotImplementedError('analyze_openapi_import') }),
+  applyOpenApiImport: async () => ({ ok: false, error: buildNotImplementedError('apply_openapi_import') }),
   createCollection: async (_workspaceId, name) => ({
     ok: true,
     data: { id: `collection-${Date.now()}`, name, expanded: true, requests: [] },
@@ -474,6 +525,8 @@ export const runtimeClient = {
   exportWorkspace: (workspaceId: string, scope: ExportPackageScope = 'workspace') => activeAdapter.exportWorkspace(workspaceId, scope),
   importWorkspace: (packageJson: string, conflictStrategy: ImportConflictStrategy = 'rename') => activeAdapter.importWorkspace(packageJson, conflictStrategy),
   importCurlRequest: (workspaceId: string, command: string) => activeAdapter.importCurlRequest(workspaceId, command),
+  analyzeOpenApiImport: (workspaceId: string, document: string) => activeAdapter.analyzeOpenApiImport(workspaceId, document),
+  applyOpenApiImport: (workspaceId: string, analysis: OpenApiImportAnalysis) => activeAdapter.applyOpenApiImport(workspaceId, analysis),
   createCollection: (workspaceId: string, name: string) => activeAdapter.createCollection(workspaceId, name),
   renameCollection: (workspaceId: string, collectionId: string, name: string) => activeAdapter.renameCollection(workspaceId, collectionId, name),
   deleteCollection: (workspaceId: string, collectionId: string) => activeAdapter.deleteCollection(workspaceId, collectionId),

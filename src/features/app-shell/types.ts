@@ -24,6 +24,7 @@ export type DialogKind =
   | 'exportWorkspace'
   | 'importWorkspace'
   | 'importCurl'
+  | 'importOpenApi'
   | 'confirmCloseDirtyTab'
   | 'saveRequest'
   | 'createEnvironment'
@@ -46,6 +47,7 @@ export interface DialogState {
   detailsLabel?: string
   detailsPlaceholder?: string
   detailsValue?: string
+  detailsReadonly?: boolean
   tagsLabel?: string
   tagsPlaceholder?: string
   tagsValue?: string
@@ -92,6 +94,7 @@ export interface RequestPanelBindings {
   activeEnvironmentName: string
   activeEnvironmentVariables: HeaderBindings['environments'][number]['variables']
   resolvedActiveUrl: string
+  showOpenApiImport: boolean
   collapsed: boolean
 }
 
@@ -137,6 +140,7 @@ export interface RequestPanelHandlers {
   onSend: (payload: SendRequestPayload) => Promise<void>
   onSaveRequest: () => void
   onImportWorkspace: () => void
+  onImportOpenApi: () => void
   onImportCurl: () => void
   onExportWorkspace: () => Promise<void>
   onToggleCollapsed: () => void
@@ -163,6 +167,7 @@ export interface WorkspaceDialogBindings {
   detailsLabel: string
   detailsPlaceholder: string
   detailsValue: string
+  detailsReadonly: boolean
   tagsLabel: string
   tagsPlaceholder: string
   tagsValue: string

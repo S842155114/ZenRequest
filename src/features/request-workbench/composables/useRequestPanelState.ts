@@ -20,6 +20,7 @@ export interface RequestPanelProps {
   activeEnvironmentName: string
   activeEnvironmentVariables: KeyValueItem[]
   resolvedActiveUrl: string
+  showOpenApiImport?: boolean
   collapsed?: boolean
 }
 

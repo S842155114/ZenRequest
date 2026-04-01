@@ -29,6 +29,7 @@ const {
   isStartupReady,
   locale,
   mobileExplorerOpen,
+  openApiImportInput,
   requestPanelHandlers,
   requestPanelProps,
   responsePanelHandlers,
@@ -46,6 +47,7 @@ const {
   workbenchBusy,
   workbenchLayout,
   workspaceDialogProps,
+  handleOpenApiImportChange,
   workspaceImportInput,
 } = useAppShell()
 </script>
@@ -69,6 +71,14 @@ const {
         accept="application/json"
         class="hidden"
         @change="handleWorkspaceImportChange"
+      >
+      <input
+        ref="openApiImportInput"
+        data-testid="openapi-import-input"
+        type="file"
+        accept=".json,.yaml,.yml,application/json,application/yaml,text/yaml,text/x-yaml"
+        class="hidden"
+        @change="handleOpenApiImportChange"
       >
 
       <AppHeader

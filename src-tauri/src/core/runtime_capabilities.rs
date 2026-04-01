@@ -79,6 +79,12 @@ impl CapabilityRegistry {
                     availability: "active".to_string(),
                 },
                 CapabilityDescriptor {
+                    key: "import.openapi".to_string(),
+                    kind: "import_adapter".to_string(),
+                    display_name: "OpenAPI Import".to_string(),
+                    availability: "active".to_string(),
+                },
+                CapabilityDescriptor {
                     key: "execution_hook.reserved".to_string(),
                     kind: "execution_hook".to_string(),
                     display_name: "Execution Hook Seam".to_string(),
@@ -148,6 +154,10 @@ impl ImportRegistry {
                 key: "curl".to_string(),
                 display_name: "Curl Import".to_string(),
                 availability: "active".to_string(),
+            }, ImportDescriptor {
+                key: "openapi".to_string(),
+                display_name: "OpenAPI Import".to_string(),
+                availability: "active".to_string(),
             }],
         }
     }
@@ -196,7 +206,7 @@ mod tests {
     use super::{CapabilityRegistry, HookRegistry, ImportRegistry, ProtocolRegistry};
 
     #[test]
-    fn builtin_registries_declare_http_and_backup_restore_capabilities() {
+    fn builtin_registries_declare_http_and_all_import_adapter_capabilities() {
         let capability_registry = CapabilityRegistry::with_builtin_defaults();
         let protocol_registry = ProtocolRegistry::with_builtin_defaults();
         let import_registry = ImportRegistry::with_builtin_defaults();
@@ -214,6 +224,10 @@ mod tests {
             .descriptors()
             .iter()
             .any(|descriptor| descriptor.kind == "import_adapter" && descriptor.key == "import.curl"));
+        assert!(capability_registry
+            .descriptors()
+            .iter()
+            .any(|descriptor| descriptor.kind == "import_adapter" && descriptor.key == "import.openapi"));
         assert!(protocol_registry
             .descriptors()
             .iter()
@@ -226,6 +240,10 @@ mod tests {
             .descriptors()
             .iter()
             .any(|descriptor| descriptor.key == "curl"));
+        assert!(import_registry
+            .descriptors()
+            .iter()
+            .any(|descriptor| descriptor.key == "openapi"));
         assert!(hook_registry.descriptors().is_empty());
     }
 
@@ -245,9 +263,9 @@ mod tests {
                 .any(|descriptor| descriptor.key == key && descriptor.availability == "reserved"));
         }
 
-        assert!(!capability_registry
+        assert!(capability_registry
             .descriptors()
             .iter()
-            .any(|descriptor| descriptor.key == "import.openapi"));
+            .any(|descriptor| descriptor.key == "import.openapi" && descriptor.availability == "active"));
     }
 }

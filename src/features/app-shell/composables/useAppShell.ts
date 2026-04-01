@@ -48,6 +48,7 @@ import type {
   ExportPackageScope,
   ImportConflictStrategy,
   ImportPackageMeta,
+  OpenApiImportAnalysis,
 } from '@/lib/tauri-client'
 import type {
   DialogState,
@@ -89,14 +90,17 @@ export const useAppShell = () => {
       : true,
   )
   const workspaceImportInput = ref<HTMLInputElement | null>(null)
+  const openApiImportInput = ref<HTMLInputElement | null>(null)
   const dialogState = ref<DialogState | null>(null)
   const pendingCloseAfterSaveTabId = ref<string | null>(null)
   const pendingWorkspaceImport = ref<{ packageJson: string; fileName: string; meta: ImportPackageMeta } | null>(null)
+  const pendingOpenApiImport = ref<{ fileName: string; analysis: OpenApiImportAnalysis } | null>(null)
   const searchQuery = ref('')
   const toasts = ref<ToastItem[]>([])
   const startupState = ref<StartupState>('loading')
   const startupErrorMessage = ref('')
   const startupSnapshot = ref<WorkspaceSnapshot | null>(legacySnapshot ?? null)
+  const runtimeCapabilities = ref<RuntimeBootstrapPayload['capabilities']>(undefined)
   const runtimeReady = ref(false)
   const workbenchBusy = ref(false)
   const requestPanelCollapsed = ref(false)
@@ -126,10 +130,23 @@ export const useAppShell = () => {
   })
   const isStartupReady = computed(() => startupState.value === 'ready')
   const isStartupLoading = computed(() => startupState.value === 'loading')
+  const canImportOpenApi = computed(() => {
+    const capabilities = runtimeCapabilities.value
+    if (!capabilities) return false
+
+    return capabilities.importAdapters.some((adapter) => (
+      adapter.key === 'openapi' && adapter.availability === 'active'
+    )) || capabilities.descriptors.some((descriptor) => (
+      descriptor.key === 'import.openapi' && descriptor.availability === 'active'
+    ))
+  })
 
   const closeDialog = () => {
     if (dialogState.value?.kind === 'importWorkspace') {
       pendingWorkspaceImport.value = null
+    }
+    if (dialogState.value?.kind === 'importOpenApi') {
+      pendingOpenApiImport.value = null
     }
     if (dialogState.value?.kind === 'saveRequest' || dialogState.value?.kind === 'confirmCloseDirtyTab') {
       pendingCloseAfterSaveTabId.value = null
@@ -176,6 +193,34 @@ export const useAppShell = () => {
     window.URL.revokeObjectURL(url)
   }
 
+  const buildOpenApiDialogDetails = (analysis: OpenApiImportAnalysis) => {
+    const lines = [
+      `Summary`,
+      `Total operations: ${analysis.summary.totalOperationCount}`,
+      `Importable requests: ${analysis.summary.importableRequestCount}`,
+      `Skipped operations: ${analysis.summary.skippedOperationCount}`,
+      `Warnings: ${analysis.summary.warningDiagnosticCount}`,
+    ]
+
+    if (analysis.groupingSuggestions.length) {
+      lines.push('', 'Collections')
+      for (const suggestion of analysis.groupingSuggestions) {
+        lines.push(`- ${suggestion.name} (${suggestion.requestCount})`)
+      }
+    }
+
+    if (analysis.diagnostics.length) {
+      lines.push('', 'Diagnostics')
+      for (const diagnostic of analysis.diagnostics) {
+        const location = diagnostic.location ? ` @ ${diagnostic.location}` : ''
+        lines.push(`- [${diagnostic.severity}] ${diagnostic.code}${location}`)
+        lines.push(`  ${diagnostic.message}`)
+      }
+    }
+
+    return lines.join('\n')
+  }
+
   const createWorkspaceSession = (): WorkspaceSessionSnapshot => ({
     activeEnvironmentId: activeEnvironmentId.value,
     openTabs: openTabs.value.map(cloneTab),
@@ -185,6 +230,7 @@ export const useAppShell = () => {
   const applyBootstrapPayload = (payload: RuntimeBootstrapPayload) => {
     locale.value = payload.settings.locale
     themeMode.value = payload.settings.themeMode
+    runtimeCapabilities.value = payload.capabilities
     workspaces.value = payload.workspaces.length ? payload.workspaces : [{ id: 'workspace-local', name: 'Local Workspace' }]
     activeWorkspaceId.value = payload.activeWorkspaceId ?? workspaces.value[0].id
     environments.value = payload.environments.length ? payload.environments.map(cloneEnvironment) : defaultEnvironments().map(cloneEnvironment)
@@ -653,6 +699,11 @@ export const useAppShell = () => {
     workspaceImportInput.value?.click()
   }
 
+  const handleImportOpenApiClick = () => {
+    if (!activeWorkspaceId.value || !canImportOpenApi.value) return
+    openApiImportInput.value?.click()
+  }
+
   const handleImportCurlClick = () => {
     if (!activeWorkspaceId.value) return
 
@@ -700,6 +751,49 @@ export const useAppShell = () => {
       pendingWorkspaceImport.value = null
       showErrorToast(
         text.value.toasts.workspaceImportFailed,
+        error instanceof Error ? error.message : String(error),
+      )
+    }
+  }
+
+  const handleOpenApiImportChange = async (event: Event) => {
+    const input = event.target as HTMLInputElement
+    const file = input.files?.[0]
+    input.value = ''
+    if (!file || !activeWorkspaceId.value) return
+
+    try {
+      const document = await file.text()
+      const result = await runtimeClient.analyzeOpenApiImport(activeWorkspaceId.value, document)
+      if (!result.ok || !result.data) {
+        pendingOpenApiImport.value = null
+        showErrorToast(text.value.toasts.openApiAnalyzeFailed, result.error?.message)
+        return
+      }
+
+      pendingOpenApiImport.value = {
+        fileName: file.name,
+        analysis: result.data,
+      }
+
+      openDialog({
+        kind: 'importOpenApi',
+        title: text.value.dialogs.importOpenApi.title,
+        description: text.value.dialogs.importOpenApi.description(
+          file.name,
+          result.data.summary.importableRequestCount,
+          result.data.summary.skippedOperationCount,
+          result.data.summary.warningDiagnosticCount,
+        ),
+        confirmText: text.value.dialogs.importOpenApi.confirm,
+        detailsLabel: text.value.dialogs.importOpenApi.summaryLabel,
+        detailsValue: buildOpenApiDialogDetails(result.data),
+        detailsReadonly: true,
+      })
+    } catch (error) {
+      pendingOpenApiImport.value = null
+      showErrorToast(
+        text.value.toasts.openApiAnalyzeFailed,
         error instanceof Error ? error.message : String(error),
       )
     }
@@ -960,6 +1054,33 @@ export const useAppShell = () => {
             ? { ...text.value.toasts.applicationImported(result.data.importedWorkspaceCount), tone: 'success' }
             : { ...text.value.toasts.workspaceImported(result.data.workspace.name), tone: 'success' },
         )
+        break
+      }
+      case 'importOpenApi': {
+        if (!pendingOpenApiImport.value) break
+
+        const applyResult = await runtimeClient.applyOpenApiImport(
+          activeWorkspaceId.value,
+          pendingOpenApiImport.value.analysis,
+        )
+        if (!applyResult.ok || !applyResult.data) {
+          showErrorToast(text.value.toasts.openApiImportFailed, applyResult.error?.message)
+          return
+        }
+
+        pendingOpenApiImport.value = null
+        await runWithWorkbenchBusy(async () => {
+          await runtimeClient.saveWorkspaceSession(activeWorkspaceId.value, createWorkspaceSession())
+          await refreshRuntimeState(null)
+        })
+        showToast({
+          ...text.value.toasts.openApiImported(
+            applyResult.data.importedRequestCount,
+            applyResult.data.skippedOperationCount,
+            applyResult.data.warningDiagnosticCount,
+          ),
+          tone: 'success',
+        })
         break
       }
       case 'importCurl': {
@@ -1292,6 +1413,7 @@ export const useAppShell = () => {
     activeEnvironmentName: activeEnvironment.value?.name ?? environments.value[0]?.name ?? text.value.common.environment,
     activeEnvironmentVariables: activeEnvironment.value?.variables ?? [],
     resolvedActiveUrl: resolvedActiveUrl.value,
+    showOpenApiImport: canImportOpenApi.value,
     collapsed: requestPanelCollapsed.value,
   }))
 
@@ -1340,6 +1462,7 @@ export const useAppShell = () => {
     detailsLabel: dialogState.value?.detailsLabel ?? '',
     detailsPlaceholder: dialogState.value?.detailsPlaceholder ?? '',
     detailsValue: dialogState.value?.detailsValue ?? '',
+    detailsReadonly: dialogState.value?.detailsReadonly ?? false,
     tagsLabel: dialogState.value?.tagsLabel ?? '',
     tagsPlaceholder: dialogState.value?.tagsPlaceholder ?? '',
     tagsValue: dialogState.value?.tagsValue ?? '',
@@ -1374,6 +1497,7 @@ export const useAppShell = () => {
     onSend: handleSend,
     onSaveRequest: () => handleSaveRequest(),
     onImportWorkspace: handleImportWorkspaceClick,
+    onImportOpenApi: handleImportOpenApiClick,
     onImportCurl: handleImportCurlClick,
     onExportWorkspace: handleExportWorkspace,
     onToggleCollapsed: toggleRequestPanelCollapsed,
@@ -1397,6 +1521,7 @@ export const useAppShell = () => {
     handleDeleteWorkspace,
     handleDialogSecondaryAction,
     handleDialogSubmit,
+    handleOpenApiImportChange,
     handleRenameEnvironment,
     handleToggleNavigation,
     handleWorkspaceChange,
@@ -1408,6 +1533,7 @@ export const useAppShell = () => {
     isStartupReady,
     locale,
     mobileExplorerOpen,
+    openApiImportInput,
     openTabs,
     requestPanelHandlers,
     responsePanelHandlers,

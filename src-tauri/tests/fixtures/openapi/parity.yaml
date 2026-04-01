@@ -1,0 +1,26 @@
+openapi: 3.0.3
+info:
+  title: Petstore
+  version: 1.0.0
+servers:
+  - url: https://api.example.com
+paths:
+  /pets/{petId}:
+    get:
+      summary: Get pet
+      tags:
+        - Pets
+      parameters:
+        - name: petId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: includeVaccines
+          in: query
+          schema:
+            type: string
+            default: "true"
+      responses:
+        "200":
+          description: ok

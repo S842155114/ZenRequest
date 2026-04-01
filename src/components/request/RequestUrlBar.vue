@@ -38,11 +38,13 @@ const props = withDefaults(defineProps<{
   collectionName: string
   environmentName: string
   resolvedUrl: string
+  showOpenApiImport?: boolean
 }>(), {
   requestName: '',
   originKind: 'scratch',
   persistenceState: 'unsaved',
   executionState: 'idle',
+  showOpenApiImport: false,
   readiness: () => ({
     blockers: [],
     advisories: [],
@@ -55,6 +57,7 @@ const emit = defineEmits<{
   (e: 'send'): void
   (e: 'save'): void
   (e: 'import-workspace'): void
+  (e: 'import-openapi'): void
   (e: 'import-curl'): void
   (e: 'export-workspace'): void
 }>()
@@ -202,6 +205,14 @@ const executionBadgeClass = computed(() => {
           >
             <Upload class="mr-2 h-3.5 w-3.5" />
             {{ text.common.importJson }}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            v-if="props.showOpenApiImport"
+            data-testid="request-command-overflow-import-openapi"
+            @select="emit('import-openapi')"
+          >
+            <Globe class="mr-2 h-3.5 w-3.5" />
+            {{ text.common.importOpenApi }}
           </DropdownMenuItem>
           <DropdownMenuItem
             data-testid="request-command-overflow-import-curl"

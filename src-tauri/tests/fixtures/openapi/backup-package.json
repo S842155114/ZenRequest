@@ -1,0 +1,15 @@
+{
+  "formatVersion": 1,
+  "scope": "workspace",
+  "exportedAtEpochMs": 1711977600000,
+  "settings": {
+    "themeMode": "dark",
+    "locale": "en"
+  },
+  "workspace": {
+    "id": "workspace-1",
+    "name": "Imported Workspace",
+    "description": ""
+  },
+  "collections": []
+}

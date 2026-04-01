@@ -27,3 +27,5 @@ base64 = "0.22"
 rusqlite = { version = "0.32", features = ["bundled"] }
 uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
+openapiv3 = "2"
+serde_yaml = "0.9"

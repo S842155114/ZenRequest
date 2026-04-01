@@ -5,6 +5,8 @@ import type {
   AppBootstrapPayload,
   AppSettings,
   ExportPackageScope,
+  OpenApiImportAnalysis,
+  OpenApiImportApplyResult,
   RuntimeAdapter,
   WorkspaceExportResult,
   WorkspaceImportResult,
@@ -23,6 +25,58 @@ import type {
 } from '@/types/request'
 
 const ok = <T>(data: T): ApiEnvelope<T> => ({ ok: true, data })
+
+const createOpenApiAnalysis = (): OpenApiImportAnalysis => ({
+  version: '1',
+  workspaceId: 'workspace-1',
+  sourceKind: 'openapi',
+  summary: {
+    totalOperationCount: 2,
+    importableRequestCount: 1,
+    skippedOperationCount: 1,
+    warningDiagnosticCount: 1,
+  },
+  diagnostics: [
+    {
+      code: 'OPENAPI_MISSING_SERVER',
+      severity: 'warning',
+      message: 'no server definition found; request URL will stay path-relative',
+      location: 'GET /pets',
+    },
+  ],
+  groupingSuggestions: [
+    { name: 'Petstore - Pets', requestCount: 1 },
+  ],
+  candidates: [
+    {
+      collectionName: 'Petstore - Pets',
+      request: {
+        id: 'request-openapi-candidate',
+        name: 'List pets',
+        description: '',
+        tags: ['pets'],
+        collectionId: 'collection-pets',
+        collectionName: 'Petstore - Pets',
+        method: 'GET',
+        url: 'https://api.example.com/pets',
+        params: [],
+        headers: [],
+        body: '',
+        bodyType: 'json',
+        auth: {
+          type: 'none',
+          bearerToken: '',
+          username: '',
+          password: '',
+          apiKeyKey: '',
+          apiKeyValue: '',
+          apiKeyPlacement: 'header',
+        },
+        tests: [],
+      },
+    },
+  ],
+})
 
 const createAdapter = (
   overrides: Partial<RuntimeAdapter> = {},
@@ -110,6 +164,14 @@ const createAdapter = (
     ok<EnvironmentPreset>({ id: environmentId, name: 'Environment', variables }),
   clearHistory: async (_workspaceId: string) => ok({ message: 'ok' }),
   removeHistoryItem: async (_workspaceId: string, _id: string) => ok({ message: 'ok' }),
+  analyzeOpenApiImport: async (_workspaceId: string, _document: string) => ok(createOpenApiAnalysis()),
+  applyOpenApiImport: async (_workspaceId: string, _analysis: OpenApiImportAnalysis) =>
+    ok<OpenApiImportApplyResult>({
+      importedRequestCount: 1,
+      skippedOperationCount: 1,
+      warningDiagnosticCount: 1,
+      collectionNames: ['Petstore - Pets'],
+    }),
   getSettings: async () => ok<AppSettings>({ themeMode: 'dark', locale: 'en' }),
   updateSettings: async (payload: AppSettings) => ok(payload),
   sendRequest: async (_payload) =>
@@ -220,6 +282,36 @@ describe('runtimeClient curl import forwarding', () => {
     await runtimeClient.importCurlRequest('workspace-1', 'curl https://example.com/imported')
 
     expect(importCurlRequest).toHaveBeenCalledWith('workspace-1', 'curl https://example.com/imported')
+  })
+})
+
+describe('runtimeClient OpenAPI import forwarding', () => {
+  it('forwards the workspace id and document to OpenAPI analyze', async () => {
+    const analyzeOpenApiImport = vi.fn<RuntimeAdapter['analyzeOpenApiImport']>(async (_workspaceId, _document) =>
+      ok(createOpenApiAnalysis()))
+
+    setRuntimeAdapter(createAdapter({ analyzeOpenApiImport }))
+
+    await runtimeClient.analyzeOpenApiImport('workspace-1', 'openapi: 3.0.3')
+
+    expect(analyzeOpenApiImport).toHaveBeenCalledWith('workspace-1', 'openapi: 3.0.3')
+  })
+
+  it('forwards the versioned analysis snapshot to OpenAPI apply', async () => {
+    const analysis = createOpenApiAnalysis()
+    const applyOpenApiImport = vi.fn<RuntimeAdapter['applyOpenApiImport']>(async (_workspaceId, _analysis) =>
+      ok({
+        importedRequestCount: 1,
+        skippedOperationCount: 1,
+        warningDiagnosticCount: 1,
+        collectionNames: ['Petstore - Pets'],
+      }))
+
+    setRuntimeAdapter(createAdapter({ applyOpenApiImport }))
+
+    await runtimeClient.applyOpenApiImport('workspace-1', analysis)
+
+    expect(applyOpenApiImport).toHaveBeenCalledWith('workspace-1', analysis)
   })
 })
 

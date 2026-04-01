@@ -22,7 +22,12 @@ pub use app::{
     WorkspaceImportResultDto, WorkspaceSaveResult, WorkspaceSessionDto, WorkspaceSummaryDto,
 };
 pub use envelope::ApiEnvelope;
-pub use importing::ImportCurlPayloadDto;
+pub use importing::{
+    ImportCurlPayloadDto, ImportDiagnosticDto, ImportOpenApiAnalyzePayloadDto,
+    ImportOpenApiApplyPayloadDto, OpenApiCollectionSuggestionDto,
+    OpenApiImportAnalysisDto, OpenApiImportApplyResultDto, OpenApiImportCandidateDto,
+    OpenApiImportSummaryDto,
+};
 pub use request::{
     AssertionResultSetDto, AuthConfigDto, CompiledRequestDto, ExecutionArtifactDto,
     KeyValueItemDto, NormalizedResponseDto, RequestAssertionResultDto,

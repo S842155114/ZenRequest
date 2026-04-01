@@ -44,6 +44,7 @@ const emit = defineEmits<{
   (e: 'send', payload: SendRequestPayload): void
   (e: 'save-request'): void
   (e: 'import-workspace'): void
+  (e: 'import-openapi'): void
   (e: 'import-curl'): void
   (e: 'export-workspace'): void
   (e: 'toggle-collapsed'): void
@@ -216,11 +217,13 @@ const {
             :collection-name="activeTab.collectionName"
             :environment-name="activeEnvironmentName"
             :resolved-url="resolvedActiveUrl"
+            :show-open-api-import="props.showOpenApiImport"
             @update:method="method = $event"
             @update:url="url = $event"
             @send="handleSend"
             @save="emit('save-request')"
             @import-workspace="emit('import-workspace')"
+            @import-openapi="emit('import-openapi')"
             @import-curl="emit('import-curl')"
             @export-workspace="emit('export-workspace')"
           />

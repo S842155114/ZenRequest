@@ -9,6 +9,7 @@ import {
   RequestPanelStub,
   ResponsePanelStub,
   createAdapter,
+  createOpenApiAnalysis,
   createBootstrapPayload,
   createStoredSnapshot,
   deferred,
@@ -17,6 +18,36 @@ import {
   mountApp,
   ok,
 } from './harness'
+
+const withOpenApiCapability = (payload: AppBootstrapPayload) => {
+  payload.capabilities = {
+    descriptors: [
+      { key: 'protocol.http', kind: 'protocol', displayName: 'HTTP', availability: 'active' },
+      { key: 'import.backup', kind: 'import_adapter', displayName: 'Backup Restore', availability: 'active' },
+      { key: 'import.curl', kind: 'import_adapter', displayName: 'Curl Import', availability: 'active' },
+      { key: 'import.openapi', kind: 'import_adapter', displayName: 'OpenAPI Import', availability: 'active' },
+      { key: 'execution_hook.reserved', kind: 'execution_hook', displayName: 'Execution Hook Seam', availability: 'reserved' },
+      { key: 'tool_packaging.reserved', kind: 'tool_packaging', displayName: 'Tool Packaging Seam', availability: 'reserved' },
+      { key: 'plugin_manifest.reserved', kind: 'plugin_manifest', displayName: 'Plugin Manifest Seam', availability: 'reserved' },
+    ],
+    protocols: [
+      { key: 'http', displayName: 'HTTP', schemes: ['http', 'https'], availability: 'active' },
+    ],
+    importAdapters: [
+      { key: 'backup', displayName: 'Backup Restore', availability: 'active' },
+      { key: 'curl', displayName: 'Curl Import', availability: 'active' },
+      { key: 'openapi', displayName: 'OpenAPI Import', availability: 'active' },
+    ],
+    executionHooks: [],
+    toolPackaging: [
+      { key: 'tool_packaging.reserved', displayName: 'Tool Packaging Seam', availability: 'reserved' },
+    ],
+    pluginManifests: [
+      { key: 'plugin_manifest.reserved', displayName: 'Plugin Manifest Seam', availability: 'reserved' },
+    ],
+  }
+  return payload
+}
 
 describe('App workbench shell - startup and layout', () => {
   it('shows an app-owned startup screen while the initial bootstrap is pending', async () => {
@@ -242,6 +273,41 @@ describe('App workbench shell - startup and layout', () => {
     expect(wrapper.find('[data-testid="response-panel-stub"]').exists()).toBe(true)
   })
 
+  it('shows the OpenAPI import entry only when the runtime exposes the adapter capability', async () => {
+    window.innerWidth = 1440
+
+    const withoutOpenApi = createBootstrapPayload()
+    withoutOpenApi.capabilities = {
+      descriptors: [
+        { key: 'protocol.http', kind: 'protocol', displayName: 'HTTP', availability: 'active' },
+        { key: 'import.backup', kind: 'import_adapter', displayName: 'Backup Restore', availability: 'active' },
+        { key: 'import.curl', kind: 'import_adapter', displayName: 'Curl Import', availability: 'active' },
+      ],
+      protocols: [
+        { key: 'http', displayName: 'HTTP', schemes: ['http', 'https'], availability: 'active' },
+      ],
+      importAdapters: [
+        { key: 'backup', displayName: 'Backup Restore', availability: 'active' },
+        { key: 'curl', displayName: 'Curl Import', availability: 'active' },
+      ],
+      executionHooks: [],
+      toolPackaging: [],
+      pluginManifests: [],
+    }
+
+    setRuntimeAdapter(createAdapter(withoutOpenApi))
+    const wrapperWithout = await mountApp()
+
+    expect(wrapperWithout.find('[data-testid="request-panel-import-openapi"]').exists()).toBe(false)
+
+    wrapperWithout.unmount()
+
+    setRuntimeAdapter(createAdapter(withOpenApiCapability(createBootstrapPayload())))
+    const wrapperWith = await mountApp()
+
+    expect(wrapperWith.find('[data-testid="request-panel-import-openapi"]').exists()).toBe(true)
+  })
+
   it('imports a curl command into a new editable draft tab', async () => {
     window.innerWidth = 1440
 
@@ -407,6 +473,158 @@ describe('App workbench shell - startup and layout', () => {
         ],
       },
     })
+  })
+
+  it('blocks OpenAPI apply when analyze fails and leaves the confirmation dialog closed', async () => {
+    window.innerWidth = 1440
+
+    const analyzeOpenApiImport = vi.fn<RuntimeAdapter['analyzeOpenApiImport']>(async () => ({
+      ok: false,
+      error: {
+        code: 'OPENAPI_PARSE_ERROR',
+        message: 'failed to parse OpenAPI document',
+      },
+    }))
+    const applyOpenApiImport = vi.fn<RuntimeAdapter['applyOpenApiImport']>()
+
+    setRuntimeAdapter(createAdapter(withOpenApiCapability(createBootstrapPayload()), {
+      analyzeOpenApiImport,
+      applyOpenApiImport,
+    }))
+
+    const wrapper = await mountApp()
+
+    const file = new File(['not an openapi document'], 'broken.yaml', { type: 'application/yaml' })
+    const input = wrapper.get('[data-testid="openapi-import-input"]')
+    Object.defineProperty(input.element, 'files', {
+      configurable: true,
+      value: [file],
+    })
+
+    await wrapper.get('[data-testid="request-panel-import-openapi"]').trigger('click')
+    await input.trigger('change')
+    await flushPromises()
+    await nextTick()
+
+    expect(analyzeOpenApiImport).toHaveBeenCalledWith('workspace-1', 'not an openapi document')
+    expect(applyOpenApiImport).not.toHaveBeenCalled()
+    expect(wrapper.get('[data-testid="dialog-stub"]').attributes('data-open')).toBe('false')
+  })
+
+  it('allows a warning-tolerant OpenAPI analyze -> confirm -> apply flow and preserves the session before refresh', async () => {
+    window.innerWidth = 1440
+
+    const initialPayload = withOpenApiCapability(createBootstrapPayload())
+    const refreshedPayload = withOpenApiCapability(createBootstrapPayload())
+    refreshedPayload.collections = [{
+      id: 'collection-pets',
+      name: 'Petstore - Pets',
+      expanded: true,
+      requests: [{
+        id: 'request-openapi-imported',
+        name: 'List pets',
+        description: '',
+        tags: ['pets'],
+        collectionId: 'collection-pets',
+        collectionName: 'Petstore - Pets',
+        method: 'GET',
+        url: 'https://api.example.com/pets',
+        params: [],
+        headers: [],
+        body: '',
+        bodyType: 'json',
+        auth: {
+          type: 'none' as const,
+          bearerToken: '',
+          username: '',
+          password: '',
+          apiKeyKey: '',
+          apiKeyValue: '',
+          apiKeyPlacement: 'header' as const,
+        },
+        tests: [],
+      }],
+    }]
+
+    const analysis = createOpenApiAnalysis()
+    const bootstrapApp = vi.fn<RuntimeAdapter['bootstrapApp']>()
+      .mockResolvedValueOnce(ok(initialPayload))
+      .mockResolvedValueOnce(ok(refreshedPayload))
+    const analyzeOpenApiImport = vi.fn<RuntimeAdapter['analyzeOpenApiImport']>(async () => ok(analysis))
+    const applyOpenApiImport = vi.fn<RuntimeAdapter['applyOpenApiImport']>(async () => ok({
+      importedRequestCount: 1,
+      skippedOperationCount: 1,
+      warningDiagnosticCount: 1,
+      collectionNames: ['Petstore - Pets'],
+    }))
+    const saveWorkspaceSession = vi.fn<RuntimeAdapter['saveWorkspaceSession']>(async (_workspaceId, _session) =>
+      ok({ savedAtEpochMs: Date.now() }))
+
+    setRuntimeAdapter(createAdapter(initialPayload, {
+      bootstrapApp,
+      analyzeOpenApiImport,
+      applyOpenApiImport,
+      saveWorkspaceSession,
+    }))
+
+    const wrapper = await mountApp()
+
+    const file = new File(['openapi: 3.0.3'], 'petstore.yaml', { type: 'application/yaml' })
+    const input = wrapper.get('[data-testid="openapi-import-input"]')
+    Object.defineProperty(input.element, 'files', {
+      configurable: true,
+      value: [file],
+    })
+
+    await wrapper.get('[data-testid="request-panel-import-openapi"]').trigger('click')
+    await input.trigger('change')
+    await flushPromises()
+    await nextTick()
+
+    expect(wrapper.get('[data-testid="dialog-stub"]').attributes('data-open')).toBe('true')
+    expect(wrapper.get('[data-testid="dialog-stub"]').attributes('data-details-value')).toContain('OPENAPI_MISSING_SERVER')
+
+    await wrapper.get('[data-testid="dialog-submit"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect(analyzeOpenApiImport).toHaveBeenCalledWith('workspace-1', 'openapi: 3.0.3')
+    expect(applyOpenApiImport).toHaveBeenCalledWith('workspace-1', analysis)
+    expect(saveWorkspaceSession).toHaveBeenCalled()
+    expect(bootstrapApp).toHaveBeenCalledTimes(2)
+  })
+
+  it('lets the user cancel after a successful OpenAPI analyze without mutating the workspace', async () => {
+    window.innerWidth = 1440
+
+    const analyzeOpenApiImport = vi.fn<RuntimeAdapter['analyzeOpenApiImport']>(async () => ok(createOpenApiAnalysis()))
+    const applyOpenApiImport = vi.fn<RuntimeAdapter['applyOpenApiImport']>()
+
+    setRuntimeAdapter(createAdapter(withOpenApiCapability(createBootstrapPayload()), {
+      analyzeOpenApiImport,
+      applyOpenApiImport,
+    }))
+
+    const wrapper = await mountApp()
+
+    const file = new File(['openapi: 3.0.3'], 'petstore.yaml', { type: 'application/yaml' })
+    const input = wrapper.get('[data-testid="openapi-import-input"]')
+    Object.defineProperty(input.element, 'files', {
+      configurable: true,
+      value: [file],
+    })
+
+    await wrapper.get('[data-testid="request-panel-import-openapi"]').trigger('click')
+    await input.trigger('change')
+    await flushPromises()
+    await nextTick()
+
+    await wrapper.get('[data-testid="dialog-close"]').trigger('click')
+    await nextTick()
+
+    expect(analyzeOpenApiImport).toHaveBeenCalledTimes(1)
+    expect(applyOpenApiImport).not.toHaveBeenCalled()
+    expect(wrapper.get('[data-testid="dialog-stub"]').attributes('data-open')).toBe('false')
   })
 
   it('collapses the request pane as a layout state and restores it on the next toggle', async () => {

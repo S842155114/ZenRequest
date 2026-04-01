@@ -105,6 +105,8 @@ import { setRuntimeAdapter } from '@/lib/tauri-client'
 import type {
   ApiEnvelope,
   AppBootstrapPayload,
+  OpenApiImportAnalysis,
+  OpenApiImportApplyResult,
   RuntimeAdapter,
   WorkspaceImportResult,
   WorkspaceSaveResult,
@@ -123,6 +125,56 @@ import type {
 } from '@/types/request'
 
 const ok = <T>(data: T): ApiEnvelope<T> => ({ ok: true, data })
+
+const createOpenApiAnalysis = (): OpenApiImportAnalysis => ({
+  version: '1',
+  workspaceId: 'workspace-1',
+  sourceKind: 'openapi',
+  summary: {
+    totalOperationCount: 2,
+    importableRequestCount: 1,
+    skippedOperationCount: 1,
+    warningDiagnosticCount: 1,
+  },
+  diagnostics: [
+    {
+      code: 'OPENAPI_MISSING_SERVER',
+      severity: 'warning',
+      message: 'no server definition found; request URL will stay path-relative',
+      location: 'GET /pets',
+    },
+  ],
+  groupingSuggestions: [{ name: 'Petstore - Pets', requestCount: 1 }],
+  candidates: [
+    {
+      collectionName: 'Petstore - Pets',
+      request: {
+        id: 'request-openapi-candidate',
+        name: 'List pets',
+        description: '',
+        tags: ['pets'],
+        collectionId: 'collection-pets',
+        collectionName: 'Petstore - Pets',
+        method: 'GET',
+        url: 'https://api.example.com/pets',
+        params: [],
+        headers: [],
+        body: '',
+        bodyType: 'json',
+        auth: {
+          type: 'none',
+          bearerToken: '',
+          username: '',
+          password: '',
+          apiKeyKey: '',
+          apiKeyValue: '',
+          apiKeyPlacement: 'header',
+        },
+        tests: [],
+      },
+    },
+  ],
+})
 
 const deferred = <T>() => {
   let resolve!: (value: T | PromiseLike<T>) => void
@@ -326,6 +378,14 @@ const createAdapter = (
     ok<EnvironmentPreset>({ id: environmentId, name: 'Environment', variables }),
   clearHistory: async (_workspaceId: string) => ok({ message: 'ok' }),
   removeHistoryItem: async (_workspaceId: string, _id: string) => ok({ message: 'ok' }),
+  analyzeOpenApiImport: async (_workspaceId: string, _document: string) => ok(createOpenApiAnalysis()),
+  applyOpenApiImport: async (_workspaceId: string, _analysis: OpenApiImportAnalysis) =>
+    ok<OpenApiImportApplyResult>({
+      importedRequestCount: 1,
+      skippedOperationCount: 1,
+      warningDiagnosticCount: 1,
+      collectionNames: ['Petstore - Pets'],
+    }),
   getSettings: async () => ok<AppSettings>({ themeMode: 'dark', locale: 'en' }),
   updateSettings: async (payload: AppSettings) => ok(payload),
   sendRequest: async (_payload: SendRequestPayloadDto) =>
@@ -410,6 +470,7 @@ const RequestPanelStub = defineComponent({
     activeTabId: { type: String, required: false, default: '' },
     tabs: { type: Array, required: false, default: () => [] },
     collapsed: { type: Boolean, required: false, default: false },
+    showOpenApiImport: { type: Boolean, required: false, default: false },
     activityProjection: {
       type: Object,
       required: false,
@@ -421,7 +482,7 @@ const RequestPanelStub = defineComponent({
       }),
     },
   },
-  emits: ['send', 'toggle-collapsed', 'save-tab', 'select-tab', 'close-tab', 'import-curl'],
+  emits: ['send', 'toggle-collapsed', 'save-tab', 'select-tab', 'close-tab', 'import-curl', 'import-openapi'],
   setup(props, { emit }) {
     const baseAuth = {
       type: 'none',
@@ -473,6 +534,12 @@ const RequestPanelStub = defineComponent({
           'data-testid': 'request-panel-import-curl',
           onClick: () => emit('import-curl'),
         }, 'import-curl'),
+        props.showOpenApiImport
+          ? h('button', {
+              'data-testid': 'request-panel-import-openapi',
+              onClick: () => emit('import-openapi'),
+            }, 'import-openapi')
+          : null,
         ...((props.tabs as Array<{ id: string; name: string }>).map((tab) => h('button', {
           'data-testid': `request-panel-save-${tab.id}`,
           onClick: () => emit('save-tab', tab.id),
@@ -540,6 +607,7 @@ const WorkspaceDialogStub = defineComponent({
     tagsValue: { type: String, default: '' },
     selectValue: { type: String, default: '' },
     secondaryActionText: { type: String, default: '' },
+    detailsReadonly: { type: Boolean, default: false },
     variant: { type: String, default: 'default' },
     highlightLabel: { type: String, default: '' },
     contextBadges: { type: Array, default: () => [] },
@@ -597,6 +665,10 @@ const WorkspaceDialogStub = defineComponent({
           selectValue: localSelect.value,
         }),
       }, 'submit'),
+      h('button', {
+        'data-testid': 'dialog-close',
+        onClick: () => emit('close'),
+      }, 'close'),
       h('button', {
         'data-testid': 'dialog-secondary-action',
         onClick: () => emit('secondary-action'),
@@ -694,6 +766,7 @@ export {
   createBootstrapPayload,
   createStoredSnapshot,
   createAdapter,
+  createOpenApiAnalysis,
   AppHeaderStub,
   AppSidebarStub,
   RequestPanelStub,

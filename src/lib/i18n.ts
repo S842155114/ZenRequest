@@ -17,6 +17,7 @@ const messages = {
       exportJson: 'Export JSON',
       importCurl: 'Import Curl',
       importJson: 'Import JSON',
+      importOpenApi: 'Import OpenAPI',
       name: 'Name',
       open: 'Open',
       rename: 'Rename',
@@ -317,6 +318,13 @@ const messages = {
         commandLabel: 'Curl Command',
         commandPlaceholder: 'curl https://api.example.com/orders -H "Authorization: Bearer <token>"',
       },
+      importOpenApi: {
+        title: 'Import OpenAPI',
+        description: (fileName: string, importableCount: number, skippedCount: number, warningCount: number) =>
+          `Review ${importableCount} importable request(s) from ${fileName}. ${skippedCount} operation(s) will be skipped and ${warningCount} warning(s) need review before apply.`,
+        confirm: 'Import Requests',
+        summaryLabel: 'Analyze Summary',
+      },
       saveRequest: {
         title: 'Save Request',
         description: 'Store the current tab as a reusable request in one of your collections.',
@@ -397,6 +405,10 @@ const messages = {
         title: 'Curl imported',
         description: `"${name}" is ready to review in the workspace.`,
       }),
+      openApiImported: (importedCount: number, skippedCount: number, warningCount: number) => ({
+        title: 'OpenAPI imported',
+        description: `${importedCount} request(s) imported, ${skippedCount} skipped, ${warningCount} warning(s).`,
+      }),
       applicationImported: (count: number) => ({
         title: 'Application backup restored',
         description: `${count} workspace(s) were restored successfully.`,
@@ -451,6 +463,12 @@ const messages = {
       },
       curlImportFailed: {
         title: 'Curl import failed',
+      },
+      openApiAnalyzeFailed: {
+        title: 'OpenAPI analyze failed',
+      },
+      openApiImportFailed: {
+        title: 'OpenAPI import failed',
       },
       workspaceCreateFailed: {
         title: 'Workspace creation failed',
@@ -508,6 +526,7 @@ const messages = {
       exportJson: '导出 JSON',
       importCurl: '导入 Curl',
       importJson: '导入 JSON',
+      importOpenApi: '导入 OpenAPI',
       name: '名称',
       open: '打开',
       rename: '重命名',
@@ -808,6 +827,13 @@ const messages = {
         commandLabel: 'Curl 命令',
         commandPlaceholder: 'curl https://api.example.com/orders -H "Authorization: Bearer <token>"',
       },
+      importOpenApi: {
+        title: '导入 OpenAPI',
+        description: (fileName: string, importableCount: number, skippedCount: number, warningCount: number) =>
+          `请先确认 ${fileName} 中可导入的 ${importableCount} 个请求。当前会跳过 ${skippedCount} 个操作，并保留 ${warningCount} 条警告供确认后导入。`,
+        confirm: '导入请求',
+        summaryLabel: '分析摘要',
+      },
       saveRequest: {
         title: '保存请求',
         description: '把当前标签页保存为可复用请求，并放入某个集合中。',
@@ -888,6 +914,10 @@ const messages = {
         title: 'Curl 已导入',
         description: `“${name}” 已加入工作区，等待审阅。`,
       }),
+      openApiImported: (importedCount: number, skippedCount: number, warningCount: number) => ({
+        title: 'OpenAPI 已导入',
+        description: `已导入 ${importedCount} 个请求，跳过 ${skippedCount} 个操作，包含 ${warningCount} 条警告。`,
+      }),
       applicationImported: (count: number) => ({
         title: '应用备份已恢复',
         description: `已成功恢复 ${count} 个工作区。`,
@@ -942,6 +972,12 @@ const messages = {
       },
       curlImportFailed: {
         title: 'Curl 导入失败',
+      },
+      openApiAnalyzeFailed: {
+        title: 'OpenAPI 分析失败',
+      },
+      openApiImportFailed: {
+        title: 'OpenAPI 导入失败',
       },
       workspaceCreateFailed: {
         title: '创建工作区失败',

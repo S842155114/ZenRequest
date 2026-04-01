@@ -40,6 +40,7 @@ const props = withDefaults(defineProps<{
   detailsLabel?: string
   detailsPlaceholder?: string
   detailsValue?: string
+  detailsReadonly?: boolean
   tagsLabel?: string
   tagsPlaceholder?: string
   tagsValue?: string
@@ -61,6 +62,7 @@ const props = withDefaults(defineProps<{
   detailsLabel: '',
   detailsPlaceholder: '',
   detailsValue: '',
+  detailsReadonly: false,
   tagsLabel: '',
   tagsPlaceholder: '',
   tagsValue: '',
@@ -209,6 +211,7 @@ const handleOpenChange = (nextOpen: boolean) => {
           <Textarea
             v-model="localDetails"
             :placeholder="detailsPlaceholder"
+            :readonly="detailsReadonly"
             class="zr-input min-h-[120px] rounded-lg px-3 py-2.5 text-sm shadow-none resize-none"
           />
         </div>

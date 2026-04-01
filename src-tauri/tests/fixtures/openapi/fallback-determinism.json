@@ -1,0 +1,66 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "   ",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://{region}.example.com/{stage}",
+      "variables": {
+        "region": {
+          "default": "us-east"
+        }
+      }
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "apiKeyQuery": {
+        "type": "apiKey",
+        "in": "query",
+        "name": "api_key"
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": " ",
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/reports": {
+      "post": {
+        "summary": "   ",
+        "operationId": "createReport",
+        "security": [
+          {
+            "apiKeyQuery": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/xml": {
+              "example": "<report />"
+            },
+            "application/json": {
+              "example": {
+                "name": "Quarterly"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    }
+  }
+}

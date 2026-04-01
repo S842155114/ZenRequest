@@ -1,0 +1,99 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Reference Pets",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.example.com"
+    }
+  ],
+  "components": {
+    "parameters": {
+      "TraceId": {
+        "name": "traceId",
+        "in": "header",
+        "schema": {
+          "type": "string",
+          "default": "trace-123"
+        }
+      },
+      "Search": {
+        "name": "search",
+        "in": "query",
+        "schema": {
+          "type": "string",
+          "default": "cats"
+        }
+      }
+    },
+    "requestBodies": {
+      "CreatePetBody": {
+        "content": {
+          "application/json": {
+            "example": {
+              "name": "Fido"
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "basicAuth": {
+        "type": "http",
+        "scheme": "basic"
+      }
+    }
+  },
+  "paths": {
+    "/pets/{petId}": {
+      "get": {
+        "summary": "Get pet",
+        "tags": [
+          "Pets"
+        ],
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Search"
+          },
+          {
+            "$ref": "#/components/parameters/TraceId"
+          },
+          {
+            "name": "petId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create pet",
+        "tags": [
+          "Pets"
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/CreatePetBody"
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    }
+  }
+}

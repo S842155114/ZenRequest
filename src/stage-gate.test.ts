@@ -170,6 +170,8 @@ import type {
   ApiEnvelope,
   AppBootstrapPayload,
   AppSettings,
+  OpenApiImportAnalysis,
+  OpenApiImportApplyResult,
   RuntimeAdapter,
   RuntimeCapabilityDescriptor,
   SendRequestPayloadDto,
@@ -306,6 +308,27 @@ const createAdapter = (
     ok<EnvironmentPreset>({ id: environmentId, name: 'Environment', variables }),
   clearHistory: async (_workspaceId: string) => ok({ message: 'ok' }),
   removeHistoryItem: async (_workspaceId: string, _id: string) => ok({ message: 'ok' }),
+  analyzeOpenApiImport: async (_workspaceId: string, _document: string) => ok<OpenApiImportAnalysis>({
+    version: '1',
+    workspaceId: 'workspace-1',
+    sourceKind: 'openapi',
+    summary: {
+      totalOperationCount: 1,
+      importableRequestCount: 1,
+      skippedOperationCount: 0,
+      warningDiagnosticCount: 0,
+    },
+    diagnostics: [],
+    groupingSuggestions: [],
+    candidates: [],
+  }),
+  applyOpenApiImport: async (_workspaceId: string, _analysis: OpenApiImportAnalysis) =>
+    ok<OpenApiImportApplyResult>({
+      importedRequestCount: 1,
+      skippedOperationCount: 0,
+      warningDiagnosticCount: 0,
+      collectionNames: ['Imported OpenAPI'],
+    }),
   getSettings: async () => ok<AppSettings>({ themeMode: 'dark', locale: 'en' }),
   updateSettings: async (payload: AppSettings) => ok(payload),
   sendRequest: async (_payload: SendRequestPayloadDto) =>
@@ -593,16 +616,16 @@ describe('Stage Gate Tests', () => {
 
   // ---------------------------------------------------------------------------
   // Gate D: Stage Discipline (frontend)
-  // No openapi, execution hook, tool packaging, or plugin manifest capability
-  // may have availability: active in the current bootstrap payload.
+  // Only implemented import adapters may be active; future seams must stay non-active.
   // ---------------------------------------------------------------------------
-  it('[Gate D: Stage Discipline] bootstrap descriptors contain no active future-stage capabilities', async () => {
+  it('[Gate D: Stage Discipline] bootstrap descriptors contain implemented OpenAPI import and no active future-stage capabilities', async () => {
     const payload = createBootstrapPayload()
     payload.capabilities = {
       descriptors: [
         { key: 'protocol.http', kind: 'protocol', displayName: 'HTTP', availability: 'active' },
         { key: 'import.backup', kind: 'import_adapter', displayName: 'Backup Restore', availability: 'active' },
         { key: 'import.curl', kind: 'import_adapter', displayName: 'Curl Import', availability: 'active' },
+        { key: 'import.openapi', kind: 'import_adapter', displayName: 'OpenAPI Import', availability: 'active' },
         { key: 'execution_hook.reserved', kind: 'execution_hook', displayName: 'Execution Hook Seam', availability: 'reserved' },
         { key: 'tool_packaging.reserved', kind: 'tool_packaging', displayName: 'Tool Packaging Seam', availability: 'reserved' },
         { key: 'plugin_manifest.reserved', kind: 'plugin_manifest', displayName: 'Plugin Manifest Seam', availability: 'reserved' },
@@ -611,6 +634,7 @@ describe('Stage Gate Tests', () => {
       importAdapters: [
         { key: 'backup', displayName: 'Backup Restore', availability: 'active' },
         { key: 'curl', displayName: 'Curl Import', availability: 'active' },
+        { key: 'openapi', displayName: 'OpenAPI Import', availability: 'active' },
       ],
       executionHooks: [],
       toolPackaging: [{ key: 'tool_packaging.reserved', displayName: 'Tool Packaging Seam', availability: 'reserved' }],
@@ -630,10 +654,9 @@ describe('Stage Gate Tests', () => {
     )
     expect(activeFuture).toHaveLength(0)
 
-    // openapi kind must not appear at all (not even reserved yet)
     const openapiDescriptors = payload.capabilities!.descriptors.filter(
-      (d) => d.key.startsWith('openapi'),
+      (d) => d.key === 'import.openapi' && d.availability === 'active',
     )
-    expect(openapiDescriptors).toHaveLength(0)
+    expect(openapiDescriptors).toHaveLength(1)
   })
 })
