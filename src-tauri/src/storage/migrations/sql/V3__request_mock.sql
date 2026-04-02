@@ -1,0 +1,1 @@
+ALTER TABLE requests ADD COLUMN mock_json TEXT NOT NULL DEFAULT 'null';
