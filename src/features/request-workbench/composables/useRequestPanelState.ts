@@ -1,10 +1,11 @@
 import { computed, ref, watch } from 'vue'
 import { getMessages, localizeScratchPadName } from '@/lib/i18n'
-import { cloneAuth, cloneItems, cloneMock, cloneTests, normalizeRequestTabState } from '@/lib/request-workspace'
+import { cloneAuth, cloneExecutionOptions, cloneItems, cloneMock, cloneTests, normalizeRequestTabState } from '@/lib/request-workspace'
 import type {
   AppLocale,
   FormDataFieldSnapshot,
   KeyValueItem,
+  RequestExecutionOptions,
   RequestMockState,
   RequestTabState,
   RequestTestDefinition,
@@ -86,6 +87,7 @@ export const useRequestPanelState = (
   const tests = ref<RequestTestDefinition[]>([])
   const environmentVariables = ref<KeyValueItem[]>([])
   const mock = ref<RequestMockState | undefined>(undefined)
+  const executionOptions = ref<RequestExecutionOptions>(cloneExecutionOptions())
 
   const applyTab = (tab: RequestTabState | null) => {
     if (!tab) return
@@ -103,6 +105,7 @@ export const useRequestPanelState = (
     auth.value = cloneAuth(tab.auth)
     tests.value = cloneTests(tab.tests)
     mock.value = cloneMock(tab.mock)
+    executionOptions.value = cloneExecutionOptions(tab.executionOptions)
   }
 
   const applyEnvironmentVariables = (items: KeyValueItem[]) => {
@@ -118,7 +121,7 @@ export const useRequestPanelState = (
   }, { immediate: true })
 
   watch(
-    [method, url, params, headers, bodyContent, bodyType, bodyContentType, formDataFields, binaryFileName, binaryMimeType, auth, tests, mock],
+    [method, url, params, headers, bodyContent, bodyType, bodyContentType, formDataFields, binaryFileName, binaryMimeType, auth, tests, mock, executionOptions],
     () => {
       if (!activeTab.value) return
 
@@ -136,6 +139,7 @@ export const useRequestPanelState = (
         auth: cloneAuth(auth.value),
         tests: cloneTests(tests.value),
         mock: cloneMock(mock.value),
+        executionOptions: cloneExecutionOptions(executionOptions.value),
       })
     },
     { deep: true },
@@ -172,6 +176,7 @@ export const useRequestPanelState = (
       auth: cloneAuth(auth.value),
       tests: cloneTests(tests.value),
       mock: cloneMock(mock.value),
+      executionOptions: cloneExecutionOptions(executionOptions.value),
     } satisfies SendRequestPayload)
   }
 
@@ -221,6 +226,7 @@ export const useRequestPanelState = (
       auth.value.apiKeyKey,
       auth.value.apiKeyValue,
       ...tests.value.flatMap((test) => [test.name, test.target ?? '', test.expected ?? '']),
+      executionOptions.value.proxy.mode === 'custom' ? executionOptions.value.proxy.url : '',
     ]
 
     if (bodyType.value === 'formdata') {
@@ -348,6 +354,7 @@ export const useRequestPanelState = (
     bodyContentType,
     bodyType,
     environmentVariables,
+    executionOptions,
     formDataFields,
     getCompactTabState,
     getCompactTabStateLabel,

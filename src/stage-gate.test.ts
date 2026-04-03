@@ -432,7 +432,7 @@ describe('Stage Gate Tests', () => {
     payload.session!.openTabs[0] = {
       ...payload.session!.openTabs[0],
       bodyType: 'formdata',
-      formDataFields: [{ key: 'file', value: '', enabled: true, fileName: 'report.csv', mimeType: 'text/csv' }],
+      formDataFields: [{ key: 'file', value: '', enabled: true, kind: 'file', fileName: 'report.csv', mimeType: 'text/csv' }],
       auth: {
         type: 'bearer',
         bearerToken: 'my-token',
@@ -474,7 +474,7 @@ describe('Stage Gate Tests', () => {
         headers: [],
         body: {
           kind: 'formData' as const,
-          fields: [{ key: 'file', value: '', enabled: true, fileName: 'report.csv', mimeType: 'text/csv' }],
+          fields: [{ key: 'file', value: '', enabled: true, kind: 'file', fileName: 'report.csv', mimeType: 'text/csv' }],
         },
         bodyType: 'formdata' as const,
         auth: {
@@ -523,7 +523,7 @@ describe('Stage Gate Tests', () => {
 
     const restoredTab = getActiveRequestPanelTab(wrapper)
     expect(restoredTab?.bodyType).toBe('formdata')
-    expect(restoredTab?.formDataFields).toEqual([{ key: 'file', value: '', enabled: true, fileName: 'report.csv', mimeType: 'text/csv' }])
+    expect(restoredTab?.formDataFields).toEqual([{ key: 'file', value: '', enabled: true, kind: 'file', fileName: 'report.csv', mimeType: 'text/csv' }])
     expect(restoredTab?.auth.type).toBe('bearer')
     expect(restoredTab?.auth.bearerToken).toBe('my-token')
     expect(restoredTab?.tests).toEqual([{ id: 'test-1', name: 'Status is 200', source: 'status', operator: 'equals', expected: '200' }])

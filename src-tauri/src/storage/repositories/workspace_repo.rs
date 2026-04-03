@@ -6,10 +6,10 @@ use crate::errors::AppError;
 use crate::models::{
     AppBootstrapPayload, AppSettings, ApplicationExportPackageDto, CreateWorkspacePayloadDto,
     DeleteWorkspacePayloadDto, EnvironmentDto, ExportPackageScopeDto, HistoryStoredPayloadDto,
-    ImportConflictStrategy, LegacyWorkspaceSnapshotDto, RequestCollectionDto, RequestPresetDto,
-    RequestTabStateDto, SaveWorkspacePayloadDto, SendRequestPayloadDto,
-    SetActiveWorkspacePayloadDto, WorkspaceExportDataDto, WorkspaceExportPackageDto,
-    WorkspaceSessionDto, WorkspaceSummaryDto,
+    ImportConflictStrategy, LegacyWorkspaceSnapshotDto, RequestCollectionDto,
+    RequestExecutionOptionsDto, RequestPresetDto, RequestTabStateDto, SaveWorkspacePayloadDto,
+    SendRequestPayloadDto, SetActiveWorkspacePayloadDto, WorkspaceExportDataDto,
+    WorkspaceExportPackageDto, WorkspaceSessionDto, WorkspaceSummaryDto,
 };
 use crate::storage::connection::{
     db_error, deserialize_json, generate_id, now_epoch_ms, open_connection, serialize_json,
@@ -606,11 +606,14 @@ fn import_workspace_data_with_connection(
             let form_data_fields_json =
                 serialize_json(&request.form_data_fields, "request form data fields")?;
 
+            let execution_options_json =
+                serialize_json(&request.execution_options, "request execution options")?;
+
             connection
                 .execute(
                     "INSERT INTO requests
-                     (id, workspace_id, collection_id, name, description, tags_json, method, url, params_json, headers_json, body, body_type, body_content_type, form_data_fields_json, binary_file_name, binary_mime_type, auth_json, tests_json, mock_json, sort_order, created_at_epoch_ms, updated_at_epoch_ms)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)",
+                     (id, workspace_id, collection_id, name, description, tags_json, method, url, params_json, headers_json, body, body_type, body_content_type, form_data_fields_json, binary_file_name, binary_mime_type, auth_json, tests_json, mock_json, execution_options_json, sort_order, created_at_epoch_ms, updated_at_epoch_ms)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23)",
                     params![
                         new_request_id,
                         workspace.id,
@@ -631,6 +634,7 @@ fn import_workspace_data_with_connection(
                         auth_json,
                         tests_json,
                         mock_json,
+                        execution_options_json,
                         i64::try_from(request_index).unwrap_or(0),
                         timestamp,
                         timestamp
@@ -786,6 +790,7 @@ fn seed_demo_workspace_with_connection(
                 auth: crate::models::AuthConfigDto::default(),
                 tests: Vec::new(),
                 mock: None,
+                execution_options: RequestExecutionOptionsDto::default(),
             },
             RequestPresetDto {
                 id: generate_id("request"),
@@ -814,6 +819,7 @@ fn seed_demo_workspace_with_connection(
                 auth: crate::models::AuthConfigDto::default(),
                 tests: Vec::new(),
                 mock: None,
+                execution_options: RequestExecutionOptionsDto::default(),
             },
         ],
     };
@@ -833,35 +839,39 @@ fn seed_demo_workspace_with_connection(
         let mock_json = serialize_json(&request.mock, "request mock")?;
         let form_data_fields_json =
             serialize_json(&request.form_data_fields, "request form data fields")?;
-        connection.execute(
-            "INSERT INTO requests
-             (id, workspace_id, collection_id, name, description, tags_json, method, url, params_json, headers_json, body, body_type, body_content_type, form_data_fields_json, binary_file_name, binary_mime_type, auth_json, tests_json, mock_json, sort_order, created_at_epoch_ms, updated_at_epoch_ms)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)",
-            params![
-                request.id,
-                workspace.id,
-                collection.id,
-                request.name,
-                request.description,
-                tags_json,
-                request.method,
-                request.url,
-                params_json,
-                headers_json,
-                request.body,
-                request.body_type,
-                request.body_content_type,
-                form_data_fields_json,
-                request.binary_file_name,
-                request.binary_mime_type,
-                auth_json,
-                tests_json,
-                mock_json,
-                i64::try_from(index).unwrap_or(0),
-                timestamp,
-                timestamp
-            ],
-        ).map_err(|err| db_error("failed to seed request", Some(err.to_string())))?;
+        let execution_options_json =
+            serialize_json(&request.execution_options, "request execution options")?;
+        connection
+            .execute(
+                "INSERT INTO requests
+                 (id, workspace_id, collection_id, name, description, tags_json, method, url, params_json, headers_json, body, body_type, body_content_type, form_data_fields_json, binary_file_name, binary_mime_type, auth_json, tests_json, mock_json, execution_options_json, sort_order, created_at_epoch_ms, updated_at_epoch_ms)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23)",
+                params![
+                    request.id,
+                    workspace.id,
+                    collection.id,
+                    request.name,
+                    request.description,
+                    tags_json,
+                    request.method,
+                    request.url,
+                    params_json,
+                    headers_json,
+                    request.body,
+                    request.body_type,
+                    request.body_content_type,
+                    form_data_fields_json,
+                    request.binary_file_name,
+                    request.binary_mime_type,
+                    auth_json,
+                    tests_json,
+                    mock_json,
+                    execution_options_json,
+                    i64::try_from(index).unwrap_or(0),
+                    timestamp,
+                    timestamp
+                ],
+            ).map_err(|err| db_error("failed to seed request", Some(err.to_string())))?;
     }
 
     let session = WorkspaceSessionDto {
@@ -895,6 +905,7 @@ fn seed_demo_workspace_with_connection(
             auth: collection.requests[0].auth.clone(),
             tests: collection.requests[0].tests.clone(),
             mock: collection.requests[0].mock.clone(),
+            execution_options: collection.requests[0].execution_options.clone(),
             response: crate::models::ResponseStateDto::default(),
             is_sending: false,
             is_dirty: false,
@@ -956,10 +967,12 @@ fn migrate_legacy_snapshot_with_connection(
             let mock_json = serialize_json(&request.mock, "request mock")?;
             let form_data_fields_json =
                 serialize_json(&request.form_data_fields, "request form data fields")?;
+            let execution_options_json =
+                serialize_json(&request.execution_options, "request execution options")?;
             connection.execute(
                 "INSERT INTO requests
-                 (id, workspace_id, collection_id, name, description, tags_json, method, url, params_json, headers_json, body, body_type, body_content_type, form_data_fields_json, binary_file_name, binary_mime_type, auth_json, tests_json, mock_json, sort_order, created_at_epoch_ms, updated_at_epoch_ms)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)",
+                 (id, workspace_id, collection_id, name, description, tags_json, method, url, params_json, headers_json, body, body_type, body_content_type, form_data_fields_json, binary_file_name, binary_mime_type, auth_json, tests_json, mock_json, execution_options_json, sort_order, created_at_epoch_ms, updated_at_epoch_ms)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23)",
                 params![
                     if request.id.is_empty() { generate_id("request") } else { request.id.clone() },
                     workspace.id,
@@ -980,6 +993,7 @@ fn migrate_legacy_snapshot_with_connection(
                     auth_json,
                     tests_json,
                     mock_json,
+                    execution_options_json,
                     i64::try_from(request_index).unwrap_or(0),
                     timestamp,
                     timestamp
@@ -1009,6 +1023,7 @@ fn migrate_legacy_snapshot_with_connection(
             auth: crate::models::AuthConfigDto::default(),
             tests: Vec::new(),
             mock: None,
+            execution_options: RequestExecutionOptionsDto::default(),
         };
         let stored = HistoryStoredPayloadDto {
             request_id: history_item.request_id.clone(),
@@ -1050,7 +1065,10 @@ mod tests {
         export_workspace_package, import_application_package, import_workspace_package,
         list_workspaces, load_workspace_session_with_connection, save_workspace_session,
     };
-    use crate::models::request::RequestBodyDto;
+    use crate::models::request::{
+        RequestBodyDto, RequestExecutionOptionsDto, RequestProxyModeDto,
+        RequestProxySettingsDto, RequestRedirectPolicyDto,
+    };
     use crate::models::{
         AppSettings, CreateWorkspacePayloadDto, HistoryStoredPayloadDto, ImportConflictStrategy,
         KeyValueItemDto, LegacyWorkspaceSnapshotDto, RequestCollectionDto, RequestPresetDto,
@@ -1111,6 +1129,7 @@ mod tests {
                     auth: Default::default(),
                     tests: Vec::new(),
                     mock: None,
+                    execution_options: RequestExecutionOptionsDto::default(),
                 }],
             }],
             history_items: Vec::new(),
@@ -1178,6 +1197,7 @@ mod tests {
                             key: "file".to_string(),
                             value: "payload".to_string(),
                             enabled: true,
+                            kind: Some("file".to_string()),
                             file_name: Some("demo.txt".to_string()),
                             mime_type: Some("text/plain".to_string()),
                         }],
@@ -1186,6 +1206,15 @@ mod tests {
                         auth: Default::default(),
                         tests: Vec::new(),
                         mock: None,
+                        execution_options: RequestExecutionOptionsDto {
+                            timeout_ms: Some(5_000),
+                            redirect_policy: RequestRedirectPolicyDto::Manual,
+                            proxy: RequestProxySettingsDto {
+                                mode: RequestProxyModeDto::Custom,
+                                url: Some("http://127.0.0.1:8080".to_string()),
+                            },
+                            verify_ssl: false,
+                        },
                         response: crate::models::ResponseStateDto::default(),
                         is_sending: false,
                         is_dirty: true,
@@ -1213,6 +1242,17 @@ mod tests {
             tab.form_data_fields[0].file_name.as_deref(),
             Some("demo.txt")
         );
+        assert_eq!(tab.execution_options.timeout_ms, Some(5_000));
+        assert_eq!(
+            tab.execution_options.redirect_policy,
+            RequestRedirectPolicyDto::Manual
+        );
+        assert_eq!(tab.execution_options.proxy.mode, RequestProxyModeDto::Custom);
+        assert_eq!(
+            tab.execution_options.proxy.url.as_deref(),
+            Some("http://127.0.0.1:8080")
+        );
+        assert!(!tab.execution_options.verify_ssl);
 
         let _ = fs::remove_file(db_path);
     }
@@ -1265,6 +1305,15 @@ mod tests {
                         auth: request.auth.clone(),
                         tests: request.tests.clone(),
                         mock: request.mock.clone(),
+                        execution_options: RequestExecutionOptionsDto {
+                            timeout_ms: Some(5_000),
+                            redirect_policy: RequestRedirectPolicyDto::Manual,
+                            proxy: RequestProxySettingsDto {
+                                mode: RequestProxyModeDto::Custom,
+                                url: Some("http://127.0.0.1:8080".to_string()),
+                            },
+                            verify_ssl: false,
+                        },
                         response: crate::models::ResponseStateDto::default(),
                         is_sending: false,
                         is_dirty: false,
@@ -1307,6 +1356,15 @@ mod tests {
                     auth: request.auth.clone(),
                     tests: request.tests.clone(),
                     mock: None,
+                    execution_options: RequestExecutionOptionsDto {
+                        timeout_ms: Some(5_000),
+                        redirect_policy: RequestRedirectPolicyDto::Manual,
+                        proxy: RequestProxySettingsDto {
+                            mode: RequestProxyModeDto::Custom,
+                            url: Some("http://127.0.0.1:8080".to_string()),
+                        },
+                        verify_ssl: false,
+                    },
                 },
                 status: 200,
                 status_text: "OK".to_string(),
@@ -1369,7 +1427,50 @@ mod tests {
             imported_session.open_tabs[0].request_id,
             Some(imported_request_id.clone())
         );
+        assert_eq!(
+            imported_session.open_tabs[0].execution_options.timeout_ms,
+            Some(5_000)
+        );
+        assert_eq!(
+            imported_session.open_tabs[0].execution_options.redirect_policy,
+            RequestRedirectPolicyDto::Manual
+        );
+        assert_eq!(
+            imported_session.open_tabs[0].execution_options.proxy.mode,
+            RequestProxyModeDto::Custom
+        );
+        assert_eq!(
+            imported_session.open_tabs[0]
+                .execution_options
+                .proxy
+                .url
+                .as_deref(),
+            Some("http://127.0.0.1:8080")
+        );
+        assert!(!imported_session.open_tabs[0].execution_options.verify_ssl);
         assert_eq!(imported_history[0].request_id, Some(imported_request_id));
+        assert_eq!(
+            imported_history[0].request_snapshot.execution_options.timeout_ms,
+            Some(5_000)
+        );
+        assert_eq!(
+            imported_history[0].request_snapshot.execution_options.redirect_policy,
+            RequestRedirectPolicyDto::Manual
+        );
+        assert_eq!(
+            imported_history[0].request_snapshot.execution_options.proxy.mode,
+            RequestProxyModeDto::Custom
+        );
+        assert_eq!(
+            imported_history[0]
+                .request_snapshot
+                .execution_options
+                .proxy
+                .url
+                .as_deref(),
+            Some("http://127.0.0.1:8080")
+        );
+        assert!(!imported_history[0].request_snapshot.execution_options.verify_ssl);
 
         let _ = fs::remove_file(db_path);
     }

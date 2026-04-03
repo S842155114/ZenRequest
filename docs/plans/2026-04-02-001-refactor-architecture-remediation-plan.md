@@ -1,7 +1,7 @@
 ---
 title: refactor: Incremental architecture remediation roadmap
 type: refactor
-status: active
+status: completed
 date: 2026-04-02
 deepened: 2026-04-02
 ---
@@ -217,7 +217,7 @@ flowchart LR
 - New request, environment, and history work can land in dedicated repo files without reopening unrelated storage modules.
 - `storage/db.rs` shrinks into a delegating facade instead of remaining the primary implementation surface.
 
-- [ ] **Unit 3: Introduce Rust application services and rewire Tauri commands**
+- [x] **Unit 3: Introduce Rust application services and rewire Tauri commands**
 
 **Goal:** Move use-case orchestration out of Tauri entrypoints so commands become adapters and runtime behavior becomes easier to extend safely.
 
@@ -275,7 +275,7 @@ flowchart LR
 - `commands/settings.rs` remains a documented exception because it only bridges cache-backed preference reads/writes and does not yet justify a service boundary.
 - New use-case additions can land in `services/` without re-expanding commands or repositories.
 
-- [ ] **Unit 4: Finish frontend domain extraction around app-shell and request session rules**
+- [x] **Unit 4: Finish frontend domain extraction around app-shell and request session rules**
 
 **Goal:** Make frontend ownership lines explicit by keeping shared serialization helpers in `lib` and moving feature-specific request/workspace/history rules into the `app-shell` feature.
 
@@ -323,7 +323,7 @@ flowchart LR
 - Feature-specific request/session/history rules live under `src/features/app-shell/` instead of generic `lib` helpers.
 - `useAppShellViewModel.ts` and `app-shell-store.ts` consume focused domain helpers instead of carrying ad hoc derivation logic inline.
 
-- [ ] **Unit 5: Extend the canonical request model for execution options and explicit upload semantics**
+- [x] **Unit 5: Extend the canonical request model for execution options and explicit upload semantics**
 
 **Goal:** Add first-class execution options and explicit multipart/file field semantics to the request model so the UI, persistence layer, import/export flow, and runtime share one contract.
 
@@ -381,7 +381,7 @@ flowchart LR
 - Request execution options are represented by one canonical contract across frontend types, Tauri DTOs, persistence, and import/export.
 - The request editor can configure supported transport options without inventing runtime-only state.
 
-- [ ] **Unit 6: Complete runtime execution behavior for transport options and file uploads**
+- [x] **Unit 6: Complete runtime execution behavior for transport options and file uploads**
 
 **Goal:** Make the Rust runtime honor the new execution options and send real multipart/file and binary payloads without regressing mock execution, assertions, redaction, or history persistence.
 

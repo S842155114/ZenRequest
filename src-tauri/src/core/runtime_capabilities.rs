@@ -129,7 +129,9 @@ impl ProtocolRegistry {
     }
 
     pub fn supports(&self, key: &str) -> bool {
-        self.descriptors.iter().any(|descriptor| descriptor.key == key)
+        self.descriptors
+            .iter()
+            .any(|descriptor| descriptor.key == key)
     }
 
     pub fn descriptors(&self) -> &[ProtocolDescriptor] {
@@ -146,19 +148,23 @@ pub struct ImportRegistry {
 impl ImportRegistry {
     pub fn with_builtin_defaults() -> Self {
         Self {
-            descriptors: vec![ImportDescriptor {
-                key: "backup".to_string(),
-                display_name: "Backup Restore".to_string(),
-                availability: "active".to_string(),
-            }, ImportDescriptor {
-                key: "curl".to_string(),
-                display_name: "Curl Import".to_string(),
-                availability: "active".to_string(),
-            }, ImportDescriptor {
-                key: "openapi".to_string(),
-                display_name: "OpenAPI Import".to_string(),
-                availability: "active".to_string(),
-            }],
+            descriptors: vec![
+                ImportDescriptor {
+                    key: "backup".to_string(),
+                    display_name: "Backup Restore".to_string(),
+                    availability: "active".to_string(),
+                },
+                ImportDescriptor {
+                    key: "curl".to_string(),
+                    display_name: "Curl Import".to_string(),
+                    availability: "active".to_string(),
+                },
+                ImportDescriptor {
+                    key: "openapi".to_string(),
+                    display_name: "OpenAPI Import".to_string(),
+                    availability: "active".to_string(),
+                },
+            ],
         }
     }
 
@@ -219,15 +225,19 @@ mod tests {
         assert!(capability_registry
             .descriptors()
             .iter()
-            .any(|descriptor| descriptor.kind == "import_adapter" && descriptor.key == "import.backup"));
+            .any(|descriptor| descriptor.kind == "import_adapter"
+                && descriptor.key == "import.backup"));
         assert!(capability_registry
             .descriptors()
             .iter()
-            .any(|descriptor| descriptor.kind == "import_adapter" && descriptor.key == "import.curl"));
+            .any(
+                |descriptor| descriptor.kind == "import_adapter" && descriptor.key == "import.curl"
+            ));
         assert!(capability_registry
             .descriptors()
             .iter()
-            .any(|descriptor| descriptor.kind == "import_adapter" && descriptor.key == "import.openapi"));
+            .any(|descriptor| descriptor.kind == "import_adapter"
+                && descriptor.key == "import.openapi"));
         assert!(protocol_registry
             .descriptors()
             .iter()
@@ -266,6 +276,7 @@ mod tests {
         assert!(capability_registry
             .descriptors()
             .iter()
-            .any(|descriptor| descriptor.key == "import.openapi" && descriptor.availability == "active"));
+            .any(|descriptor| descriptor.key == "import.openapi"
+                && descriptor.availability == "active"));
     }
 }

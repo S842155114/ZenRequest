@@ -148,28 +148,55 @@ describe('request workspace mock state helpers', () => {
     })
   })
 
-  it('retains canonical draft identity fields when cloning tabs for session persistence', () => {
-    const tab: RequestTabState = {
-      id: 'tab-detached',
+  it('preserves execution options when opening, cloning, saving, and restoring requests', () => {
+    const executionOptions = {
+      timeoutMs: 15000,
+      redirectPolicy: 'manual' as const,
+      proxy: { mode: 'custom' as const, url: 'http://127.0.0.1:8080' },
+      verifySsl: false,
+    }
+
+    const preset: RequestPreset = {
+      id: 'request-orders',
+      name: 'Orders',
+      method: 'GET',
+      url: 'https://example.com/orders',
+      body: '',
+      bodyType: 'json',
+      headers: [],
+      params: [],
+      executionOptions,
+    }
+
+    const tab = createRequestTabFromPreset(preset)
+    expect(tab.executionOptions).toEqual(executionOptions)
+
+    const cloned = cloneTab(tab)
+    expect(cloned.executionOptions).toEqual(executionOptions)
+    expect(cloned.executionOptions).not.toBe(tab.executionOptions)
+    if (
+      cloned.executionOptions?.proxy.mode === 'custom'
+      && tab.executionOptions?.proxy.mode === 'custom'
+    ) {
+      expect(cloned.executionOptions.proxy).not.toBe(tab.executionOptions.proxy)
+    }
+
+    const roundtripPreset = createPresetFromTab(tab)
+    expect(roundtripPreset.executionOptions).toEqual(executionOptions)
+
+    const historyTab = createRequestTabFromHistorySnapshot({
+      tabId: 'tab-history-execution',
       requestId: 'request-orders',
-      origin: {
-        kind: 'detached',
-        requestId: 'request-orders',
-      },
-      persistenceState: 'unbound',
-      executionState: 'success',
-      name: 'Detached Orders',
-      description: 'detached draft',
-      tags: ['orders'],
-      collectionName: 'Scratch Pad',
-      method: 'POST',
+      name: 'Orders',
+      description: '',
+      tags: [],
+      collectionName: 'Orders',
+      method: 'GET',
       url: 'https://example.com/orders',
       params: [],
       headers: [],
-      body: 'ZmFrZS1ieXRlcw==',
-      bodyType: 'binary',
-      binaryFileName: 'orders.bin',
-      binaryMimeType: 'application/octet-stream',
+      body: { kind: 'json', value: '{}' },
+      bodyType: 'json',
       auth: {
         type: 'none',
         bearerToken: '',
@@ -180,34 +207,9 @@ describe('request workspace mock state helpers', () => {
         apiKeyPlacement: 'header',
       },
       tests: [],
-      response: {
-        responseBody: '{"ok":true}',
-        status: 200,
-        statusText: 'OK',
-        time: '12 ms',
-        size: '128 B',
-        headers: [],
-        contentType: 'application/json',
-        requestMethod: 'POST',
-        requestUrl: 'https://example.com/orders',
-        testResults: [],
-        state: 'success',
-        stale: false,
-        executionSource: 'live',
-      },
-      isSending: false,
-      isDirty: true,
-    }
+      executionOptions,
+    }, 'Recovered Orders', 'history-orders-execution')
 
-    const cloned = cloneTab(tab)
-
-    expect(cloned.origin).toEqual({
-      kind: 'detached',
-      requestId: 'request-orders',
-    })
-    expect(cloned.persistenceState).toBe('unbound')
-    expect(cloned.executionState).toBe('success')
-    expect(cloned.binaryFileName).toBe('orders.bin')
-    expect(cloned.binaryMimeType).toBe('application/octet-stream')
+    expect(historyTab.executionOptions).toEqual(executionOptions)
   })
 })

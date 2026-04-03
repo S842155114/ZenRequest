@@ -64,6 +64,7 @@ const {
   bodyContentType,
   bodyType,
   environmentVariables,
+  executionOptions,
   formDataFields,
   getCompactTabState,
   getCompactTabStateLabel,
@@ -244,6 +245,7 @@ const {
               v-model:auth="auth"
               v-model:tests="tests"
               v-model:mock="mock"
+              v-model:execution-options="executionOptions"
               v-model:environment-variables="environmentVariables"
               :environment-name="activeEnvironmentName"
             />

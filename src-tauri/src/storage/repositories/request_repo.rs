@@ -3,7 +3,9 @@ use std::path::Path;
 use rusqlite::{params, Connection, Row};
 
 use crate::errors::AppError;
-use crate::models::{DeleteRequestPayloadDto, RequestPresetDto, SaveRequestPayloadDto};
+use crate::models::{
+    DeleteRequestPayloadDto, RequestExecutionOptionsDto, RequestPresetDto, SaveRequestPayloadDto,
+};
 use crate::storage::connection::{
     db_error, generate_id, next_sort_order, now_epoch_ms, open_connection, serialize_json,
     touch_workspace,
@@ -35,7 +37,7 @@ pub(crate) fn load_request_with_collection_name(
 ) -> Result<RequestPresetDto, AppError> {
     connection
         .query_row(
-            "SELECT r.id, r.workspace_id, r.collection_id, c.name, r.name, r.description, r.tags_json, r.method, r.url, r.params_json, r.headers_json, r.body, r.body_type, r.body_content_type, r.form_data_fields_json, r.binary_file_name, r.binary_mime_type, r.auth_json, r.tests_json, r.mock_json
+            "SELECT r.id, r.workspace_id, r.collection_id, c.name, r.name, r.description, r.tags_json, r.method, r.url, r.params_json, r.headers_json, r.body, r.body_type, r.body_content_type, r.form_data_fields_json, r.binary_file_name, r.binary_mime_type, r.auth_json, r.tests_json, r.mock_json, r.execution_options_json
              FROM requests r
              JOIN collections c ON c.id = r.collection_id
              WHERE r.id = ?1",
@@ -51,7 +53,7 @@ pub(crate) fn load_requests_for_collection(
 ) -> Result<Vec<RequestPresetDto>, AppError> {
     let mut request_statement = connection
         .prepare(
-            "SELECT r.id, r.workspace_id, r.collection_id, c.name, r.name, r.description, r.tags_json, r.method, r.url, r.params_json, r.headers_json, r.body, r.body_type, r.body_content_type, r.form_data_fields_json, r.binary_file_name, r.binary_mime_type, r.auth_json, r.tests_json, r.mock_json
+            "SELECT r.id, r.workspace_id, r.collection_id, c.name, r.name, r.description, r.tags_json, r.method, r.url, r.params_json, r.headers_json, r.body, r.body_type, r.body_content_type, r.form_data_fields_json, r.binary_file_name, r.binary_mime_type, r.auth_json, r.tests_json, r.mock_json, r.execution_options_json
              FROM requests r
              JOIN collections c ON c.id = r.collection_id
              WHERE r.collection_id = ?1
@@ -94,6 +96,8 @@ fn save_request_with_connection(
         &payload.request.form_data_fields,
         "request form data fields",
     )?;
+    let execution_options_json =
+        serialize_json(&payload.request.execution_options, "request execution options")?;
     let sort_order = next_sort_order(
         connection,
         "requests",
@@ -104,8 +108,8 @@ fn save_request_with_connection(
     connection
         .execute(
             "INSERT INTO requests
-             (id, workspace_id, collection_id, name, description, tags_json, method, url, params_json, headers_json, body, body_type, body_content_type, form_data_fields_json, binary_file_name, binary_mime_type, auth_json, tests_json, mock_json, sort_order, created_at_epoch_ms, updated_at_epoch_ms)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)
+             (id, workspace_id, collection_id, name, description, tags_json, method, url, params_json, headers_json, body, body_type, body_content_type, form_data_fields_json, binary_file_name, binary_mime_type, auth_json, tests_json, mock_json, execution_options_json, sort_order, created_at_epoch_ms, updated_at_epoch_ms)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23)
              ON CONFLICT(id) DO UPDATE SET
                workspace_id = excluded.workspace_id,
                collection_id = excluded.collection_id,
@@ -125,6 +129,7 @@ fn save_request_with_connection(
                auth_json = excluded.auth_json,
                tests_json = excluded.tests_json,
                mock_json = excluded.mock_json,
+               execution_options_json = excluded.execution_options_json,
                updated_at_epoch_ms = excluded.updated_at_epoch_ms",
             params![
                 request_id,
@@ -146,6 +151,7 @@ fn save_request_with_connection(
                 auth_json,
                 tests_json,
                 mock_json,
+                execution_options_json,
                 sort_order,
                 timestamp,
                 timestamp
@@ -165,6 +171,8 @@ fn map_request_row(row: &Row<'_>) -> rusqlite::Result<RequestPresetDto> {
     let auth_json: String = row.get(17)?;
     let tests_json: String = row.get(18)?;
     let mock_json: String = row.get(19)?;
+
+    let execution_options_json: String = row.get(20)?;
 
     Ok(RequestPresetDto {
         id: row.get(0)?,
@@ -187,13 +195,19 @@ fn map_request_row(row: &Row<'_>) -> rusqlite::Result<RequestPresetDto> {
         auth: serde_json::from_str(&auth_json).unwrap_or_default(),
         tests: serde_json::from_str(&tests_json).unwrap_or_default(),
         mock: serde_json::from_str(&mock_json).unwrap_or_default(),
+        execution_options: serde_json::from_str(&execution_options_json).unwrap_or_else(|_| {
+            RequestExecutionOptionsDto::default()
+        }),
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::save_request;
-    use crate::models::request::{RequestMockStateDto, RequestTestDefinitionDto};
+    use crate::models::request::{
+        RequestExecutionOptionsDto, RequestMockStateDto, RequestProxyModeDto,
+        RequestProxySettingsDto, RequestRedirectPolicyDto, RequestTestDefinitionDto,
+    };
     use crate::models::{KeyValueItemDto, RequestPresetDto, SaveRequestPayloadDto};
     use crate::storage::connection::open_connection;
     use crate::storage::db::initialize_database;
@@ -282,6 +296,15 @@ mod tests {
                             enabled: true,
                         }],
                     }),
+                    execution_options: RequestExecutionOptionsDto {
+                        timeout_ms: Some(15_000),
+                        redirect_policy: RequestRedirectPolicyDto::Manual,
+                        proxy: RequestProxySettingsDto {
+                            mode: RequestProxyModeDto::Custom,
+                            url: Some("http://127.0.0.1:8080".to_string()),
+                        },
+                        verify_ssl: false,
+                    },
                 },
             },
         )
@@ -295,6 +318,17 @@ mod tests {
             Some("application/graphql".to_string())
         );
         assert_eq!(saved.mock.as_ref().map(|mock| mock.status), Some(202));
+        assert_eq!(saved.execution_options.timeout_ms, Some(15_000));
+        assert_eq!(
+            saved.execution_options.redirect_policy,
+            RequestRedirectPolicyDto::Manual
+        );
+        assert_eq!(saved.execution_options.proxy.mode, RequestProxyModeDto::Custom);
+        assert_eq!(
+            saved.execution_options.proxy.url.as_deref(),
+            Some("http://127.0.0.1:8080")
+        );
+        assert!(!saved.execution_options.verify_ssl);
 
         let connection = open_connection(&db_path).expect("connection opened");
         let collections = load_collections_with_connection(&connection, &workspace_id)
@@ -315,6 +349,17 @@ mod tests {
             persisted.mock.as_ref().map(|mock| mock.body.as_str()),
             Some("{\"source\":\"mock\"}")
         );
+        assert_eq!(persisted.execution_options.timeout_ms, Some(15_000));
+        assert_eq!(
+            persisted.execution_options.redirect_policy,
+            RequestRedirectPolicyDto::Manual
+        );
+        assert_eq!(persisted.execution_options.proxy.mode, RequestProxyModeDto::Custom);
+        assert_eq!(
+            persisted.execution_options.proxy.url.as_deref(),
+            Some("http://127.0.0.1:8080")
+        );
+        assert!(!persisted.execution_options.verify_ssl);
 
         let _ = fs::remove_file(db_path);
     }

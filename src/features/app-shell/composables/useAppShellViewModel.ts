@@ -15,16 +15,15 @@ import type {
   WorkspaceSummary,
 } from '@/types/request'
 import { getMessages } from '@/lib/i18n'
+import { buildHistoryReplayDraft } from '../domain/history-replay'
+import { resolveTabOrigin } from '../domain/request-session'
 import {
   cloneAuth,
   cloneItems,
-  clonePreset,
   cloneResponse,
   cloneTests,
   createBlankRequestTab,
-  createRequestTabFromHistorySnapshot,
   createRequestTabFromPreset,
-  createResponseStateFromHistoryItem,
 } from '@/lib/request-workspace'
 import type {
   HeaderBindings,
@@ -249,11 +248,9 @@ export const createAppShellViewModel = (deps: AppShellViewModelDeps): AppShellVi
       response: payload.response ? cloneResponse(payload.response) : cloneResponse(tab.response),
       isDirty: payload.isDirty ?? true,
       persistenceState: payload.persistenceState
-        ?? (
-          (payload.origin ?? tab.origin)?.kind === 'detached'
-            ? 'unbound'
-            : (payload.isDirty ?? true) ? 'unsaved' : 'saved'
-        ),
+        ?? (resolveTabOrigin({ ...tab, ...payload }).kind === 'detached'
+          ? 'unbound'
+          : (payload.isDirty ?? true) ? 'unsaved' : 'saved'),
       executionState: payload.executionState
         ?? payload.response?.state
         ?? tab.executionState,
@@ -287,38 +284,12 @@ export const createAppShellViewModel = (deps: AppShellViewModelDeps): AppShellVi
       return
     }
 
-    const snapshot = item.requestSnapshot
-    const requestFromCollection = item.requestId
-      ? deps.collections.value.flatMap((collection) => collection.requests).find((request) => request.id === item.requestId)
-      : undefined
-    const fallbackPreset = requestFromCollection ? clonePreset(requestFromCollection) : undefined
-    const newTab = snapshot
-      ? createRequestTabFromHistorySnapshot(snapshot, item.name, item.id)
-      : fallbackPreset
-        ? createRequestTabFromPreset(fallbackPreset)
-        : createBlankRequestTab()
-
-    const resolvedMethod = snapshot?.method || fallbackPreset?.method || item.method
-    const resolvedUrl = snapshot?.url || fallbackPreset?.url || item.url
-
-    newTab.name = snapshot?.name || fallbackPreset?.name || item.name
-    newTab.description = snapshot?.description || fallbackPreset?.description || deps.text.value.toasts.recoveredFromHistory(item.time)
-    newTab.tags = snapshot?.tags?.length
-      ? [...snapshot.tags]
-      : fallbackPreset?.tags?.length
-        ? [...fallbackPreset.tags]
-        : [deps.text.value.toasts.historyTag]
-    newTab.origin = {
-      kind: 'replay',
-      requestId: snapshot?.requestId ?? fallbackPreset?.id ?? item.requestId,
-      historyItemId: item.id,
-    }
-    newTab.persistenceState = 'unsaved'
-    newTab.isDirty = true
-    newTab.method = resolvedMethod
-    newTab.url = resolvedUrl
-    newTab.response = cloneResponse(createResponseStateFromHistoryItem(item, resolvedMethod, resolvedUrl))
-    newTab.executionState = newTab.response.state ?? 'idle'
+    const newTab = buildHistoryReplayDraft({
+      item,
+      collections: deps.collections.value,
+      recoveredDescription: deps.text.value.toasts.recoveredFromHistory(item.time),
+      historyTag: deps.text.value.toasts.historyTag,
+    })
 
     deps.store.mutations.appendAndActivateTab(newTab)
   }

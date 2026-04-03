@@ -221,7 +221,9 @@ fn format_history_time(epoch_ms: i64) -> String {
 #[cfg(test)]
 mod tests {
     use super::{clear_history, insert_history_item, list_history};
-    use crate::models::request::{RequestBodyDto, RequestMockStateDto};
+use crate::models::request::{
+    RequestBodyDto, RequestExecutionOptionsDto, RequestMockStateDto,
+};
     use crate::models::{HistoryQueryPayloadDto, HistoryStoredPayloadDto, SendRequestPayloadDto};
     use crate::storage::db::initialize_database;
     use crate::storage::repositories::workspace_repo::ensure_bootstrap_data;
@@ -286,6 +288,10 @@ mod tests {
                         body: "{\"source\":\"mock\"}".to_string(),
                         headers: Vec::new(),
                     }),
+                    execution_options: RequestExecutionOptionsDto {
+                        timeout_ms: Some(5_000),
+                        ..Default::default()
+                    },
                 },
                 status: 200,
                 status_text: "OK".to_string(),
@@ -312,6 +318,13 @@ mod tests {
         let history = list_history(&db_path, &workspace_id).expect("history listed");
         assert_eq!(history.len(), 1);
         assert_eq!(history[0].execution_source, "mock");
+        assert_eq!(
+            history[0]
+                .request_snapshot
+                .as_ref()
+                .and_then(|snapshot| snapshot.execution_options.timeout_ms),
+            Some(5_000)
+        );
 
         clear_history(
             &db_path,

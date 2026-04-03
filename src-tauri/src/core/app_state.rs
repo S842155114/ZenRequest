@@ -11,7 +11,6 @@ use crate::storage::db;
 #[derive(Debug)]
 pub struct AppState {
     pub settings_cache: std::sync::RwLock<Option<AppSettings>>,
-    pub http_client: reqwest::Client,
     pub db_path: PathBuf,
     #[allow(dead_code)]
     pub capability_registry: CapabilityRegistry,
@@ -34,14 +33,8 @@ impl AppState {
         db::initialize_database(&db_path)?;
         let settings = db::load_settings(&db_path)?.unwrap_or_default();
 
-        let client = reqwest::Client::builder()
-            .user_agent("zenrequest/0.1.0")
-            .build()
-            .expect("failed to build http client");
-
         Ok(Self {
             settings_cache: std::sync::RwLock::new(Some(settings)),
-            http_client: client,
             db_path,
             capability_registry: CapabilityRegistry::with_builtin_defaults(),
             protocol_registry: ProtocolRegistry::with_builtin_defaults(),

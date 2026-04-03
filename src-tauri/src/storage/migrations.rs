@@ -4,7 +4,7 @@ use rusqlite::Connection;
 
 use crate::errors::AppError;
 
-pub const BASELINE_SCHEMA_VERSION: i64 = 5;
+pub const BASELINE_SCHEMA_VERSION: i64 = 6;
 
 const V1_BASELINE_SQL: &str = include_str!("migrations/sql/V1__baseline.sql");
 const V2_REQUEST_TESTS_SQL: &str = include_str!("migrations/sql/V2__request_tests.sql");
@@ -13,6 +13,9 @@ const V4_REQUEST_BODY_METADATA_SQL: &str =
     include_str!("migrations/sql/V4__request_body_metadata.sql");
 const V5_HISTORY_EXECUTION_SOURCE_SQL: &str =
     include_str!("migrations/sql/V5__history_execution_source.sql");
+const V6_REQUEST_EXECUTION_OPTIONS_SQL: &str =
+    include_str!("migrations/sql/V6__request_execution_options.sql");
+
 
 struct MigrationStep {
     version: i64,
@@ -88,7 +91,7 @@ fn table_has_column(connection: &Connection, table: &str, column: &str) -> Resul
     Ok(false)
 }
 
-fn migration_steps() -> [MigrationStep; 5] {
+fn migration_steps() -> [MigrationStep; 6] {
     [
         MigrationStep {
             version: 1,
@@ -127,6 +130,14 @@ fn migration_steps() -> [MigrationStep; 5] {
             sql: V5_HISTORY_EXECUTION_SOURCE_SQL,
             already_applied: |connection| {
                 table_has_column(connection, "history_items", "execution_source")
+            },
+        },
+        MigrationStep {
+            version: 6,
+            name: "request_execution_options",
+            sql: V6_REQUEST_EXECUTION_OPTIONS_SQL,
+            already_applied: |connection| {
+                table_has_column(connection, "requests", "execution_options_json")
             },
         },
     ]

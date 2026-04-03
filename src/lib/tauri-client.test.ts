@@ -12,7 +12,7 @@ import type {
   WorkspaceImportResult,
   WorkspaceSaveResult,
 } from './tauri-client'
-import { detectImportPackageMeta, runtimeClient, setRuntimeAdapter, toRequestBodyDto } from './tauri-client'
+import { detectImportPackageMeta, runtimeClient, setRuntimeAdapter, toRequestBodyDto, toSendRequestPayloadDto } from './tauri-client'
 import type {
   EnvironmentPreset,
   RequestCollection,
@@ -321,14 +321,14 @@ describe('toRequestBodyDto', () => {
       body: 'legacy=ignored',
       bodyType: 'formdata',
       formDataFields: [
-        { key: 'alpha', value: '1', enabled: true },
-        { key: 'beta', value: '2', enabled: false },
+        { key: 'alpha', value: '1', enabled: true, kind: 'text' },
+        { key: 'beta', value: '2', enabled: false, kind: 'text' },
       ],
     } as any)).toEqual({
       kind: 'formData',
       fields: [
-        { key: 'alpha', value: '1', enabled: true },
-        { key: 'beta', value: '2', enabled: false },
+        { key: 'alpha', value: '1', enabled: true, kind: 'text' },
+        { key: 'beta', value: '2', enabled: false, kind: 'text' },
       ],
     })
   })
@@ -345,5 +345,48 @@ describe('toRequestBodyDto', () => {
       fileName: 'demo.bin',
       mimeType: 'application/octet-stream',
     })
+  })
+})
+
+describe('toSendRequestPayloadDto', () => {
+  it('forwards execution options without merging them into executionSource', () => {
+    const payload = toSendRequestPayloadDto('workspace-1', 'env-1', {
+      tabId: 'tab-1',
+      requestId: 'request-1',
+      name: 'Proxy test',
+      description: '',
+      tags: [],
+      collectionName: 'Demo',
+      method: 'GET',
+      url: 'https://example.com',
+      params: [],
+      headers: [],
+      body: '',
+      bodyType: 'raw',
+      auth: {
+        type: 'none',
+        bearerToken: '',
+        username: '',
+        password: '',
+        apiKeyKey: 'X-API-Key',
+        apiKeyValue: '',
+        apiKeyPlacement: 'header',
+      },
+      tests: [],
+      executionOptions: {
+        timeoutMs: 5000,
+        redirectPolicy: 'manual',
+        proxy: { mode: 'custom', url: 'http://127.0.0.1:8080' },
+        verifySsl: false,
+      },
+    })
+
+    expect(payload.executionOptions).toEqual({
+      timeoutMs: 5000,
+      redirectPolicy: 'manual',
+      proxy: { mode: 'custom', url: 'http://127.0.0.1:8080' },
+      verifySsl: false,
+    })
+    expect(payload).not.toHaveProperty('executionSource')
   })
 })

@@ -2,6 +2,7 @@ mod commands;
 mod core;
 mod errors;
 mod models;
+mod services;
 mod storage;
 
 use tauri::Manager;

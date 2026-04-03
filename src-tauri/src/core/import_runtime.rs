@@ -12,14 +12,14 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::errors::AppError;
-use crate::models::{
-    AuthConfigDto, CreateCollectionPayloadDto, ImportDiagnosticDto,
-    ImportOpenApiApplyPayloadDto, KeyValueItemDto, OpenApiCollectionSuggestionDto,
-    OpenApiImportAnalysisDto, OpenApiImportApplyResultDto, OpenApiImportCandidateDto,
-    OpenApiImportSummaryDto, RequestBodyDto, RequestPresetDto, RequestTabOriginDto,
-    RequestTabStateDto, ResponseStateDto, SaveRequestPayloadDto,
-};
 use crate::models::request::FormDataFieldDto;
+use crate::models::{
+    AuthConfigDto, CreateCollectionPayloadDto, ImportDiagnosticDto, ImportOpenApiApplyPayloadDto,
+    KeyValueItemDto, OpenApiCollectionSuggestionDto, OpenApiImportAnalysisDto,
+    OpenApiImportApplyResultDto, OpenApiImportCandidateDto, OpenApiImportSummaryDto,
+    RequestBodyDto, RequestPresetDto, RequestTabOriginDto, RequestTabStateDto, ResponseStateDto,
+    SaveRequestPayloadDto,
+};
 use crate::storage::db;
 
 const SCRATCH_PAD_COLLECTION_NAME: &str = "Scratch Pad";
@@ -104,7 +104,10 @@ fn tokenize_shell_command(command: &str) -> Result<Vec<String>, AppError> {
     }
 
     if escaping || in_single || in_double {
-        return Err(error("INVALID_CURL_COMMAND", "unterminated quoted curl command"));
+        return Err(error(
+            "INVALID_CURL_COMMAND",
+            "unterminated quoted curl command",
+        ));
     }
 
     if !current.is_empty() {
@@ -116,7 +119,10 @@ fn tokenize_shell_command(command: &str) -> Result<Vec<String>, AppError> {
 
 fn split_header(header: &str) -> Result<(String, String), AppError> {
     let Some((key, value)) = header.split_once(':') else {
-        return Err(error("INVALID_CURL_HEADER", format!("invalid curl header: {header}")));
+        return Err(error(
+            "INVALID_CURL_HEADER",
+            format!("invalid curl header: {header}"),
+        ));
     };
 
     Ok((key.trim().to_string(), value.trim().to_string()))
@@ -142,20 +148,29 @@ fn parse_form_field(value: &str) -> FormDataFieldDto {
         let mut mime_type = None;
 
         if let Some((path_part, tail)) = file_reference.split_once(';') {
-            file_name = path_part.rsplit('/').next().unwrap_or(path_part).to_string();
+            file_name = path_part
+                .rsplit('/')
+                .next()
+                .unwrap_or(path_part)
+                .to_string();
             for segment in tail.split(';') {
                 if let Some(next_mime_type) = segment.strip_prefix("type=") {
                     mime_type = Some(next_mime_type.to_string());
                 }
             }
         } else {
-            file_name = file_reference.rsplit('/').next().unwrap_or(file_reference).to_string();
+            file_name = file_reference
+                .rsplit('/')
+                .next()
+                .unwrap_or(file_reference)
+                .to_string();
         }
 
         FormDataFieldDto {
             key: key.to_string(),
             value: String::new(),
             enabled: true,
+            kind: Some("file".to_string()),
             file_name: Some(file_name),
             mime_type,
         }
@@ -164,6 +179,7 @@ fn parse_form_field(value: &str) -> FormDataFieldDto {
             key: key.to_string(),
             value: raw_value.to_string(),
             enabled: true,
+            kind: Some("text".to_string()),
             file_name: None,
             mime_type: None,
         }
@@ -176,7 +192,9 @@ fn classify_body(
     form_fields: Vec<FormDataFieldDto>,
 ) -> RequestBodyDto {
     if !form_fields.is_empty() {
-        return RequestBodyDto::FormData { fields: form_fields };
+        return RequestBodyDto::FormData {
+            fields: form_fields,
+        };
     }
 
     let value = body_value.unwrap_or_default();
@@ -186,7 +204,9 @@ fn classify_body(
         };
     }
 
-    let content_type = content_type.map(str::trim).filter(|value| !value.is_empty());
+    let content_type = content_type
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
     let looks_like_json = serde_json::from_str::<serde_json::Value>(&value).is_ok();
 
     if looks_like_json {
@@ -206,7 +226,10 @@ fn derive_request_name(method: &str, url: &str) -> String {
             return format!("{method} {path}");
         }
 
-        return format!("{method} {}", parsed.host_str().unwrap_or("Imported Request"));
+        return format!(
+            "{method} {}",
+            parsed.host_str().unwrap_or("Imported Request")
+        );
     }
 
     format!("{method} Imported Request")
@@ -245,7 +268,11 @@ fn parse_openapi_document(document: &str) -> Result<(Value, OpenAPI), AppError> 
     Ok((value, parsed))
 }
 
-fn warning_diag(code: &str, message: impl Into<String>, location: impl Into<String>) -> ImportDiagnosticDto {
+fn warning_diag(
+    code: &str,
+    message: impl Into<String>,
+    location: impl Into<String>,
+) -> ImportDiagnosticDto {
     ImportDiagnosticDto {
         code: code.to_string(),
         severity: "warning".to_string(),
@@ -254,7 +281,11 @@ fn warning_diag(code: &str, message: impl Into<String>, location: impl Into<Stri
     }
 }
 
-fn skipped_diag(code: &str, message: impl Into<String>, location: impl Into<String>) -> ImportDiagnosticDto {
+fn skipped_diag(
+    code: &str,
+    message: impl Into<String>,
+    location: impl Into<String>,
+) -> ImportDiagnosticDto {
     ImportDiagnosticDto {
         code: code.to_string(),
         severity: "skipped".to_string(),
@@ -337,9 +368,8 @@ fn resolve_reference_value<T: DeserializeOwned>(
     let value = root
         .pointer(pointer)
         .ok_or_else(|| format!("unresolved reference: {reference}"))?;
-    serde_json::from_value::<T>(value.clone()).map_err(|error| {
-        format!("failed to deserialize resolved reference {reference}: {error}")
-    })
+    serde_json::from_value::<T>(value.clone())
+        .map_err(|error| format!("failed to deserialize resolved reference {reference}: {error}"))
 }
 
 fn resolve_reference_or<T: Clone + DeserializeOwned>(
@@ -390,10 +420,11 @@ fn schema_default_value(schema: &Schema) -> Option<Value> {
             .enumeration
             .iter()
             .find_map(|value| value.clone().map(Value::String)),
-        SchemaKind::Type(Type::Number(kind)) => kind
-            .enumeration
-            .iter()
-            .find_map(|value| value.and_then(serde_json::Number::from_f64).map(Value::Number)),
+        SchemaKind::Type(Type::Number(kind)) => kind.enumeration.iter().find_map(|value| {
+            value
+                .and_then(serde_json::Number::from_f64)
+                .map(Value::Number)
+        }),
         SchemaKind::Type(Type::Integer(kind)) => kind
             .enumeration
             .iter()
@@ -418,19 +449,16 @@ fn schema_placeholder_value(schema: &Schema, name: &str) -> Value {
                 Value::String(placeholder_from_name(name))
             }
         }
-        SchemaKind::Type(Type::Number(_)) | SchemaKind::Type(Type::Integer(_)) | SchemaKind::Type(Type::Boolean(_)) => {
-            Value::String(placeholder_from_name(name))
-        }
+        SchemaKind::Type(Type::Number(_))
+        | SchemaKind::Type(Type::Integer(_))
+        | SchemaKind::Type(Type::Boolean(_)) => Value::String(placeholder_from_name(name)),
         SchemaKind::Type(Type::Array(_)) => Value::Array(Vec::new()),
         SchemaKind::Type(Type::Object(_)) => Value::Object(serde_json::Map::new()),
         _ => Value::String(placeholder_from_name(name)),
     }
 }
 
-fn parameter_string_value(
-    root: &Value,
-    data: &ParameterData,
-) -> Result<String, String> {
+fn parameter_string_value(root: &Value, data: &ParameterData) -> Result<String, String> {
     if let Some(example) = data.example.as_ref() {
         return Ok(stringify_value(example));
     }
@@ -581,7 +609,11 @@ fn collect_parameters(
 ) -> Result<Vec<Parameter>, ImportDiagnosticDto> {
     let mut parameters = Vec::new();
 
-    for source in path_item.parameters.iter().chain(operation.parameters.iter()) {
+    for source in path_item
+        .parameters
+        .iter()
+        .chain(operation.parameters.iter())
+    {
         let resolved = resolve_reference_or::<Parameter>(root, source).map_err(|message| {
             let code = if message.contains("external reference") {
                 "OPENAPI_EXTERNAL_REFERENCE"
@@ -636,8 +668,13 @@ fn derive_form_fields_from_schema(
                 );
                 fields.push(FormDataFieldDto {
                     key: name.clone(),
-                    value: if is_binary { String::new() } else { stringify_value(&value) },
+                    value: if is_binary {
+                        String::new()
+                    } else {
+                        stringify_value(&value)
+                    },
                     enabled: true,
+                    kind: Some(if is_binary { "file" } else { "text" }.to_string()),
                     file_name: None,
                     mime_type: None,
                 });
@@ -649,10 +686,7 @@ fn derive_form_fields_from_schema(
     Ok(fields)
 }
 
-fn derive_urlencoded_body_from_schema(
-    root: &Value,
-    schema: &Schema,
-) -> Result<String, String> {
+fn derive_urlencoded_body_from_schema(root: &Value, schema: &Schema) -> Result<String, String> {
     let mut parts = Vec::new();
 
     if let SchemaKind::Type(Type::Object(object_type)) = &schema.schema_kind {
@@ -667,7 +701,9 @@ fn derive_urlencoded_body_from_schema(
     Ok(parts.join("&"))
 }
 
-fn media_type_precedence<'a>(content: &'a BTreeMap<String, &'a MediaType>) -> Option<(&'a str, &'a MediaType)> {
+fn media_type_precedence<'a>(
+    content: &'a BTreeMap<String, &'a MediaType>,
+) -> Option<(&'a str, &'a MediaType)> {
     for preferred in [
         "application/json",
         "multipart/form-data",
@@ -678,13 +714,13 @@ fn media_type_precedence<'a>(content: &'a BTreeMap<String, &'a MediaType>) -> Op
         }
     }
 
-    content.iter().next().map(|(key, value)| (key.as_str(), *value))
+    content
+        .iter()
+        .next()
+        .map(|(key, value)| (key.as_str(), *value))
 }
 
-fn resolve_example_value(
-    root: &Value,
-    media_type: &MediaType,
-) -> Result<Option<Value>, String> {
+fn resolve_example_value(root: &Value, media_type: &MediaType) -> Result<Option<Value>, String> {
     if let Some(value) = media_type.example.as_ref() {
         return Ok(Some(value.clone()));
     }
@@ -701,9 +737,28 @@ fn map_request_body(
     root: &Value,
     operation: &Operation,
     location: &str,
-) -> Result<(String, String, Option<String>, Vec<FormDataFieldDto>, Option<String>, Option<String>, Vec<ImportDiagnosticDto>), ImportDiagnosticDto> {
+) -> Result<
+    (
+        String,
+        String,
+        Option<String>,
+        Vec<FormDataFieldDto>,
+        Option<String>,
+        Option<String>,
+        Vec<ImportDiagnosticDto>,
+    ),
+    ImportDiagnosticDto,
+> {
     let Some(body_ref) = operation.request_body.as_ref() else {
-        return Ok((String::new(), "json".to_string(), None, Vec::new(), None, None, Vec::new()));
+        return Ok((
+            String::new(),
+            "json".to_string(),
+            None,
+            Vec::new(),
+            None,
+            None,
+            Vec::new(),
+        ));
     };
 
     let request_body = resolve_reference_or::<RequestBody>(root, body_ref).map_err(|message| {
@@ -722,18 +777,23 @@ fn map_request_body(
         .collect::<BTreeMap<_, _>>();
 
     let Some((content_type, media_type)) = media_type_precedence(&content) else {
-        return Ok((String::new(), "json".to_string(), None, Vec::new(), None, None, vec![
-            warning_diag(
+        return Ok((
+            String::new(),
+            "json".to_string(),
+            None,
+            Vec::new(),
+            None,
+            None,
+            vec![warning_diag(
                 "OPENAPI_UNSUPPORTED_MEDIA_TYPE",
                 "request body is declared without content entries",
                 location,
-            ),
-        ]));
+            )],
+        ));
     };
 
-    let example_value = resolve_example_value(root, media_type).map_err(|message| {
-        skipped_diag("OPENAPI_UNRESOLVED_REFERENCE", message, location)
-    })?;
+    let example_value = resolve_example_value(root, media_type)
+        .map_err(|message| skipped_diag("OPENAPI_UNRESOLVED_REFERENCE", message, location))?;
 
     match content_type {
         "application/json" => {
@@ -741,7 +801,15 @@ fn map_request_body(
                 .as_ref()
                 .map(stringify_json_value)
                 .unwrap_or_else(|| "{}".to_string());
-            Ok((body, "json".to_string(), None, Vec::new(), None, None, Vec::new()))
+            Ok((
+                body,
+                "json".to_string(),
+                None,
+                Vec::new(),
+                None,
+                None,
+                Vec::new(),
+            ))
         }
         "multipart/form-data" => {
             let schema = media_type
@@ -749,7 +817,9 @@ fn map_request_body(
                 .as_ref()
                 .map(|value| resolve_reference_or::<Schema>(root, value))
                 .transpose()
-                .map_err(|message| skipped_diag("OPENAPI_UNRESOLVED_REFERENCE", message, location))?;
+                .map_err(|message| {
+                    skipped_diag("OPENAPI_UNRESOLVED_REFERENCE", message, location)
+                })?;
 
             let fields = if let Some(Value::Object(map)) = example_value.as_ref() {
                 map.iter()
@@ -757,13 +827,15 @@ fn map_request_body(
                         key: key.clone(),
                         value: stringify_value(value),
                         enabled: true,
+                        kind: Some("text".to_string()),
                         file_name: None,
                         mime_type: None,
                     })
                     .collect()
             } else if let Some(schema) = schema.as_ref() {
-                derive_form_fields_from_schema(root, schema)
-                    .map_err(|message| skipped_diag("OPENAPI_UNRESOLVED_REFERENCE", message, location))?
+                derive_form_fields_from_schema(root, schema).map_err(|message| {
+                    skipped_diag("OPENAPI_UNRESOLVED_REFERENCE", message, location)
+                })?
             } else {
                 Vec::new()
             };
@@ -774,7 +846,15 @@ fn map_request_body(
                 .collect::<Vec<_>>()
                 .join("\n");
 
-            Ok((body, "formdata".to_string(), None, fields, None, None, Vec::new()))
+            Ok((
+                body,
+                "formdata".to_string(),
+                None,
+                fields,
+                None,
+                None,
+                Vec::new(),
+            ))
         }
         "application/x-www-form-urlencoded" => {
             let schema = media_type
@@ -782,7 +862,9 @@ fn map_request_body(
                 .as_ref()
                 .map(|value| resolve_reference_or::<Schema>(root, value))
                 .transpose()
-                .map_err(|message| skipped_diag("OPENAPI_UNRESOLVED_REFERENCE", message, location))?;
+                .map_err(|message| {
+                    skipped_diag("OPENAPI_UNRESOLVED_REFERENCE", message, location)
+                })?;
 
             let body = if let Some(Value::Object(map)) = example_value.as_ref() {
                 map.iter()
@@ -790,8 +872,9 @@ fn map_request_body(
                     .collect::<Vec<_>>()
                     .join("&")
             } else if let Some(schema) = schema.as_ref() {
-                derive_urlencoded_body_from_schema(root, schema)
-                    .map_err(|message| skipped_diag("OPENAPI_UNRESOLVED_REFERENCE", message, location))?
+                derive_urlencoded_body_from_schema(root, schema).map_err(|message| {
+                    skipped_diag("OPENAPI_UNRESOLVED_REFERENCE", message, location)
+                })?
             } else {
                 String::new()
             };
@@ -894,7 +977,11 @@ fn map_security_requirement(
                     warnings,
                 );
             }
-            SecurityScheme::APIKey { location: APIKeyLocation::Header, name, .. } => {
+            SecurityScheme::APIKey {
+                location: APIKeyLocation::Header,
+                name,
+                ..
+            } => {
                 return (
                     Some(AuthConfigDto {
                         r#type: "apiKey".to_string(),
@@ -906,7 +993,11 @@ fn map_security_requirement(
                     warnings,
                 );
             }
-            SecurityScheme::APIKey { location: APIKeyLocation::Query, name, .. } => {
+            SecurityScheme::APIKey {
+                location: APIKeyLocation::Query,
+                name,
+                ..
+            } => {
                 return (
                     Some(AuthConfigDto {
                         r#type: "apiKey".to_string(),
@@ -978,7 +1069,8 @@ fn analyze_operation(
     let location = render_operation_location(method, path);
     let mut diagnostics = Vec::new();
 
-    let (server_base, server_warnings) = select_server_base_url(api, path_item, operation, &location);
+    let (server_base, server_warnings) =
+        select_server_base_url(api, path_item, operation, &location);
     diagnostics.extend(server_warnings);
 
     let mut params = Vec::new();
@@ -989,8 +1081,9 @@ fn analyze_operation(
             Parameter::Query { parameter_data, .. } => {
                 params.push(KeyValueItemDto {
                     key: parameter_data.name.clone(),
-                    value: parameter_string_value(root, &parameter_data)
-                        .map_err(|message| skipped_diag("OPENAPI_UNRESOLVED_REFERENCE", message, &location))?,
+                    value: parameter_string_value(root, &parameter_data).map_err(|message| {
+                        skipped_diag("OPENAPI_UNRESOLVED_REFERENCE", message, &location)
+                    })?,
                     description: parameter_data.description.unwrap_or_default(),
                     enabled: true,
                 });
@@ -1003,8 +1096,9 @@ fn analyze_operation(
                 }
                 headers.push(KeyValueItemDto {
                     key: parameter_data.name.clone(),
-                    value: parameter_string_value(root, &parameter_data)
-                        .map_err(|message| skipped_diag("OPENAPI_UNRESOLVED_REFERENCE", message, &location))?,
+                    value: parameter_string_value(root, &parameter_data).map_err(|message| {
+                        skipped_diag("OPENAPI_UNRESOLVED_REFERENCE", message, &location)
+                    })?,
                     description: parameter_data.description.unwrap_or_default(),
                     enabled: true,
                 });
@@ -1012,7 +1106,10 @@ fn analyze_operation(
             Parameter::Path { .. } => {}
             Parameter::Cookie { parameter_data, .. } => diagnostics.push(warning_diag(
                 "OPENAPI_UNSUPPORTED_PARAMETER_LOCATION",
-                format!("cookie parameter `{}` is not imported in MVP", parameter_data.name),
+                format!(
+                    "cookie parameter `{}` is not imported in MVP",
+                    parameter_data.name
+                ),
                 &location,
             )),
         }
@@ -1021,14 +1118,19 @@ fn analyze_operation(
     let (auth, auth_warnings) = map_operation_auth(root, api, operation, &location);
     diagnostics.extend(auth_warnings);
 
-    let (body, body_type, body_content_type, form_data_fields, binary_file_name, binary_mime_type, body_warnings) =
-        map_request_body(root, operation, &location)?;
+    let (
+        body,
+        body_type,
+        body_content_type,
+        form_data_fields,
+        binary_file_name,
+        binary_mime_type,
+        body_warnings,
+    ) = map_request_body(root, operation, &location)?;
     diagnostics.extend(body_warnings);
 
-    let collection_name = render_collection_name(
-        spec_title,
-        operation.tags.first().map(String::as_str),
-    );
+    let collection_name =
+        render_collection_name(spec_title, operation.tags.first().map(String::as_str));
     let request = RequestPresetDto {
         id: String::new(),
         name: derive_request_name_from_operation(method, path, operation),
@@ -1050,6 +1152,7 @@ fn analyze_operation(
         auth,
         tests: Vec::new(),
         mock: None,
+        execution_options: crate::models::RequestExecutionOptionsDto::default(),
     };
 
     Ok((
@@ -1074,11 +1177,7 @@ pub fn analyze_openapi_document(
     }
 
     let (root, openapi) = parse_openapi_document(document)?;
-    let spec_title = openapi
-        .info
-        .title
-        .trim()
-        .to_string();
+    let spec_title = openapi.info.title.trim().to_string();
     let spec_title = if spec_title.is_empty() {
         OPENAPI_FALLBACK_COLLECTION_NAME.to_string()
     } else {
@@ -1105,7 +1204,15 @@ pub fn analyze_openapi_document(
 
         for (method, operation) in path_item.iter() {
             total_operation_count += 1;
-            match analyze_operation(&root, &openapi, &spec_title, path, method, path_item, operation) {
+            match analyze_operation(
+                &root,
+                &openapi,
+                &spec_title,
+                path,
+                method,
+                path_item,
+                operation,
+            ) {
                 Ok((candidate, operation_diagnostics)) => {
                     diagnostics.extend(operation_diagnostics);
                     candidates.push(candidate);
@@ -1128,7 +1235,9 @@ pub fn analyze_openapi_document(
 
     let mut grouping = BTreeMap::<String, usize>::new();
     for candidate in &candidates {
-        *grouping.entry(candidate.collection_name.clone()).or_default() += 1;
+        *grouping
+            .entry(candidate.collection_name.clone())
+            .or_default() += 1;
     }
 
     let warning_diagnostic_count = diagnostics
@@ -1149,7 +1258,10 @@ pub fn analyze_openapi_document(
         diagnostics,
         grouping_suggestions: grouping
             .into_iter()
-            .map(|(name, request_count)| OpenApiCollectionSuggestionDto { name, request_count })
+            .map(|(name, request_count)| OpenApiCollectionSuggestionDto {
+                name,
+                request_count,
+            })
             .collect(),
         candidates,
     })
@@ -1170,7 +1282,10 @@ pub fn apply_openapi_import(
     if payload.analysis.version != OPENAPI_ANALYSIS_VERSION {
         return Err(AppError {
             code: "OPENAPI_UNSUPPORTED_ANALYSIS_VERSION".to_string(),
-            message: format!("unsupported OpenAPI analysis version: {}", payload.analysis.version),
+            message: format!(
+                "unsupported OpenAPI analysis version: {}",
+                payload.analysis.version
+            ),
             details: None,
         });
     }
@@ -1193,20 +1308,21 @@ pub fn apply_openapi_import(
     let mut touched_collection_names = BTreeSet::new();
 
     for candidate in &payload.analysis.candidates {
-        let collection_id = if let Some(existing_id) = collection_ids.get(&candidate.collection_name) {
-            existing_id.clone()
-        } else {
-            let created = db::create_collection(
-                db_path,
-                &CreateCollectionPayloadDto {
-                    workspace_id: payload.workspace_id.clone(),
-                    name: candidate.collection_name.clone(),
-                },
-            )?;
-            collections.push(created.clone());
-            collection_ids.insert(created.name.clone(), created.id.clone());
-            created.id
-        };
+        let collection_id =
+            if let Some(existing_id) = collection_ids.get(&candidate.collection_name) {
+                existing_id.clone()
+            } else {
+                let created = db::create_collection(
+                    db_path,
+                    &CreateCollectionPayloadDto {
+                        workspace_id: payload.workspace_id.clone(),
+                        name: candidate.collection_name.clone(),
+                    },
+                )?;
+                collections.push(created.clone());
+                collection_ids.insert(created.name.clone(), created.id.clone());
+                created.id
+            };
 
         let mut request = candidate.request.clone();
         request.id = String::new();
@@ -1243,7 +1359,10 @@ pub fn apply_openapi_import(
 pub fn parse_curl_command(command: &str) -> Result<ImportPlan, AppError> {
     let tokens = tokenize_shell_command(command)?;
     if tokens.is_empty() || tokens[0] != "curl" {
-        return Err(error("INVALID_CURL_COMMAND", "curl import requires a command starting with curl"));
+        return Err(error(
+            "INVALID_CURL_COMMAND",
+            "curl import requires a command starting with curl",
+        ));
     }
 
     let mut method: Option<String> = None;
@@ -1258,12 +1377,16 @@ pub fn parse_curl_command(command: &str) -> Result<ImportPlan, AppError> {
     while index < tokens.len() {
         let token = &tokens[index];
 
-        let consume_next = |index: &mut usize, tokens: &[String], option_name: &str| -> Result<String, AppError> {
-            *index += 1;
-            tokens.get(*index)
-                .cloned()
-                .ok_or_else(|| error("INVALID_CURL_COMMAND", format!("missing value for {option_name}")))
-        };
+        let consume_next =
+            |index: &mut usize, tokens: &[String], option_name: &str| -> Result<String, AppError> {
+                *index += 1;
+                tokens.get(*index).cloned().ok_or_else(|| {
+                    error(
+                        "INVALID_CURL_COMMAND",
+                        format!("missing value for {option_name}"),
+                    )
+                })
+            };
 
         match token.as_str() {
             "-X" | "--request" => {
@@ -1327,7 +1450,8 @@ pub fn parse_curl_command(command: &str) -> Result<ImportPlan, AppError> {
                     enabled: true,
                 });
             }
-            "-L" | "--location" | "-k" | "--insecure" | "-s" | "--silent" | "--compressed" | "-i" | "--include" => {}
+            "-L" | "--location" | "-k" | "--insecure" | "-s" | "--silent" | "--compressed"
+            | "-i" | "--include" => {}
             _ if token.starts_with("--request=") => {
                 method = token.split_once('=').map(|(_, value)| value.to_uppercase());
             }
@@ -1393,7 +1517,8 @@ pub fn parse_curl_command(command: &str) -> Result<ImportPlan, AppError> {
             "GET".to_string()
         }
     });
-    let url = url.ok_or_else(|| error("INVALID_CURL_COMMAND", "curl import requires a target URL"))?;
+    let url =
+        url.ok_or_else(|| error("INVALID_CURL_COMMAND", "curl import requires a target URL"))?;
     let body = classify_body(body_value, content_type.as_deref(), form_fields);
 
     Ok(ImportPlan {
@@ -1410,7 +1535,16 @@ pub fn parse_curl_command(command: &str) -> Result<ImportPlan, AppError> {
     })
 }
 
-fn body_to_tab_fields(body: &RequestBodyDto) -> (String, String, Option<String>, Vec<FormDataFieldDto>, Option<String>, Option<String>) {
+fn body_to_tab_fields(
+    body: &RequestBodyDto,
+) -> (
+    String,
+    String,
+    Option<String>,
+    Vec<FormDataFieldDto>,
+    Option<String>,
+    Option<String>,
+) {
     match body {
         RequestBodyDto::Json { value } => (
             value.clone(),
@@ -1420,7 +1554,10 @@ fn body_to_tab_fields(body: &RequestBodyDto) -> (String, String, Option<String>,
             None,
             None,
         ),
-        RequestBodyDto::Raw { value, content_type } => (
+        RequestBodyDto::Raw {
+            value,
+            content_type,
+        } => (
             value.clone(),
             "raw".to_string(),
             content_type.clone(),
@@ -1459,7 +1596,10 @@ fn body_to_tab_fields(body: &RequestBodyDto) -> (String, String, Option<String>,
 pub fn import_curl_to_draft(command: &str) -> Result<RequestTabStateDto, AppError> {
     let plan = parse_curl_command(command)?;
     if plan.adapter_key != "curl" || plan.source_kind != "curl" {
-        return Err(error("INVALID_IMPORT_PLAN", "curl import produced an unexpected import plan"));
+        return Err(error(
+            "INVALID_IMPORT_PLAN",
+            "curl import produced an unexpected import plan",
+        ));
     }
     let request = plan
         .requests
@@ -1497,6 +1637,7 @@ pub fn import_curl_to_draft(command: &str) -> Result<RequestTabStateDto, AppErro
         auth: request.auth,
         tests: Vec::new(),
         mock: None,
+        execution_options: crate::models::RequestExecutionOptionsDto::default(),
         response: ResponseStateDto {
             request_method: request.method,
             request_url: request.url,
@@ -1512,7 +1653,9 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    use super::{analyze_openapi_document, apply_openapi_import, import_curl_to_draft, parse_curl_command};
+    use super::{
+        analyze_openapi_document, apply_openapi_import, import_curl_to_draft, parse_curl_command,
+    };
     use crate::models::{
         CreateWorkspacePayloadDto, ImportOpenApiApplyPayloadDto, OpenApiImportAnalysisDto,
         RequestBodyDto,
@@ -1580,12 +1723,21 @@ mod tests {
         )
         .expect("curl draft");
 
-        assert_eq!(draft.origin.as_ref().map(|origin| origin.kind.as_str()), Some("scratch"));
+        assert_eq!(
+            draft.origin.as_ref().map(|origin| origin.kind.as_str()),
+            Some("scratch")
+        );
         assert_eq!(draft.persistence_state.as_deref(), Some("unsaved"));
         assert_eq!(draft.body_type, "formdata");
         assert_eq!(draft.form_data_fields.len(), 1);
-        assert_eq!(draft.form_data_fields[0].file_name.as_deref(), Some("demo.txt"));
-        assert_eq!(draft.form_data_fields[0].mime_type.as_deref(), Some("text/plain"));
+        assert_eq!(
+            draft.form_data_fields[0].file_name.as_deref(),
+            Some("demo.txt")
+        );
+        assert_eq!(
+            draft.form_data_fields[0].mime_type.as_deref(),
+            Some("text/plain")
+        );
     }
 
     #[test]
@@ -1605,7 +1757,10 @@ mod tests {
         assert_eq!(json_analysis.summary.skipped_operation_count, 0);
         assert_eq!(json_analysis.summary.warning_diagnostic_count, 0);
         assert_eq!(json_analysis.candidates.len(), 1);
-        assert_eq!(json_analysis.candidates[0].collection_name, "Petstore - Pets");
+        assert_eq!(
+            json_analysis.candidates[0].collection_name,
+            "Petstore - Pets"
+        );
         assert_eq!(json_analysis.candidates[0].request.name, "Get pet");
         assert_eq!(json_analysis.candidates[0].request.method, "GET");
         assert_eq!(
@@ -1613,7 +1768,10 @@ mod tests {
             "https://api.example.com/pets/{{petId}}"
         );
         assert_eq!(json_analysis.candidates[0].request.params.len(), 1);
-        assert_eq!(json_analysis.candidates[0].request.params[0].key, "includeVaccines");
+        assert_eq!(
+            json_analysis.candidates[0].request.params[0].key,
+            "includeVaccines"
+        );
         assert_eq!(json_analysis.candidates[0].request.params[0].value, "true");
     }
 
@@ -1641,7 +1799,10 @@ mod tests {
             .find(|candidate| candidate.request.method == "GET")
             .expect("GET candidate");
         assert_eq!(get_request.collection_name, "Reference Pets - Pets");
-        assert_eq!(get_request.request.url, "https://api.example.com/pets/{{petId}}");
+        assert_eq!(
+            get_request.request.url,
+            "https://api.example.com/pets/{{petId}}"
+        );
         assert_eq!(get_request.request.params.len(), 1);
         assert_eq!(get_request.request.params[0].key, "search");
         assert_eq!(get_request.request.params[0].value, "cats");
@@ -1737,14 +1898,33 @@ mod tests {
         let first_result = apply_openapi_import(&db_path, &payload).expect("first apply");
         let second_result = apply_openapi_import(&db_path, &payload).expect("second apply");
 
-        assert_eq!(first_result.imported_request_count, analysis.summary.importable_request_count);
-        assert_eq!(first_result.skipped_operation_count, analysis.summary.skipped_operation_count);
-        assert_eq!(first_result.warning_diagnostic_count, analysis.summary.warning_diagnostic_count);
-        assert_eq!(first_result.collection_names, vec!["Imported OpenAPI".to_string()]);
-        assert_eq!(second_result.imported_request_count, first_result.imported_request_count);
-        assert_eq!(second_result.warning_diagnostic_count, first_result.warning_diagnostic_count);
+        assert_eq!(
+            first_result.imported_request_count,
+            analysis.summary.importable_request_count
+        );
+        assert_eq!(
+            first_result.skipped_operation_count,
+            analysis.summary.skipped_operation_count
+        );
+        assert_eq!(
+            first_result.warning_diagnostic_count,
+            analysis.summary.warning_diagnostic_count
+        );
+        assert_eq!(
+            first_result.collection_names,
+            vec!["Imported OpenAPI".to_string()]
+        );
+        assert_eq!(
+            second_result.imported_request_count,
+            first_result.imported_request_count
+        );
+        assert_eq!(
+            second_result.warning_diagnostic_count,
+            first_result.warning_diagnostic_count
+        );
 
-        let collections = db::list_collections(&db_path, &workspace_id).expect("collections listed");
+        let collections =
+            db::list_collections(&db_path, &workspace_id).expect("collections listed");
         assert_eq!(collections.len(), 1);
         assert_eq!(collections[0].name, "Imported OpenAPI");
         assert_eq!(collections[0].requests.len(), 4);
@@ -1757,19 +1937,27 @@ mod tests {
         let db_path = temp_db_path("mismatch");
         let analysis = analyze_fixture("workspace-1", "parity.json");
 
-        let error = apply_openapi_import(&db_path, &ImportOpenApiApplyPayloadDto {
-            workspace_id: "workspace-2".to_string(),
-            analysis: analysis.clone(),
-        }).expect_err("workspace mismatch");
+        let error = apply_openapi_import(
+            &db_path,
+            &ImportOpenApiApplyPayloadDto {
+                workspace_id: "workspace-2".to_string(),
+                analysis: analysis.clone(),
+            },
+        )
+        .expect_err("workspace mismatch");
 
         assert_eq!(error.code, "OPENAPI_WORKSPACE_MISMATCH");
 
         let mut unsupported_analysis = analysis;
         unsupported_analysis.version = "999".to_string();
-        let version_error = apply_openapi_import(&db_path, &ImportOpenApiApplyPayloadDto {
-            workspace_id: "workspace-1".to_string(),
-            analysis: unsupported_analysis,
-        }).expect_err("version mismatch");
+        let version_error = apply_openapi_import(
+            &db_path,
+            &ImportOpenApiApplyPayloadDto {
+                workspace_id: "workspace-1".to_string(),
+                analysis: unsupported_analysis,
+            },
+        )
+        .expect_err("version mismatch");
 
         assert_eq!(version_error.code, "OPENAPI_UNSUPPORTED_ANALYSIS_VERSION");
 
