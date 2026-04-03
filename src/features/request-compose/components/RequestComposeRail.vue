@@ -14,6 +14,8 @@ defineProps<{
   bodyConfiguredCount: number
   bodyInvalidCount: number
   authConfiguredCount: number
+  executionConfiguredCount: number
+  executionInvalidCount: number
   testsCount: number
   enabledEnvironmentVariablesCount: number
   invalidEnvironmentVariablesCount: number
@@ -61,6 +63,18 @@ defineProps<{
     <span class="mx-1 h-5 w-px self-center bg-[color:var(--zr-border)]" />
     <TabsTrigger value="mock" data-testid="request-section-trigger-mock" data-request-secondary="true" class="zr-tab-trigger opacity-80">
       {{ requestText.mock }}
+    </TabsTrigger>
+    <TabsTrigger value="execution" data-testid="request-section-trigger-execution" data-request-secondary="true" class="zr-tab-trigger opacity-80">
+      {{ requestText.execution }}
+      <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ executionConfiguredCount }}</Badge>
+      <Badge
+        v-if="executionInvalidCount > 0"
+        data-testid="request-section-invalid-execution"
+        variant="secondary"
+        class="ml-1 rounded-full border border-rose-500/25 bg-rose-500/10 px-1.5 py-0 text-[9px] text-rose-700 dark:text-rose-300"
+      >
+        {{ executionInvalidCount }}
+      </Badge>
     </TabsTrigger>
     <TabsTrigger value="auth" data-testid="request-section-trigger-auth" data-request-secondary="true" class="zr-tab-trigger opacity-80">
       {{ requestText.auth }}

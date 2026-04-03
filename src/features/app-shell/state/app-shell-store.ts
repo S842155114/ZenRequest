@@ -20,6 +20,8 @@ import type {
   SendRequestResult,
 } from '@/lib/tauri-client'
 import type { StartupState } from '../types'
+import { createWorkbenchActivityProjection } from '../domain/request-activity'
+import { resolveActiveRequestUrl } from '../domain/url-resolution'
 import {
   HISTORY_LIMIT,
   cloneAuth,
@@ -30,12 +32,9 @@ import {
   cloneTab,
   cloneTests,
   createRequestTabFromPreset,
-  createWorkbenchActivityProjection,
   defaultEnvironments,
   formatBytes,
   resolveResponseStateFromStatus,
-  resolveTemplate,
-  resolveVariablesMap,
 } from '@/lib/request-workspace'
 
 const DEFAULT_WORKSPACE: WorkspaceSummary = { id: 'workspace-local', name: 'Local Workspace' }
@@ -189,12 +188,16 @@ export const createAppShellStore = (state: AppShellState): AppShellStore => {
       const activeTab = selectors.getActiveTab()
       return activeTab?.origin?.requestId ?? activeTab?.requestId
     },
-    getWorkbenchActivityProjection: () => createWorkbenchActivityProjection(state.request.openTabs, state.request.activeTabId),
+    getWorkbenchActivityProjection: () => createWorkbenchActivityProjection(
+      state.request.openTabs,
+      state.request.activeTabId,
+      resolveResponseStateFromStatus,
+    ),
     getResolvedActiveUrl: () => {
       const activeTab = selectors.getActiveTab()
       const activeEnvironment = selectors.getActiveEnvironment()
       if (!activeTab || !activeEnvironment) return ''
-      return resolveTemplate(activeTab.url, resolveVariablesMap(activeEnvironment.variables))
+      return resolveActiveRequestUrl(activeTab.url, activeEnvironment.variables)
     },
     canDeleteWorkspace: () => state.workspace.items.length > 1,
     canImportOpenApi: () => {

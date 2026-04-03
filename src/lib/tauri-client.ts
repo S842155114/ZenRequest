@@ -159,6 +159,7 @@ export interface FormDataFieldDto {
   key: string
   value: string
   enabled: boolean
+  kind?: 'text' | 'file'
   fileName?: string
   mimeType?: string
 }
@@ -274,16 +275,17 @@ const parseFormDataBody = (raw: string): FormDataFieldDto[] => raw
   .split('\n')
   .map((line) => line.trim())
   .filter(Boolean)
-  .map((line) => {
+  .map<FormDataFieldDto>((line) => {
     const separatorIndex = line.indexOf('=')
     if (separatorIndex < 0) {
-      return { key: line, value: '', enabled: true }
+      return { key: line, value: '', enabled: true, kind: 'text' }
     }
 
     return {
       key: line.slice(0, separatorIndex).trim(),
       value: line.slice(separatorIndex + 1),
       enabled: true,
+      kind: 'text',
     }
   })
   .filter((item) => item.key.length > 0)

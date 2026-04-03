@@ -2,6 +2,80 @@ use serde::{Deserialize, Serialize};
 
 use crate::models::app::HistoryItemDto;
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum RequestRedirectPolicyDto {
+    Follow,
+    Manual,
+    Error,
+}
+
+impl Default for RequestRedirectPolicyDto {
+    fn default() -> Self {
+        Self::Follow
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum RequestProxyModeDto {
+    Inherit,
+    Off,
+    Custom,
+}
+
+impl Default for RequestProxyModeDto {
+    fn default() -> Self {
+        Self::Inherit
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RequestProxySettingsDto {
+    #[serde(default)]
+    pub mode: RequestProxyModeDto,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+}
+
+impl Default for RequestProxySettingsDto {
+    fn default() -> Self {
+        Self {
+            mode: RequestProxyModeDto::Inherit,
+            url: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RequestExecutionOptionsDto {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timeout_ms: Option<u64>,
+    #[serde(default)]
+    pub redirect_policy: RequestRedirectPolicyDto,
+    #[serde(default)]
+    pub proxy: RequestProxySettingsDto,
+    #[serde(default = "default_verify_ssl")]
+    pub verify_ssl: bool,
+}
+
+impl Default for RequestExecutionOptionsDto {
+    fn default() -> Self {
+        Self {
+            timeout_ms: None,
+            redirect_policy: RequestRedirectPolicyDto::Follow,
+            proxy: RequestProxySettingsDto::default(),
+            verify_ssl: true,
+        }
+    }
+}
+
+fn default_verify_ssl() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct KeyValueItemDto {
@@ -73,6 +147,8 @@ pub struct FormDataFieldDto {
     pub value: String,
     #[serde(default)]
     pub enabled: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -149,6 +225,8 @@ pub struct SendRequestPayloadDto {
     pub tests: Vec<RequestTestDefinitionDto>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mock: Option<RequestMockStateDto>,
+    #[serde(default)]
+    pub execution_options: RequestExecutionOptionsDto,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -186,6 +264,8 @@ pub struct CompiledRequestDto {
     pub auth: AuthConfigDto,
     #[serde(default)]
     pub tests: Vec<RequestTestDefinitionDto>,
+    #[serde(default)]
+    pub execution_options: RequestExecutionOptionsDto,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

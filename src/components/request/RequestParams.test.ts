@@ -250,7 +250,7 @@ describe('RequestParams compact chrome', () => {
     const lastBodyUpdate = bodyUpdates[bodyUpdates.length - 1]?.[0] as string
 
     expect(lastFormDataUpdate).toEqual([
-      { key: '', value: '', enabled: true },
+      { key: '', value: '', enabled: true, kind: 'text' },
     ])
     expect(lastBodyUpdate).toBe('')
   })
@@ -320,13 +320,14 @@ describe('RequestParams compact chrome', () => {
     expect(wrapper.get('[data-testid="request-json-error"]').text()).toContain('Invalid JSON')
   })
 
-  it('marks mock, auth, tests, and env as secondary configuration tabs', () => {
+  it('marks mock, execution, auth, tests, and env as secondary configuration tabs', () => {
     const wrapper = mountRequestParams()
 
-    for (const label of ['Mock', 'Auth', 'Tests', 'Env']) {
-      const trigger = wrapper.findAll('button').find((button) => button.text().includes(label))
-      expect(trigger?.attributes('data-request-secondary')).toBe('true')
-    }
+    expect(wrapper.get('[data-testid="request-section-trigger-mock"]').attributes('data-request-secondary')).toBe('true')
+    expect(wrapper.get('[data-testid="request-section-trigger-execution"]').attributes('data-request-secondary')).toBe('true')
+    expect(wrapper.get('[data-testid="request-section-trigger-auth"]').attributes('data-request-secondary')).toBe('true')
+    expect(wrapper.get('[data-testid="request-section-trigger-tests"]').attributes('data-request-secondary')).toBe('true')
+    expect(wrapper.get('[data-testid="request-section-trigger-env"]').attributes('data-request-secondary')).toBe('true')
   })
 
   it('renders editable request-local mock fields when a mock template exists', async () => {
@@ -502,19 +503,47 @@ describe('RequestParams compact chrome', () => {
     expect(lastControlLane.classes()).toEqual(expect.arrayContaining(['flex', 'h-9', 'items-center', 'justify-center']))
   })
 
-  it('surfaces invalid form-data rows through the body trigger when body mode is form-data', async () => {
-    const wrapper = mountRequestParams()
+  it('shows execution configuration counts and validates invalid execution settings in the execution section', async () => {
+    const wrapper = mountRequestParams({
+      executionOptions: {
+        timeoutMs: 1000,
+        redirectPolicy: 'manual',
+        proxy: { mode: 'off' },
+        verifySsl: false,
+      },
+    })
 
-    await wrapper.get('[data-testid="request-section-trigger-body"]').trigger('click')
-    await wrapper.findAll('button').find((button) => button.text() === 'Form Data')!.trigger('click')
+    expect(wrapper.get('[data-testid="request-section-trigger-execution"]').text()).toContain('4')
 
-    const valueInput = wrapper.findAll('[data-testid="request-formdata-editor"] input')[1]
-    await valueInput.setValue('avatar.png')
+    await wrapper.get('[data-testid="request-section-trigger-execution"]').trigger('click')
 
-    expect(wrapper.get('[data-testid="request-row-error-formdata-0"]').text()).toContain('Key is required')
+    const timeoutInput = wrapper.get('[data-testid="request-execution-timeout"]')
+    await timeoutInput.setValue('0')
+
+    expect(wrapper.get('[data-testid="request-execution-error"]').text()).toContain('Execution options are invalid')
+    expect(wrapper.get('[data-testid="request-section-invalid-execution"]').text()).toContain('1')
+
+    const verifySslToggle = wrapper.get('[data-testid="request-execution-verify-ssl"]')
+    expect(verifySslToggle.attributes('data-state')).toBe('off')
+  })
+
+  it('reveals custom proxy validation through the execution trigger when switching sections', async () => {
+    const wrapper = mountRequestParams({
+      executionOptions: {
+        timeoutMs: undefined,
+        redirectPolicy: 'follow',
+        proxy: { mode: 'inherit' },
+        verifySsl: true,
+      },
+    })
+
+    await wrapper.get('[data-testid="request-section-trigger-execution"]').trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === 'Proxy: Custom')!.trigger('click')
+
+    expect(wrapper.get('[data-testid="request-execution-error"]').text()).toContain('Execution options are invalid')
 
     await wrapper.get('[data-testid="request-section-trigger-headers"]').trigger('click')
 
-    expect(wrapper.get('[data-testid="request-section-invalid-body"]').text()).toContain('1')
+    expect(wrapper.get('[data-testid="request-section-invalid-execution"]').text()).toContain('1')
   })
 })

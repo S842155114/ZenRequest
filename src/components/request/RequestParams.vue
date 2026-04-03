@@ -5,6 +5,7 @@ import {
   RequestAuthSection,
   RequestBodySection,
   RequestComposeRail,
+  RequestExecutionSection,
   RequestKeyValueTableEditor,
   RequestMockSection,
   RequestTestsSection,
@@ -18,6 +19,7 @@ import type {
   FormDataFieldSnapshot,
   KeyValueItem,
   RequestBodyType,
+  RequestExecutionOptions,
   RequestMockState,
   RequestTestDefinition,
 } from '@/types/request'
@@ -44,6 +46,14 @@ const auth = defineModel<AuthConfig>('auth', { default: () => defaultAuthConfig(
 const tests = defineModel<RequestTestDefinition[]>('tests', { default: () => [] })
 const environmentVariables = defineModel<KeyValueItem[]>('environmentVariables', { default: () => [] })
 const mock = defineModel<RequestMockState | undefined>('mock')
+const executionOptions = defineModel<RequestExecutionOptions>('executionOptions', {
+  default: () => ({
+    timeoutMs: undefined,
+    redirectPolicy: 'follow',
+    proxy: { mode: 'inherit' },
+    verifySsl: true,
+  }),
+})
 
 const {
   activeSection,
@@ -54,6 +64,8 @@ const {
   enabledEnvironmentVariablesCount,
   enabledHeadersCount,
   enabledParamsCount,
+  executionConfiguredCount,
+  executionInvalidCount,
   handleBinaryFileChange,
   handleSectionChange,
   invalidEnvironmentVariablesCount,
@@ -68,6 +80,11 @@ const {
   setApiKeyPlacement,
   setAuthType,
   setBodyType,
+  setExecutionRedirectPolicy,
+  setExecutionProxyMode,
+  setExecutionTimeout,
+  setExecutionProxyUrl,
+  setVerifySsl,
   addFormDataField,
   addItem,
   addMockHeader,
@@ -101,6 +118,7 @@ const {
   tests,
   environmentVariables,
   mock,
+  executionOptions,
 })
 
 defineExpose({
@@ -124,6 +142,8 @@ defineExpose({
       :body-configured-count="bodyConfiguredCount"
       :body-invalid-count="bodyInvalidCount"
       :auth-configured-count="authConfiguredCount"
+      :execution-configured-count="executionConfiguredCount"
+      :execution-invalid-count="executionInvalidCount"
       :tests-count="tests.length"
       :enabled-environment-variables-count="enabledEnvironmentVariablesCount"
       :invalid-environment-variables-count="invalidEnvironmentVariablesCount"
@@ -200,6 +220,19 @@ defineExpose({
           :on-update-mock-header="updateMockHeader"
           :on-add-mock-header="addMockHeader"
           :on-remove-mock-header="removeMockHeader"
+        />
+      </TabsContent>
+
+      <TabsContent value="execution" data-testid="request-section-content-execution" class="mt-2.5 px-3 pb-3">
+        <RequestExecutionSection
+          v-model:execution-options="executionOptions"
+          :request-text="requestText"
+          :execution-invalid-count="executionInvalidCount"
+          :on-set-timeout="setExecutionTimeout"
+          :on-set-redirect-policy="setExecutionRedirectPolicy"
+          :on-set-proxy-mode="setExecutionProxyMode"
+          :on-set-proxy-url="setExecutionProxyUrl"
+          :on-set-verify-ssl="setVerifySsl"
         />
       </TabsContent>
 

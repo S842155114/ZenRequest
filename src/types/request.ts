@@ -14,6 +14,8 @@ export type RequestTestSource = 'status' | 'header' | 'body'
 export type RequestTestOperator = 'equals' | 'contains' | 'exists'
 export type ResponseLifecycleState = 'idle' | 'pending' | 'success' | 'http-error' | 'transport-error'
 export type RequestExecutionSource = 'live' | 'mock'
+export type RequestRedirectPolicy = 'follow' | 'manual' | 'error'
+export type RequestProxyMode = 'inherit' | 'off' | 'custom'
 export type RequestTabOriginKind = 'resource' | 'replay' | 'scratch' | 'detached'
 export type RequestTabPersistenceState = 'saved' | 'unsaved' | 'unbound'
 export type RequestTabExecutionState = ResponseLifecycleState
@@ -45,6 +47,7 @@ export interface FormDataFieldSnapshot {
   key: string
   value: string
   enabled: boolean
+  kind?: 'text' | 'file'
   fileName?: string
   mimeType?: string
 }
@@ -56,6 +59,18 @@ export interface RequestMockState {
   contentType: string
   body: string
   headers: KeyValueItem[]
+}
+
+export type RequestProxySettings =
+  | { mode: 'inherit' }
+  | { mode: 'off' }
+  | { mode: 'custom'; url: string }
+
+export interface RequestExecutionOptions {
+  timeoutMs?: number
+  redirectPolicy: RequestRedirectPolicy
+  proxy: RequestProxySettings
+  verifySsl: boolean
 }
 
 export type RequestBodySnapshot =
@@ -152,6 +167,7 @@ export interface RequestPreset {
   auth?: Partial<AuthConfig>
   tests?: RequestTestDefinition[]
   mock?: RequestMockState
+  executionOptions?: RequestExecutionOptions
 }
 
 export interface RequestCollection {
@@ -239,6 +255,7 @@ export interface RequestTabState {
   auth: AuthConfig
   tests: RequestTestDefinition[]
   mock?: RequestMockState
+  executionOptions?: RequestExecutionOptions
   response: ResponseState
   isSending: boolean
   isDirty?: boolean
@@ -265,6 +282,7 @@ export interface SendRequestPayload {
   auth: AuthConfig
   tests: RequestTestDefinition[]
   mock?: RequestMockState
+  executionOptions?: RequestExecutionOptions
 }
 
 export interface WorkspaceSnapshot {

@@ -5,12 +5,9 @@ import type {
   HistoryItem,
   KeyValueItem,
   RequestCollection,
+  RequestExecutionOptions,
   RequestMockState,
   RequestBodySnapshot,
-  RequestTabExecutionState,
-  RequestTabOrigin,
-  RequestTabOriginKind,
-  RequestTabPersistenceState,
   ResponseLifecycleState,
   RequestPreset,
   RequestTestDefinition,
@@ -21,10 +18,14 @@ import type {
   ResponseHeaderItem,
   ResolvedTheme,
   ThemeMode,
-  WorkbenchActivityProjection,
-  WorkbenchActivitySignal,
   WorkspaceSnapshot,
 } from '@/types/request'
+import {
+  cloneTabOrigin,
+  resolveTabExecutionState,
+  resolveTabOrigin,
+  resolveTabPersistenceState,
+} from '@/features/app-shell/domain/request-session'
 
 export const WORKSPACE_STORAGE_KEY = 'zenrequest.workspace'
 export const HISTORY_LIMIT = 20
@@ -38,6 +39,29 @@ export const defaultAuthConfig = (): AuthConfig => ({
   apiKeyValue: '',
   apiKeyPlacement: 'header',
 })
+
+export const defaultExecutionOptions = (): RequestExecutionOptions => ({
+  timeoutMs: undefined,
+  redirectPolicy: 'follow',
+  proxy: { mode: 'inherit' },
+  verifySsl: true,
+})
+
+export const cloneExecutionOptions = (options?: Partial<RequestExecutionOptions>): RequestExecutionOptions => {
+  const merged = {
+    ...defaultExecutionOptions(),
+    ...options,
+  }
+
+  const proxy = options?.proxy ?? merged.proxy
+
+  return {
+    ...merged,
+    proxy: proxy.mode === 'custom'
+      ? { mode: 'custom', url: proxy.url }
+      : { mode: proxy.mode },
+  }
+}
 
 export const createRequestTestId = () => `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
@@ -138,6 +162,7 @@ export const clonePreset = (preset: RequestPreset): RequestPreset => ({
   auth: cloneAuth(preset.auth),
   tests: cloneTests(preset.tests),
   mock: cloneMock(preset.mock),
+  executionOptions: cloneExecutionOptions(preset.executionOptions),
 })
 
 export const cloneCollection = (collection: RequestCollection): RequestCollection => ({
@@ -147,40 +172,6 @@ export const cloneCollection = (collection: RequestCollection): RequestCollectio
 
 export const createTabId = () => `tab-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 const createLegacyId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-
-const cloneTabOrigin = (origin: RequestTabOrigin): RequestTabOrigin => ({
-  kind: origin.kind,
-  requestId: origin.requestId,
-  historyItemId: origin.historyItemId,
-})
-
-const resolveTabOriginKind = (tab: Partial<RequestTabState>): RequestTabOriginKind => {
-  if (tab.origin?.kind) return tab.origin.kind
-  if (tab.requestId) return 'resource'
-  return 'scratch'
-}
-
-const resolveTabOrigin = (tab: Partial<RequestTabState>): RequestTabOrigin => {
-  const kind = resolveTabOriginKind(tab)
-  return cloneTabOrigin({
-    kind,
-    requestId: tab.origin?.requestId ?? tab.requestId,
-    historyItemId: tab.origin?.historyItemId,
-  })
-}
-
-const resolveTabPersistenceState = (tab: Partial<RequestTabState>, origin: RequestTabOrigin): RequestTabPersistenceState => {
-  if (tab.persistenceState) return tab.persistenceState
-  if (origin.kind === 'detached') return 'unbound'
-  if (origin.kind === 'scratch' || origin.kind === 'replay') return 'unsaved'
-  return tab.isDirty ? 'unsaved' : 'saved'
-}
-
-const resolveTabExecutionState = (tab: Partial<RequestTabState>): RequestTabExecutionState => (
-  tab.executionState
-  ?? tab.response?.state
-  ?? resolveResponseStateFromStatus(tab.response?.status ?? 0)
-)
 
 const cloneBodyDefinition = (bodyDefinition: RequestBodySnapshot): RequestBodySnapshot => {
   if (bodyDefinition.kind === 'json') {
@@ -300,8 +291,9 @@ export const normalizeRequestTabState = (tab: RequestTabState): RequestTabState 
     ...tab,
     origin,
     persistenceState: resolveTabPersistenceState(tab, origin),
-    executionState: resolveTabExecutionState(tab),
+    executionState: resolveTabExecutionState(tab, resolveResponseStateFromStatus),
     mock: cloneMock(tab.mock),
+    executionOptions: cloneExecutionOptions(tab.executionOptions),
   }
 }
 
@@ -328,6 +320,7 @@ export const createRequestTabFromPreset = (preset: RequestPreset): RequestTabSta
   auth: cloneAuth(preset.auth),
   tests: cloneTests(preset.tests),
   mock: cloneMock(preset.mock),
+  executionOptions: cloneExecutionOptions(preset.executionOptions),
   response: defaultResponseState({
     requestMethod: preset.method,
     requestUrl: preset.url,
@@ -361,6 +354,7 @@ export const createBlankRequestTab = (): RequestTabState => ({
   formDataFields: [],
   auth: defaultAuthConfig(),
   tests: [],
+  executionOptions: defaultExecutionOptions(),
   response: defaultResponseState({
     requestMethod: 'GET',
     requestUrl: '{{baseUrl}}/todos/1',
@@ -380,6 +374,7 @@ export const cloneTab = (tab: RequestTabState): RequestTabState => ({
   tests: cloneTests(tab.tests),
   formDataFields: (tab.formDataFields ?? []).map((field) => ({ ...field })),
   mock: cloneMock(tab.mock),
+  executionOptions: cloneExecutionOptions(tab.executionOptions),
   response: cloneResponse(tab.response),
   origin: cloneTabOrigin(resolveTabOrigin(tab)),
   isDirty: tab.isDirty ?? false,
@@ -406,103 +401,13 @@ export const createPresetFromTab = (tab: RequestTabState): RequestPreset => ({
   auth: cloneAuth(tab.auth),
   tests: cloneTests(tab.tests),
   mock: cloneMock(tab.mock),
+  executionOptions: cloneExecutionOptions(tab.executionOptions),
 })
 
 export const resolveResponseStateFromStatus = (status: number): ResponseLifecycleState => {
   if (status >= 400) return 'http-error'
   if (status > 0) return 'success'
   return 'idle'
-}
-
-const activityResultPriority: Record<RequestTabExecutionState, number> = {
-  idle: 0,
-  success: 1,
-  'http-error': 2,
-  'transport-error': 3,
-  pending: 4,
-}
-
-const createEmptyActivitySignal = (): WorkbenchActivitySignal => ({
-  active: false,
-  open: false,
-  dirty: false,
-  running: false,
-  recovered: false,
-  result: 'idle',
-})
-
-const mergeActivitySignals = (
-  current: WorkbenchActivitySignal,
-  next: WorkbenchActivitySignal,
-): WorkbenchActivitySignal => ({
-  active: current.active || next.active,
-  open: current.open || next.open,
-  dirty: current.dirty || next.dirty,
-  running: current.running || next.running,
-  recovered: current.recovered || next.recovered,
-  result: activityResultPriority[next.result] >= activityResultPriority[current.result]
-    ? next.result
-    : current.result,
-})
-
-const createTabActivitySignal = (
-  tab: RequestTabState,
-  activeTabId: string,
-): WorkbenchActivitySignal => {
-  const normalizedTab = normalizeRequestTabState(tab)
-  const normalizedOrigin = normalizedTab.origin ?? resolveTabOrigin(normalizedTab)
-  const executionState = normalizedTab.executionState ?? resolveTabExecutionState(normalizedTab)
-  return {
-    active: normalizedTab.id === activeTabId,
-    open: true,
-    dirty: normalizedTab.isDirty ?? normalizedTab.persistenceState !== 'saved',
-    running: normalizedTab.isSending || executionState === 'pending',
-    recovered: normalizedOrigin.kind === 'replay',
-    result: executionState,
-  }
-}
-
-export const createWorkbenchActivityProjection = (
-  tabs: RequestTabState[],
-  activeTabId: string,
-): WorkbenchActivityProjection => {
-  const projection: WorkbenchActivityProjection = {
-    requests: {},
-    history: {},
-    tabs: {},
-    summary: {
-      open: 0,
-      dirty: 0,
-      running: 0,
-      recovered: 0,
-    },
-  }
-
-  for (const tab of tabs.map((item) => normalizeRequestTabState(item))) {
-    const signal = createTabActivitySignal(tab, activeTabId)
-    const normalizedOrigin = tab.origin ?? resolveTabOrigin(tab)
-    projection.tabs[tab.id] = signal
-
-    projection.summary.open += 1
-    projection.summary.dirty += signal.dirty ? 1 : 0
-    projection.summary.running += signal.running ? 1 : 0
-    projection.summary.recovered += signal.recovered ? 1 : 0
-
-    const requestKey = normalizedOrigin.requestId ?? tab.requestId
-    if (requestKey) {
-      projection.requests[requestKey] = requestKey in projection.requests
-        ? mergeActivitySignals(projection.requests[requestKey], signal)
-        : signal
-    }
-
-    if (normalizedOrigin.kind === 'replay' && normalizedOrigin.historyItemId) {
-      projection.history[normalizedOrigin.historyItemId] = normalizedOrigin.historyItemId in projection.history
-        ? mergeActivitySignals(projection.history[normalizedOrigin.historyItemId], signal)
-        : signal
-    }
-  }
-
-  return projection
 }
 
 export const formatBytes = (value: number) => {
@@ -619,6 +524,7 @@ export const createRequestTabFromHistorySnapshot = (
     auth: cloneAuth(snapshot.auth),
     tests: cloneTests(snapshot.tests),
     mock: cloneMock(snapshot.mock),
+    executionOptions: cloneExecutionOptions(snapshot.executionOptions),
     response: defaultResponseState({
       requestMethod: snapshot.method,
       requestUrl: snapshot.url,
@@ -647,21 +553,6 @@ export const createResponseStateFromHistoryItem = (
   stale: false,
   executionSource: item.executionSource ?? 'live',
 })
-
-export const resolveVariablesMap = (variables: KeyValueItem[]) => {
-  const output: Record<string, string> = {}
-
-  for (const item of variables) {
-    if (item.enabled && item.key.trim()) {
-      output[item.key.trim()] = item.value
-    }
-  }
-
-  return output
-}
-
-export const resolveTemplate = (template: string, variables: Record<string, string>) =>
-  template.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (_, key: string) => variables[key.trim()] ?? '')
 
 export const applyThemeToDocument = (theme: ResolvedTheme) => {
   if (typeof document === 'undefined') return

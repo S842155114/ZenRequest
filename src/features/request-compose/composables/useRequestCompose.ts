@@ -1,12 +1,13 @@
 import { computed, ref, watch, type Ref } from 'vue'
 import { getMessages } from '@/lib/i18n'
-import { defaultAuthConfig, defaultRequestTest } from '@/lib/request-workspace'
+import { defaultAuthConfig, defaultExecutionOptions, defaultRequestTest } from '@/lib/request-workspace'
 import type {
   AppLocale,
   AuthConfig,
   FormDataFieldSnapshot,
   KeyValueItem,
   RequestBodyType,
+  RequestExecutionOptions,
   RequestMockState,
   RequestTestDefinition,
 } from '@/types/request'
@@ -40,6 +41,7 @@ interface UseRequestComposeOptions {
   tests: Ref<RequestTestDefinition[]>
   environmentVariables: Ref<KeyValueItem[]>
   mock: Ref<RequestMockState | undefined>
+  executionOptions?: Ref<RequestExecutionOptions | undefined>
 }
 
 export const useRequestCompose = ({
@@ -57,6 +59,7 @@ export const useRequestCompose = ({
   tests,
   environmentVariables,
   mock,
+  executionOptions,
 }: UseRequestComposeOptions) => {
   const activeSection = ref<ComposeSection>('params')
   const revealedRows = ref<Record<TableSection, boolean[]>>({
@@ -68,6 +71,7 @@ export const useRequestCompose = ({
 
   const textBodyDraftsByRequest = ref<Record<string, Record<TextBodyMode, string>>>({})
   const formDataDraftsByRequest = ref<Record<string, FormDataFieldSnapshot[]>>({})
+  const resolvedExecutionOptions = computed(() => executionOptions?.value ?? defaultExecutionOptions())
 
   const getRequestDraftKey = () => requestKey.value || '__default__'
 
@@ -230,6 +234,55 @@ export const useRequestCompose = ({
     }
   }
 
+  const setExecutionTimeout = (value: string | number) => {
+    const raw = String(value).trim()
+    if (!executionOptions) return
+    executionOptions.value = {
+      ...resolvedExecutionOptions.value,
+      timeoutMs: raw ? Number.parseInt(raw, 10) || 0 : undefined,
+    }
+  }
+
+  const setExecutionRedirectPolicy = (value: RequestExecutionOptions['redirectPolicy']) => {
+    if (!executionOptions) return
+    executionOptions.value = {
+      ...resolvedExecutionOptions.value,
+      redirectPolicy: value,
+    }
+  }
+
+  const setExecutionProxyMode = (value: RequestExecutionOptions['proxy']['mode']) => {
+    if (!executionOptions) return
+    executionOptions.value = {
+      ...resolvedExecutionOptions.value,
+      proxy: value === 'custom'
+        ? {
+          mode: 'custom',
+          url: resolvedExecutionOptions.value.proxy.mode === 'custom' ? resolvedExecutionOptions.value.proxy.url : '',
+        }
+        : { mode: value },
+    }
+  }
+
+  const setExecutionProxyUrl = (value: string | number) => {
+    if (!executionOptions) return
+    executionOptions.value = {
+      ...resolvedExecutionOptions.value,
+      proxy: {
+        mode: 'custom',
+        url: String(value),
+      },
+    }
+  }
+
+  const setVerifySsl = (value: boolean) => {
+    if (!executionOptions) return
+    executionOptions.value = {
+      ...resolvedExecutionOptions.value,
+      verifySsl: value,
+    }
+  }
+
   const markRowRevealed = (section: TableSection, index: number) => {
     revealedRows.value[section][index] = true
   }
@@ -335,6 +388,20 @@ export const useRequestCompose = ({
     }
   })
 
+  const executionInvalidCount = computed(() => {
+    let count = 0
+
+    if (resolvedExecutionOptions.value.timeoutMs !== undefined && resolvedExecutionOptions.value.timeoutMs <= 0) {
+      count += 1
+    }
+
+    if (resolvedExecutionOptions.value.proxy.mode === 'custom' && !resolvedExecutionOptions.value.proxy.url.trim()) {
+      count += 1
+    }
+
+    return count
+  })
+
   const prepareForSubmit = () => {
     reconcileKeyValueSection('params', params.value)
     reconcileKeyValueSection('headers', headers.value)
@@ -349,10 +416,16 @@ export const useRequestCompose = ({
       reconcileFormDataSection()
     }
 
+    if (executionInvalidCount.value > 0) {
+      activeSection.value = 'execution'
+      return false
+    }
+
     return invalidParamsCount.value
       + invalidHeadersCount.value
       + invalidEnvironmentVariablesCount.value
-      + bodyInvalidCount.value === 0
+      + bodyInvalidCount.value
+      + executionInvalidCount.value === 0
   }
 
   const isComposeSection = (value: string): value is ComposeSection => composeSections.includes(value as ComposeSection)
@@ -409,6 +482,13 @@ export const useRequestCompose = ({
     }
   }, { immediate: true })
 
+  watch(() => executionOptions?.value, (value) => {
+    if (!executionOptions) return
+    if (!value) {
+      executionOptions.value = defaultExecutionOptions()
+    }
+  }, { immediate: true, deep: true })
+
   const formatJsonBody = () => {
     if (bodyType.value !== 'json' || !bodyContent.value.trim() || jsonBodyError.value) return
     bodyContent.value = JSON.stringify(JSON.parse(bodyContent.value), null, 2)
@@ -436,6 +516,16 @@ export const useRequestCompose = ({
     return 0
   })
   const authConfiguredCount = computed(() => (auth.value.type === 'none' ? 0 : 1))
+  const executionConfiguredCount = computed(() => {
+    let count = 0
+
+    if (resolvedExecutionOptions.value.timeoutMs !== undefined) count += 1
+    if (resolvedExecutionOptions.value.redirectPolicy !== 'follow') count += 1
+    if (resolvedExecutionOptions.value.proxy.mode !== 'inherit') count += 1
+    if (!resolvedExecutionOptions.value.verifySsl) count += 1
+
+    return count
+  })
   const bodyInvalidCount = computed(() => (bodyType.value === 'formdata' ? invalidFormDataCount.value : 0))
 
   const handleBinaryFileChange = async (event: Event) => {
@@ -462,6 +552,8 @@ export const useRequestCompose = ({
     enabledEnvironmentVariablesCount,
     enabledHeadersCount,
     enabledParamsCount,
+    executionConfiguredCount,
+    executionInvalidCount,
     handleBinaryFileChange,
     handleSectionChange,
     invalidEnvironmentVariablesCount,
@@ -476,6 +568,11 @@ export const useRequestCompose = ({
     setApiKeyPlacement,
     setAuthType,
     setBodyType,
+    setExecutionRedirectPolicy,
+    setExecutionProxyMode,
+    setExecutionProxyUrl,
+    setExecutionTimeout,
+    setVerifySsl,
     text,
     addFormDataField,
     addItem,

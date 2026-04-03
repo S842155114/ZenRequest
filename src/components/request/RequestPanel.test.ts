@@ -5,6 +5,20 @@ import { defineComponent, nextTick } from 'vue'
 import RequestPanel from './RequestPanel.vue'
 import type { RequestTabState } from '@/types/request'
 
+const RequestComposeRailStub = defineComponent({
+  name: 'RequestComposeRail',
+  props: {
+    executionConfiguredCount: { type: Number, required: false, default: 0 },
+  },
+  emits: ['send', 'save', 'import-workspace', 'import-openapi', 'import-curl', 'export-workspace'],
+  template: '<button data-testid="request-url-bar-send" @click="$emit(\'send\')">Send</button>',
+})
+
+const withRequestPanelStubs = (stubs: Record<string, unknown>) => ({
+  ...stubs,
+  RequestComposeRail: RequestComposeRailStub,
+})
+
 const RequestUrlBarCaptureStub = defineComponent({
   name: 'RequestUrlBar',
   props: {
@@ -63,6 +77,12 @@ const createTab = (overrides: Partial<RequestTabState> = {}): RequestTabState =>
     apiKeyPlacement: 'header',
   },
   tests: [],
+  executionOptions: {
+    timeoutMs: undefined,
+    redirectPolicy: 'follow',
+    proxy: { mode: 'inherit' },
+    verifySsl: true,
+  },
   response: {
     responseBody: '{}',
     status: 200,
@@ -630,6 +650,50 @@ describe('RequestPanel i18n copy', () => {
     expect(wrapper.emitted('send')).toBeUndefined()
     expect(wrapper.get('[data-testid="request-row-error-params-0"]').text()).toContain('Key is required')
     expect(wrapper.get('[data-testid="request-section-invalid-params"]').text()).toContain('1')
+  })
+
+  it('includes canonical execution options in the send payload', async () => {
+    const wrapper = mount(RequestPanel, {
+      props: {
+        locale: 'en',
+        tabs: [
+          createTab({
+            id: 'tab-execution-send',
+            url: 'https://example.com/orders',
+            bodyType: 'json',
+            body: '{}',
+            executionOptions: {
+              timeoutMs: 2500,
+              redirectPolicy: 'manual',
+              proxy: { mode: 'custom', url: 'http://127.0.0.1:8080' },
+              verifySsl: false,
+            },
+          }),
+        ],
+        activeTabId: 'tab-execution-send',
+        activeEnvironmentName: 'Local',
+        activeEnvironmentVariables: [],
+        resolvedActiveUrl: 'https://example.com/orders',
+      },
+      global: {
+        stubs: {
+          RequestUrlBar: RequestUrlBarSendStub,
+        },
+      },
+    })
+
+    await wrapper.get('[data-testid="request-url-bar-send"]').trigger('click')
+    await nextTick()
+
+    expect(wrapper.emitted('send')).toHaveLength(1)
+    expect(wrapper.emitted('send')?.[0]?.[0]).toMatchObject({
+      executionOptions: {
+        timeoutMs: 2500,
+        redirectPolicy: 'manual',
+        proxy: { mode: 'custom', url: 'http://127.0.0.1:8080' },
+        verifySsl: false,
+      },
+    })
   })
 
   it('allows sending when the only incomplete params row is disabled', async () => {

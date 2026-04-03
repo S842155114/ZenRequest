@@ -1,0 +1,1 @@
+ALTER TABLE requests ADD COLUMN tests_json TEXT NOT NULL DEFAULT '[]';

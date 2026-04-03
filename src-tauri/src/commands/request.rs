@@ -1,29 +1,20 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use tauri::State;
 
 use crate::core::app_state::AppState;
-use crate::core::request_executor::execute_request;
-use crate::core::request_runtime::{
-    build_execution_artifact, compile_request, compiled_request_to_history_payload,
-    evaluate_assertions,
-};
 use crate::errors::AppError;
-use crate::models::{
-    ApiEnvelope, AuthConfigDto, CompiledRequestDto, HistoryStoredPayloadDto, KeyValueItemDto,
-    NormalizedResponseDto, ResponseHeaderItemDto, SendRequestPayloadDto, SendRequestResultDto,
-};
-use crate::storage::db;
+use crate::models::{ApiEnvelope, SendRequestPayloadDto, SendRequestResultDto};
+use crate::services::request_service;
 
+#[cfg(test)]
+use crate::models::{
+    AuthConfigDto, CompiledRequestDto, KeyValueItemDto, NormalizedResponseDto,
+    ResponseHeaderItemDto,
+};
+
+#[cfg(test)]
 const HISTORY_PREVIEW_LIMIT_CHARS: usize = 64 * 1024;
 
-fn now_epoch_ms() -> u64 {
-    match SystemTime::now().duration_since(UNIX_EPOCH) {
-        Ok(duration) => duration.as_millis() as u64,
-        Err(_) => 0,
-    }
-}
-
+#[cfg(test)]
 fn is_sensitive_header(key: &str) -> bool {
     let lower = key.trim().to_ascii_lowercase();
     matches!(lower.as_str(), "authorization" | "cookie" | "set-cookie")
@@ -31,6 +22,7 @@ fn is_sensitive_header(key: &str) -> bool {
         || lower == "x-api-key"
 }
 
+#[cfg(test)]
 fn redact_headers(headers: &[KeyValueItemDto]) -> Vec<KeyValueItemDto> {
     headers
         .iter()
@@ -44,19 +36,7 @@ fn redact_headers(headers: &[KeyValueItemDto]) -> Vec<KeyValueItemDto> {
         .collect()
 }
 
-fn redact_response_headers(headers: &[ResponseHeaderItemDto]) -> Vec<ResponseHeaderItemDto> {
-    headers
-        .iter()
-        .map(|header| {
-            let mut next = header.clone();
-            if is_sensitive_header(&next.key) && !next.value.is_empty() {
-                next.value = "[REDACTED]".to_string();
-            }
-            next
-        })
-        .collect()
-}
-
+#[cfg(test)]
 fn redact_auth(auth: &AuthConfigDto) -> AuthConfigDto {
     let mut next = auth.clone();
     if !next.bearer_token.is_empty() {
@@ -71,6 +51,7 @@ fn redact_auth(auth: &AuthConfigDto) -> AuthConfigDto {
     next
 }
 
+#[cfg(test)]
 fn redact_request_payload(payload: &SendRequestPayloadDto) -> SendRequestPayloadDto {
     let mut next = payload.clone();
     next.headers = redact_headers(&payload.headers);
@@ -78,6 +59,7 @@ fn redact_request_payload(payload: &SendRequestPayloadDto) -> SendRequestPayload
     next
 }
 
+#[cfg(test)]
 fn preview_response_body(body: &str) -> (String, bool) {
     let truncated = body.chars().count() > HISTORY_PREVIEW_LIMIT_CHARS;
     if truncated {
@@ -90,22 +72,7 @@ fn preview_response_body(body: &str) -> (String, bool) {
     }
 }
 
-fn load_active_environment_variables(
-    state: &AppState,
-    payload: &SendRequestPayloadDto,
-) -> Result<Vec<KeyValueItemDto>, AppError> {
-    let Some(environment_id) = payload.active_environment_id.as_deref() else {
-        return Ok(Vec::new());
-    };
-
-    let environments = db::list_environments(&state.db_path, &payload.workspace_id)?;
-    Ok(environments
-        .into_iter()
-        .find(|environment| environment.id == environment_id)
-        .map(|environment| environment.variables)
-        .unwrap_or_default())
-}
-
+#[cfg(test)]
 fn build_mock_normalized_response(
     payload: &SendRequestPayloadDto,
     _compiled_request: &CompiledRequestDto,
@@ -154,7 +121,9 @@ fn build_mock_normalized_response(
 }
 
 #[cfg(test)]
-fn build_mock_send_result(payload: &SendRequestPayloadDto) -> Result<SendRequestResultDto, AppError> {
+fn build_mock_send_result(
+    payload: &SendRequestPayloadDto,
+) -> Result<SendRequestResultDto, AppError> {
     let compiled_request = CompiledRequestDto {
         protocol_key: "http".to_string(),
         method: payload.method.clone(),
@@ -164,6 +133,7 @@ fn build_mock_send_result(payload: &SendRequestPayloadDto) -> Result<SendRequest
         body: payload.body.clone(),
         auth: payload.auth.clone(),
         tests: payload.tests.clone(),
+        execution_options: payload.execution_options.clone(),
     };
     let normalized_response = build_mock_normalized_response(payload, &compiled_request)?;
 
@@ -190,93 +160,7 @@ pub async fn send_request(
     state: State<'_, AppState>,
     payload: SendRequestPayloadDto,
 ) -> Result<ApiEnvelope<SendRequestResultDto>, AppError> {
-    let response = match load_active_environment_variables(&state, &payload)
-        .and_then(|variables| compile_request(&payload, &variables))
-    {
-        Ok(compiled_request) => {
-            if !state.protocol_registry.supports(&compiled_request.protocol_key) {
-                return Ok(ApiEnvelope::failure(AppError {
-                    code: "UNSUPPORTED_PROTOCOL".to_string(),
-                    message: format!("unsupported protocol: {}", compiled_request.protocol_key),
-                    details: None,
-                }));
-            }
-
-            let normalized_response = if payload.mock.as_ref().is_some_and(|mock| mock.enabled) {
-                build_mock_normalized_response(&payload, &compiled_request)
-            } else {
-                execute_request(&state.http_client, &compiled_request).await
-            };
-
-            match normalized_response {
-                Ok(normalized_response) => {
-                    let assertion_results = evaluate_assertions(&compiled_request.tests, &normalized_response);
-                    let execution_source = if payload.mock.as_ref().is_some_and(|mock| mock.enabled) {
-                        "mock".to_string()
-                    } else {
-                        "live".to_string()
-                    };
-                    let executed_at_epoch_ms = now_epoch_ms();
-                    let artifact = build_execution_artifact(
-                        compiled_request.clone(),
-                        normalized_response.clone(),
-                        assertion_results.clone(),
-                        execution_source.clone(),
-                        executed_at_epoch_ms,
-                    );
-                    let (preview, preview_truncated) = preview_response_body(&normalized_response.body);
-                    let redacted_snapshot = redact_request_payload(
-                        &compiled_request_to_history_payload(&payload, &compiled_request),
-                    );
-                    let stored = HistoryStoredPayloadDto {
-                        request_id: payload.request_id.clone(),
-                        request_name: payload.name.clone(),
-                        request_method: compiled_request.method.clone(),
-                        request_url: compiled_request.url.clone(),
-                        request_snapshot: redacted_snapshot,
-                        status: normalized_response.status,
-                        status_text: normalized_response.status_text.clone(),
-                        elapsed_ms: normalized_response.elapsed_ms,
-                        size_bytes: normalized_response.size_bytes,
-                        content_type: normalized_response.content_type.clone(),
-                        response_headers: redact_response_headers(&normalized_response.headers),
-                        response_preview: preview,
-                        truncated: normalized_response.truncated || preview_truncated,
-                        execution_source: execution_source.clone(),
-                        executed_at_epoch_ms,
-                    };
-
-                    let history_item = db::insert_history_item(
-                        &state.db_path,
-                        &payload.workspace_id,
-                        &stored,
-                    )
-                    .ok();
-
-                    ApiEnvelope::success(SendRequestResultDto {
-                        request_method: compiled_request.method.clone(),
-                        request_url: compiled_request.url.clone(),
-                        status: normalized_response.status,
-                        status_text: normalized_response.status_text.clone(),
-                        elapsed_ms: normalized_response.elapsed_ms,
-                        size_bytes: normalized_response.size_bytes,
-                        content_type: normalized_response.content_type.clone(),
-                        response_body: normalized_response.body.clone(),
-                        headers: normalized_response.headers.clone(),
-                        truncated: normalized_response.truncated,
-                        execution_source,
-                        assertion_results: Some(assertion_results),
-                        execution_artifact: Some(artifact),
-                        history_item,
-                    })
-                }
-                Err(error) => ApiEnvelope::failure(error),
-            }
-        }
-        Err(error) => ApiEnvelope::failure(error),
-    };
-
-    Ok(response)
+    request_service::send_request(&state, payload).await
 }
 
 #[cfg(test)]
@@ -285,8 +169,8 @@ mod tests {
         build_mock_send_result, preview_response_body, redact_request_payload, AuthConfigDto,
         KeyValueItemDto, SendRequestPayloadDto,
     };
-    use crate::models::{NormalizedResponseDto, RequestBodyDto, RequestTestDefinitionDto};
     use crate::models::request::RequestMockStateDto;
+    use crate::models::{NormalizedResponseDto, RequestBodyDto, RequestTestDefinitionDto};
 
     #[test]
     fn redacts_sensitive_request_fields() {
@@ -331,6 +215,7 @@ mod tests {
             },
             tests: Vec::new(),
             mock: None,
+            execution_options: crate::models::RequestExecutionOptionsDto::default(),
         };
 
         let redacted = redact_request_payload(&payload);
@@ -391,6 +276,7 @@ mod tests {
                     },
                 ],
             }),
+            execution_options: crate::models::RequestExecutionOptionsDto::default(),
         };
 
         let result = build_mock_send_result(&payload).expect("mock result");
@@ -438,6 +324,7 @@ mod tests {
             auth: AuthConfigDto::default(),
             tests: Vec::new(),
             mock: None,
+            execution_options: crate::models::RequestExecutionOptionsDto::default(),
         };
         payload.auth.bearer_token = "{{token}}".to_string();
 

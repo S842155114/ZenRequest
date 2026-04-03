@@ -2,7 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::models::request::{
     AuthConfigDto, FormDataFieldDto, KeyValueItemDto, RequestAssertionResultDto,
-    RequestMockStateDto, RequestTestDefinitionDto, ResponseHeaderItemDto, SendRequestPayloadDto,
+    RequestExecutionOptionsDto, RequestMockStateDto, RequestTestDefinitionDto,
+    ResponseHeaderItemDto, SendRequestPayloadDto,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -83,6 +84,8 @@ pub struct RequestPresetDto {
     pub tests: Vec<RequestTestDefinitionDto>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mock: Option<RequestMockStateDto>,
+    #[serde(default)]
+    pub execution_options: RequestExecutionOptionsDto,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -200,6 +203,8 @@ pub struct RequestTabStateDto {
     pub tests: Vec<RequestTestDefinitionDto>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mock: Option<RequestMockStateDto>,
+    #[serde(default)]
+    pub execution_options: RequestExecutionOptionsDto,
     #[serde(default)]
     pub response: ResponseStateDto,
     #[serde(default)]

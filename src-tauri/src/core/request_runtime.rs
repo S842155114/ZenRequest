@@ -18,7 +18,8 @@ fn error(code: &str, message: impl Into<String>) -> AppError {
 }
 
 pub fn resolve_variables_map(items: &[KeyValueItemDto]) -> HashMap<String, String> {
-    items.iter()
+    items
+        .iter()
         .filter(|item| item.enabled && !item.key.trim().is_empty())
         .map(|item| (item.key.trim().to_string(), item.value.clone()))
         .collect()
@@ -48,8 +49,8 @@ pub fn resolve_template(template: &str, variables: &HashMap<String, String>) -> 
 }
 
 fn resolve_protocol_key(url: &str) -> Result<String, AppError> {
-    let parsed = Url::parse(url.trim())
-        .map_err(|_| error("INVALID_URL", format!("invalid url: {url}")))?;
+    let parsed =
+        Url::parse(url.trim()).map_err(|_| error("INVALID_URL", format!("invalid url: {url}")))?;
 
     match parsed.scheme() {
         "http" | "https" => Ok("http".to_string()),
@@ -64,7 +65,8 @@ fn resolve_items(
     items: &[KeyValueItemDto],
     variables: &HashMap<String, String>,
 ) -> Vec<KeyValueItemDto> {
-    items.iter()
+    items
+        .iter()
         .map(|item| KeyValueItemDto {
             key: resolve_template(&item.key, variables),
             value: resolve_template(&item.value, variables),
@@ -90,7 +92,8 @@ fn resolve_tests(
     tests: &[RequestTestDefinitionDto],
     variables: &HashMap<String, String>,
 ) -> Vec<RequestTestDefinitionDto> {
-    tests.iter()
+    tests
+        .iter()
         .map(|test| RequestTestDefinitionDto {
             id: test.id.clone(),
             name: resolve_template(&test.name, variables),
@@ -123,6 +126,7 @@ fn resolve_body(body: &RequestBodyDto, variables: &HashMap<String, String>) -> R
                     key: resolve_template(&field.key, variables),
                     value: resolve_template(&field.value, variables),
                     enabled: field.enabled,
+                    kind: field.kind.clone(),
                     file_name: field
                         .file_name
                         .as_ref()
@@ -167,12 +171,14 @@ pub fn compile_request(
         body: resolve_body(&payload.body, &variables),
         auth: resolve_auth(&payload.auth, &variables),
         tests: resolve_tests(&payload.tests, &variables),
+        execution_options: payload.execution_options.clone(),
     })
 }
 
 fn get_header_value(headers: &[crate::models::ResponseHeaderItemDto], target: &str) -> String {
     let normalized_target = target.trim().to_ascii_lowercase();
-    headers.iter()
+    headers
+        .iter()
         .find(|header| header.key.trim().to_ascii_lowercase() == normalized_target)
         .map(|header| header.value.clone())
         .unwrap_or_default()
@@ -182,7 +188,8 @@ pub fn evaluate_assertions(
     tests: &[RequestTestDefinitionDto],
     response: &NormalizedResponseDto,
 ) -> AssertionResultSetDto {
-    let results = tests.iter()
+    let results = tests
+        .iter()
         .map(|test| {
             let name = if test.name.trim().is_empty() {
                 "Unnamed test".to_string()
@@ -238,7 +245,11 @@ pub fn evaluate_assertions(
                         } else {
                             format!(" {expected}")
                         },
-                        if actual.is_empty() { "empty".to_string() } else { actual }
+                        if actual.is_empty() {
+                            "empty".to_string()
+                        } else {
+                            actual
+                        }
                     )
                 },
             }
@@ -288,5 +299,6 @@ pub fn compiled_request_to_history_payload(
         auth: compiled_request.auth.clone(),
         tests: compiled_request.tests.clone(),
         mock: payload.mock.clone(),
+        execution_options: payload.execution_options.clone(),
     }
 }

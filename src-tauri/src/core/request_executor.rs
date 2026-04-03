@@ -2,10 +2,12 @@ use std::time::Instant;
 
 use base64::{engine::general_purpose, Engine as _};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
-use reqwest::{Method, Url};
+use reqwest::{Method, Proxy, Url};
 
 use crate::errors::AppError;
-use crate::models::request::{CompiledRequestDto, RequestBodyDto, ResponseHeaderItemDto};
+use crate::models::request::{
+    CompiledRequestDto, RequestBodyDto, RequestProxyModeDto, ResponseHeaderItemDto,
+};
 use crate::models::NormalizedResponseDto;
 
 const RESPONSE_PREVIEW_LIMIT_BYTES: usize = 2 * 1024 * 1024;
@@ -18,16 +20,58 @@ fn error(code: &str, message: impl Into<String>) -> AppError {
     }
 }
 
-pub async fn execute_request(
-    client: &reqwest::Client,
-    payload: &CompiledRequestDto,
-) -> Result<NormalizedResponseDto, AppError> {
+fn build_request_client(payload: &CompiledRequestDto) -> Result<reqwest::Client, AppError> {
+    let mut builder = reqwest::Client::builder().user_agent("zenrequest/0.1.0");
+
+    if let Some(timeout_ms) = payload.execution_options.timeout_ms {
+        builder = builder.timeout(std::time::Duration::from_millis(timeout_ms));
+    }
+
+    builder = match payload.execution_options.redirect_policy {
+        crate::models::request::RequestRedirectPolicyDto::Follow => builder,
+        crate::models::request::RequestRedirectPolicyDto::Manual => {
+            builder.redirect(reqwest::redirect::Policy::none())
+        }
+        crate::models::request::RequestRedirectPolicyDto::Error => builder.redirect(
+            reqwest::redirect::Policy::custom(|attempt| attempt.error("redirect blocked by request policy")),
+        ),
+    };
+
+    builder = match payload.execution_options.proxy.mode {
+        RequestProxyModeDto::Inherit => builder,
+        RequestProxyModeDto::Off => builder.no_proxy(),
+        RequestProxyModeDto::Custom => {
+            let proxy_url = payload
+                .execution_options
+                .proxy
+                .url
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| error("INVALID_PROXY", "custom proxy requires a proxy url"))?;
+
+            let proxy = Proxy::all(proxy_url)
+                .map_err(|err| error("INVALID_PROXY", format!("invalid proxy url: {err}")))?;
+            builder.proxy(proxy)
+        }
+    };
+
+    builder = builder.danger_accept_invalid_certs(!payload.execution_options.verify_ssl);
+
+    builder
+        .build()
+        .map_err(|err| error("HTTP_CLIENT_BUILD_FAILED", err.to_string()))
+}
+
+pub async fn execute_request(payload: &CompiledRequestDto) -> Result<NormalizedResponseDto, AppError> {
     if payload.protocol_key != "http" {
         return Err(error(
             "UNSUPPORTED_PROTOCOL",
             format!("unsupported protocol: {}", payload.protocol_key),
         ));
     }
+
+    let client = build_request_client(payload)?;
 
     let method = payload.method.parse::<Method>().map_err(|_| {
         error(
@@ -135,9 +179,22 @@ pub async fn execute_request(
                         continue;
                     }
 
-                    let mut part = reqwest::multipart::Part::text(field.value.clone());
+                    let mut part = if field.kind.as_deref() == Some("file") {
+                        let body_bytes = general_purpose::STANDARD
+                            .decode(field.value.as_bytes())
+                            .unwrap_or_else(|_| field.value.as_bytes().to_vec());
+                        reqwest::multipart::Part::bytes(body_bytes)
+                    } else {
+                        reqwest::multipart::Part::text(field.value.clone())
+                    };
+
                     if let Some(file_name) = &field.file_name {
                         part = part.file_name(file_name.to_string());
+                    }
+                    if let Some(mime_type) = &field.mime_type {
+                        part = part
+                            .mime_str(mime_type)
+                            .map_err(|err| error("INVALID_MULTIPART_FIELD", err.to_string()))?;
                     }
                     form = form.part(field.key.clone(), part);
                 }
@@ -224,4 +281,89 @@ pub async fn execute_request(
         headers: response_headers,
         truncated,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_request_client;
+    use base64::{engine::general_purpose, Engine as _};
+    use crate::models::request::{
+        AuthConfigDto, CompiledRequestDto, FormDataFieldDto, RequestBodyDto,
+        RequestExecutionOptionsDto, RequestProxyModeDto, RequestProxySettingsDto,
+        RequestRedirectPolicyDto,
+    };
+
+    fn compiled_request() -> CompiledRequestDto {
+        CompiledRequestDto {
+            protocol_key: "http".to_string(),
+            method: "POST".to_string(),
+            url: "https://example.com/upload".to_string(),
+            params: Vec::new(),
+            headers: Vec::new(),
+            body: RequestBodyDto::Json {
+                value: "{}".to_string(),
+            },
+            auth: AuthConfigDto::default(),
+            tests: Vec::new(),
+            execution_options: RequestExecutionOptionsDto::default(),
+        }
+    }
+
+    #[test]
+    fn builds_request_scoped_client_with_execution_options() {
+        let mut payload = compiled_request();
+        payload.execution_options = RequestExecutionOptionsDto {
+            timeout_ms: Some(2_500),
+            redirect_policy: RequestRedirectPolicyDto::Manual,
+            proxy: RequestProxySettingsDto {
+                mode: RequestProxyModeDto::Off,
+                url: None,
+            },
+            verify_ssl: false,
+        };
+
+        let client = build_request_client(&payload).expect("client builds");
+        client
+            .get("https://example.com")
+            .build()
+            .expect("request builds");
+    }
+
+    #[test]
+    fn rejects_custom_proxy_without_url() {
+        let mut payload = compiled_request();
+        payload.execution_options.proxy = RequestProxySettingsDto {
+            mode: RequestProxyModeDto::Custom,
+            url: None,
+        };
+
+        let error = build_request_client(&payload).expect_err("proxy should fail");
+        assert_eq!(error.code, "INVALID_PROXY");
+    }
+
+    #[test]
+    fn preserves_form_data_file_metadata() {
+        let payload = CompiledRequestDto {
+            body: RequestBodyDto::FormData {
+                fields: vec![FormDataFieldDto {
+                    key: "file".to_string(),
+                    value: general_purpose::STANDARD.encode(b"hello"),
+                    enabled: true,
+                    kind: Some("file".to_string()),
+                    file_name: Some("demo.txt".to_string()),
+                    mime_type: Some("text/plain".to_string()),
+                }],
+            },
+            ..compiled_request()
+        };
+
+        match payload.body {
+            RequestBodyDto::FormData { fields } => {
+                assert_eq!(fields[0].kind.as_deref(), Some("file"));
+                assert_eq!(fields[0].file_name.as_deref(), Some("demo.txt"));
+                assert_eq!(fields[0].mime_type.as_deref(), Some("text/plain"));
+            }
+            _ => panic!("expected form-data body"),
+        }
+    }
 }

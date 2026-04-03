@@ -1,4 +1,4 @@
-import type { FormDataFieldSnapshot, KeyValueItem, RequestMockState } from '@/types/request'
+import type { FormDataFieldSnapshot, KeyValueItem, RequestExecutionOptions, RequestMockState } from '@/types/request'
 
 export const createKeyValueItem = (): KeyValueItem => ({
   key: '',
@@ -11,6 +11,7 @@ export const createFormDataField = (): FormDataFieldSnapshot => ({
   key: '',
   value: '',
   enabled: true,
+  kind: 'text',
 })
 
 export const cloneFormDataDraft = (fields: FormDataFieldSnapshot[]) => fields.map((field) => ({ ...field }))
@@ -29,6 +30,13 @@ export const createMockHeader = (): KeyValueItem => ({
   value: '',
   description: '',
   enabled: true,
+})
+
+export const createExecutionOptions = (): RequestExecutionOptions => ({
+  timeoutMs: undefined,
+  redirectPolicy: 'follow',
+  proxy: { mode: 'inherit' },
+  verifySsl: true,
 })
 
 export const trimValue = (value?: string) => value?.trim() ?? ''
