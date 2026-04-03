@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { save } from '@tauri-apps/plugin-dialog'
 import type {
   AssertionResultSet,
   EnvironmentPreset,
@@ -92,6 +93,22 @@ export interface AppBootstrapPayload {
 export interface WorkspaceSaveResult {
   savedAtEpochMs: number
 }
+
+export interface SaveTextFileInput {
+  fileName: string
+  contents: string
+  targetPath?: string
+}
+
+export interface SaveTextFileResult {
+  path: string
+}
+
+export interface SaveDialogOptions {
+  defaultPath?: string
+  filters?: Array<{ name: string; extensions: string[] }>
+}
+
 
 export type ExportPackageScope = 'workspace' | 'application'
 export type ImportConflictStrategy = 'skip' | 'rename' | 'overwrite'
@@ -218,6 +235,8 @@ export interface RuntimeAdapter {
   getSettings(): Promise<ApiEnvelope<AppSettings>>
   updateSettings(payload: AppSettings): Promise<ApiEnvelope<AppSettings>>
   sendRequest(payload: SendRequestPayloadDto): Promise<ApiEnvelope<SendRequestResult>>
+  saveTextFile(input: SaveTextFileInput): Promise<ApiEnvelope<SaveTextFileResult>>
+  promptSavePath(options?: SaveDialogOptions): Promise<string | null>
 }
 
 const buildNotImplementedError = (command: string): AppError => ({
@@ -441,6 +460,15 @@ const tauriAdapter: RuntimeAdapter = {
   getSettings: () => invokeEnvelope<AppSettings>('get_settings'),
   updateSettings: (payload) => invokeEnvelope<AppSettings>('update_settings', { payload }),
   sendRequest: (payload) => invokeEnvelope<SendRequestResult>('send_request', { payload }),
+  saveTextFile: (input) => invokeEnvelope<SaveTextFileResult>('save_text_file', { payload: input }),
+  promptSavePath: async (options = {}) => {
+    const selected = await save({
+      defaultPath: options.defaultPath,
+      filters: options.filters,
+    })
+
+    return typeof selected === 'string' ? selected : null
+  },
 }
 
 const mockAdapter: RuntimeAdapter = {
@@ -510,6 +538,8 @@ const mockAdapter: RuntimeAdapter = {
   getSettings: async () => ({ ok: true, data: { themeMode: 'dark', locale: 'en' } }),
   updateSettings: async (payload) => ({ ok: true, data: payload }),
   sendRequest: async () => ({ ok: false, error: buildNotImplementedError('send_request') }),
+  saveTextFile: async (input) => ({ ok: true, data: { path: input.targetPath ?? input.fileName } }),
+  promptSavePath: async (options) => options?.defaultPath ?? null,
 }
 
 let activeAdapter: RuntimeAdapter = isTauriEnvironment() ? tauriAdapter : mockAdapter
@@ -544,4 +574,6 @@ export const runtimeClient = {
   updateSettings: (payload: AppSettings) => activeAdapter.updateSettings(payload),
   sendRequest: (workspaceId: string, activeEnvironmentId: string | undefined, payload: SendRequestPayload) =>
     activeAdapter.sendRequest(toSendRequestPayloadDto(workspaceId, activeEnvironmentId, payload)),
+  saveTextFile: (input: SaveTextFileInput) => activeAdapter.saveTextFile(input),
+  promptSavePath: (options: SaveDialogOptions = {}) => activeAdapter.promptSavePath(options),
 }

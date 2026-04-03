@@ -277,8 +277,8 @@ describe('RequestPanel i18n copy', () => {
     const strip = wrapper.get('[data-testid="request-panel-tabs"]')
     const firstTab = wrapper.get('[data-testid="request-tab-tab-1"]')
 
-    expect(strip.classes()).toContain('gap-1')
-    expect(firstTab.classes()).toContain('min-w-[156px]')
+    expect(strip.classes()).toContain('gap-1.5')
+    expect(firstTab.classes()).toContain('min-w-[164px]')
     expect(firstTab.classes()).not.toContain('min-w-[188px]')
     expect(wrapper.find('[data-testid="request-tab-origin-tab-1"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="request-tab-persistence-tab-1"]').exists()).toBe(false)

@@ -16,6 +16,7 @@ pub fn run() {
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             commands::workspace::bootstrap_app,
             commands::workspace::save_workspace,
@@ -25,6 +26,7 @@ pub fn run() {
             commands::workspace::set_active_workspace,
             commands::workspace::export_workspace,
             commands::workspace::import_workspace,
+            commands::workspace::save_text_file,
             commands::importing::import_curl_request,
             commands::importing::analyze_openapi_import,
             commands::importing::apply_openapi_import,

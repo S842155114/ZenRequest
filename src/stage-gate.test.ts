@@ -331,6 +331,8 @@ const createAdapter = (
     }),
   getSettings: async () => ok<AppSettings>({ themeMode: 'dark', locale: 'en' }),
   updateSettings: async (payload: AppSettings) => ok(payload),
+  saveTextFile: async (input) => ok({ path: input.targetPath ?? input.fileName }),
+  promptSavePath: async (options) => options?.defaultPath ?? null,
   sendRequest: async (_payload: SendRequestPayloadDto) =>
     ({ ok: false, error: { code: 'NOT_IMPLEMENTED', message: 'not implemented' } }),
   ...overrides,

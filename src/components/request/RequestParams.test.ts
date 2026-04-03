@@ -143,7 +143,7 @@ describe('RequestParams compact chrome', () => {
     const tabsList = wrapper.get('[role="tablist"]')
 
     expect(tabsList.classes()).toEqual(
-      expect.arrayContaining(['mx-3', 'mt-3', 'rounded-lg', 'p-0.5']),
+      expect.arrayContaining(['mx-3', 'mt-3.5', 'rounded-xl', 'p-1']),
     )
   })
 
@@ -379,8 +379,11 @@ describe('RequestParams compact chrome', () => {
     })
 
     expect(wrapper.get('[data-testid="request-section-trigger-body"]').text()).toContain('1')
+    expect(wrapper.get('[data-testid="request-section-trigger-auth"]').text()).toContain('Auth')
     expect(wrapper.get('[data-testid="request-section-trigger-auth"]').text()).toContain('1')
+    expect(wrapper.get('[data-testid="request-section-trigger-tests"]').text()).toContain('Tests')
     expect(wrapper.get('[data-testid="request-section-trigger-tests"]').text()).toContain('1')
+    expect(wrapper.get('[data-testid="request-section-trigger-env"]').text()).toContain('Env')
     expect(wrapper.get('[data-testid="request-section-trigger-env"]').text()).toContain('1')
   })
 

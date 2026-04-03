@@ -23,3 +23,23 @@ dist-ssr
 *.sln
 *.sw?
 .worktrees/
+.worktrees
+
+# Local AI tooling and workflow artifacts
+.agent/
+.codebuddy/
+.continue/
+.cursor/
+.kiro/
+.qoder/
+.roo/
+.sisyphus/
+.superpowers/
+.windsurf/
+.workflow/
+.github/prompts/
+.claude/skills/ui-ux-pro-max/
+.codex/skills/ui-ux-pro-max/
+.gemini/skills/ui-ux-pro-max/
+.opencode/skills/ui-ux-pro-max/
+.trae/skills/ui-ux-pro-max/

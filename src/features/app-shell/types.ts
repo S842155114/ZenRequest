@@ -149,6 +149,10 @@ export interface RequestPanelHandlers {
 export interface ResponsePanelHandlers {
   onToggleCollapsed: () => void
   onCreateMockTemplate: () => void
+  onCopyCompleted: (payload: { contentType: string }) => void
+  onCopyFailed: (payload: { contentType: string }) => void
+  onDownloadCompleted: (payload: { fileName: string; path?: string }) => void
+  onDownloadFailed: (payload: { fileName: string }) => void
 }
 
 export interface WorkspaceDialogBindings {

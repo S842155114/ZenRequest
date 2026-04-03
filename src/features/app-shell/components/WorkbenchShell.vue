@@ -234,6 +234,10 @@ watch(
                   v-bind="responsePanelProps"
                   @toggle-collapsed="responsePanelHandlers.onToggleCollapsed"
                   @create-mock-template="responsePanelHandlers.onCreateMockTemplate"
+                  @copy-completed="responsePanelHandlers.onCopyCompleted"
+                  @copy-failed="responsePanelHandlers.onCopyFailed"
+                  @download-completed="responsePanelHandlers.onDownloadCompleted"
+                  @download-failed="responsePanelHandlers.onDownloadFailed"
                 />
               </div>
             </ResizablePanel>
@@ -305,6 +309,10 @@ watch(
               v-bind="responsePanelProps"
               @toggle-collapsed="responsePanelHandlers.onToggleCollapsed"
               @create-mock-template="responsePanelHandlers.onCreateMockTemplate"
+              @copy-completed="responsePanelHandlers.onCopyCompleted"
+              @copy-failed="responsePanelHandlers.onCopyFailed"
+              @download-completed="responsePanelHandlers.onDownloadCompleted"
+              @download-failed="responsePanelHandlers.onDownloadFailed"
             />
           </div>
         </ResizablePanel>

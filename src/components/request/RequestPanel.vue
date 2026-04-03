@@ -93,10 +93,10 @@ const {
     data-testid="request-panel-root"
     class="zr-panel zr-editor-shell zr-request-shell flex h-full min-h-0 flex-col overflow-hidden rounded-[0.7rem]"
   >
-    <div data-testid="request-panel-header" class="zr-request-shell-header border-b border-[color:var(--zr-border)] px-3 pt-3">
+    <div data-testid="request-panel-header" class="zr-request-shell-header border-b border-[color:var(--zr-border)] px-3 pt-3.5">
       <div class="mb-2.5 flex items-center justify-between gap-2.5">
         <div class="min-w-0">
-          <div class="text-[11px] uppercase tracking-[0.22em] text-[var(--zr-text-muted)]">{{ text.request.workspaceTitle }}</div>
+          <div class="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">{{ text.request.workspaceTitle }}</div>
         </div>
         <button
           class="zr-tool-button inline-flex h-8 w-8 items-center justify-center rounded-md"
@@ -109,7 +109,7 @@ const {
       <div
         v-if="!props.collapsed"
         data-testid="request-panel-tabs"
-        class="zr-request-tab-strip flex items-center gap-1 overflow-x-auto pb-2.5"
+        class="zr-request-tab-strip flex items-center gap-1.5 overflow-x-auto pb-3"
       >
         <ContextMenu
           v-for="tab in normalizedTabs"
@@ -121,13 +121,13 @@ const {
               data-resource-context-menu-surface="true"
               :title="getCompactTabTitle(tab)"
               :class="[
-                'zr-request-tab group flex min-w-[156px] shrink-0 items-center gap-2 rounded-md border px-2 py-1.5 text-left transition-colors',
+                'zr-request-tab group flex min-w-[164px] shrink-0 items-center gap-2.5 rounded-xl border px-2.5 py-2 text-left transition-colors',
                 tab.id === activeTabId ? 'zr-request-tab-active' : 'zr-request-tab-idle',
               ]"
               @click="emit('select-tab', tab.id)"
               @contextmenu.capture="handleResourceContextMenuGuard"
             >
-              <span :class="['shrink-0 text-[10px] font-semibold uppercase tracking-[0.16em]', getTabMethodClass(tab.method)]">{{ tab.method }}</span>
+              <span :class="['shrink-0 text-[9px] font-semibold uppercase tracking-[0.14em]', getTabMethodClass(tab.method)]">{{ tab.method }}</span>
               <div class="min-w-0 flex-1 truncate text-[13px] font-medium leading-5 text-[var(--zr-text-primary)]">{{ tab.name }}</div>
               <span
                 :data-testid="`request-tab-status-${getContextMenuTestIdKey(tab.id)}`"
@@ -162,7 +162,7 @@ const {
           </ContextMenuContent>
         </ContextMenu>
 
-        <Button variant="ghost" size="icon-sm" class="zr-tool-button h-7 w-7 shrink-0 rounded-md" @click="emit('create-tab')">
+        <Button variant="ghost" size="icon-sm" class="zr-tool-button h-8 w-8 shrink-0 rounded-lg border border-[color:var(--zr-border-soft)] bg-[color:var(--zr-control-bg)]" @click="emit('create-tab')">
           <Plus class="h-3.5 w-3.5" />
         </Button>
       </div>
