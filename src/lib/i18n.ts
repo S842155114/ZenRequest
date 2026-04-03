@@ -123,6 +123,9 @@ const messages = {
       body: 'Body',
       mock: 'Mock',
       execution: 'Execution',
+      auth: 'Auth',
+      tests: 'Tests',
+      env: 'Env',
       executionTimeout: 'Timeout (ms)',
       executionTimeoutPlaceholder: 'Leave empty to use default',
       executionRedirectPolicy: 'Redirect Policy',
@@ -233,6 +236,7 @@ const messages = {
       headers: 'Headers',
       cookies: 'Cookies',
       tests: 'Tests',
+      env: 'Env',
       pretty: 'Pretty',
       createMockTemplate: 'Create Mock',
       mockSource: 'Mock',
@@ -400,6 +404,22 @@ const messages = {
       applicationExported: (fileName: string) => ({
         title: 'Application backup exported',
         description: `Saved ${fileName} to your downloads.`,
+      }),
+      responseDownloaded: (fileName: string, path?: string) => ({
+        title: 'Response saved',
+        description: path ? `Saved ${fileName} to ${path}.` : `Saved ${fileName}.`,
+      }),
+      responseCopied: (contentType: string) => ({
+        title: 'Response copied',
+        description: 'Copied ' + contentType + ' to the clipboard.',
+      }),
+      responseCopyFailed: (contentType: string) => ({
+        title: 'Copy failed',
+        description: 'Could not copy ' + contentType + ' to the clipboard.',
+      }),
+      responseDownloadFailed: (fileName: string) => ({
+        title: 'Response save failed',
+        description: `Could not save ${fileName}.`,
       }),
       workspaceCreated: (name: string) => ({
         title: 'Workspace created',
@@ -644,6 +664,9 @@ const messages = {
       body: '请求体',
       mock: 'Mock',
       execution: '执行',
+      auth: '认证',
+      tests: '测试',
+      env: '环境',
       executionTimeout: '超时（毫秒）',
       executionTimeoutPlaceholder: '留空时使用默认值',
       executionRedirectPolicy: '重定向策略',
@@ -754,6 +777,7 @@ const messages = {
       headers: '响应头',
       cookies: 'Cookies',
       tests: '测试',
+      env: '环境',
       pretty: '美化视图',
       createMockTemplate: '生成 Mock',
       mockSource: 'Mock',
@@ -921,6 +945,22 @@ const messages = {
       applicationExported: (fileName: string) => ({
         title: '应用备份已导出',
         description: `已将 ${fileName} 保存到下载目录。`,
+      }),
+      responseDownloaded: (fileName: string, path?: string) => ({
+        title: '响应已保存',
+        description: path ? `已将 ${fileName} 保存到 ${path}。` : `已保存 ${fileName}。`,
+      }),
+      responseCopied: (contentType: string) => ({
+        title: '响应已复制',
+        description: '已将' + contentType + '复制到剪贴板。',
+      }),
+      responseCopyFailed: (contentType: string) => ({
+        title: '复制失败',
+        description: '无法将' + contentType + '复制到剪贴板。',
+      }),
+      responseDownloadFailed: (fileName: string) => ({
+        title: '响应保存失败',
+        description: `无法保存 ${fileName}。`,
       }),
       workspaceCreated: (name: string) => ({
         title: '工作区已创建',

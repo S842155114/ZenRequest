@@ -10,6 +10,7 @@ import {
   drawSelection,
   highlightActiveLine,
   highlightActiveLineGutter,
+  keymap,
   lineNumbers,
 } from '@codemirror/view'
 import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
@@ -40,6 +41,12 @@ const emit = defineEmits<{
 const host = ref<HTMLDivElement | null>(null)
 const editorView = shallowRef<EditorView | null>(null)
 let syncingFromProps = false
+
+const isSelectAllKey = (event: KeyboardEvent) => (
+  (event.ctrlKey || event.metaKey)
+  && !event.altKey
+  && event.key.toLowerCase() === 'a'
+)
 
 const createLanguageExtension = (language: ResponseCodeLanguage) => {
   switch (language) {
@@ -123,6 +130,27 @@ const darkTheme = EditorView.theme({
   },
 }, { dark: true })
 
+const readOnlyFocusableAttributes = [
+  EditorView.contentAttributes.of({ tabindex: '0' }),
+]
+
+const readOnlySelectAllKeymap = keymap.of([
+  {
+    key: 'Mod-a',
+    run: (view) => {
+      if (!props.readOnly) {
+        return false
+      }
+
+      view.dispatch({
+        selection: EditorSelection.single(0, view.state.doc.length),
+      })
+      view.focus()
+      return true
+    },
+  },
+])
+
 const buildEditorState = (
   doc: string,
   selection?: EditorSelection,
@@ -133,10 +161,12 @@ const buildEditorState = (
     EditorState.readOnly.of(props.readOnly),
     EditorView.editable.of(!props.readOnly),
     lineNumbers(),
+    readOnlySelectAllKeymap,
     highlightActiveLineGutter(),
     highlightActiveLine(),
     drawSelection(),
     createLanguageExtension(props.language),
+    ...(props.readOnly ? readOnlyFocusableAttributes : []),
     baseTheme,
     props.readOnly ? readOnlyTheme : editableTheme,
     EditorView.updateListener.of((update) => {
@@ -159,6 +189,25 @@ const mountEditor = () => {
     parent: host.value,
   })
 }
+
+const focusEditor = () => {
+  editorView.value?.focus()
+}
+
+const selectAllContent = () => {
+  if (!editorView.value) return
+
+  const documentLength = editorView.value.state.doc.length
+  editorView.value.dispatch({
+    selection: EditorSelection.single(0, documentLength),
+  })
+  editorView.value.focus()
+}
+
+defineExpose({
+  focusEditor,
+  selectAllContent,
+})
 
 watch(
   () => props.content,

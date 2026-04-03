@@ -453,6 +453,40 @@ export const createAppShellViewModel = (deps: AppShellViewModelDeps): AppShellVi
   const responsePanelHandlers: ResponsePanelHandlers = {
     onToggleCollapsed: deps.toggleResponsePanelCollapsed,
     onCreateMockTemplate: handleCreateMockTemplate,
+    onCopyCompleted: ({ contentType }) => {
+      const contentLabel = contentType === 'headers'
+        ? deps.text.value.response.headers
+        : contentType === 'cookies'
+          ? deps.text.value.response.cookies
+          : contentType === 'tests'
+            ? deps.text.value.response.tests
+            : deps.text.value.response.body
+
+      deps.showToast({
+        ...deps.text.value.toasts.responseCopied(contentLabel),
+        tone: 'success',
+      })
+    },
+    onCopyFailed: ({ contentType }) => {
+      const contentLabel = contentType === 'headers'
+        ? deps.text.value.response.headers
+        : contentType === 'cookies'
+          ? deps.text.value.response.cookies
+          : contentType === 'tests'
+            ? deps.text.value.response.tests
+            : deps.text.value.response.body
+
+      deps.showErrorToast(deps.text.value.toasts.responseCopyFailed(contentLabel))
+    },
+    onDownloadCompleted: ({ fileName, path }) => {
+      deps.showToast({
+        ...deps.text.value.toasts.responseDownloaded(fileName, path),
+        tone: 'success',
+      })
+    },
+    onDownloadFailed: ({ fileName }) => {
+      deps.showErrorToast(deps.text.value.toasts.responseDownloadFailed(fileName))
+    },
   }
 
   return {

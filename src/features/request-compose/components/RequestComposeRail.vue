@@ -23,7 +23,7 @@ defineProps<{
 </script>
 
 <template>
-  <TabsList data-testid="request-compose-rail" class="zr-input zr-compose-rail mx-3 mt-3 w-fit shrink-0 rounded-lg p-0.5">
+  <TabsList data-testid="request-compose-rail" class="zr-input zr-compose-rail mx-3 mt-3.5 w-fit shrink-0 rounded-xl p-1">
     <TabsTrigger value="params" data-testid="request-section-trigger-params" class="zr-tab-trigger">
       {{ requestText.params }}
       <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ enabledParamsCount }}</Badge>
@@ -61,10 +61,10 @@ defineProps<{
       </Badge>
     </TabsTrigger>
     <span class="mx-1 h-5 w-px self-center bg-[color:var(--zr-border)]" />
-    <TabsTrigger value="mock" data-testid="request-section-trigger-mock" data-request-secondary="true" class="zr-tab-trigger opacity-80">
+    <TabsTrigger value="mock" data-testid="request-section-trigger-mock" data-request-secondary="true" class="zr-tab-trigger zr-tab-trigger-secondary">
       {{ requestText.mock }}
     </TabsTrigger>
-    <TabsTrigger value="execution" data-testid="request-section-trigger-execution" data-request-secondary="true" class="zr-tab-trigger opacity-80">
+    <TabsTrigger value="execution" data-testid="request-section-trigger-execution" data-request-secondary="true" class="zr-tab-trigger zr-tab-trigger-secondary">
       {{ requestText.execution }}
       <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ executionConfiguredCount }}</Badge>
       <Badge
@@ -76,15 +76,15 @@ defineProps<{
         {{ executionInvalidCount }}
       </Badge>
     </TabsTrigger>
-    <TabsTrigger value="auth" data-testid="request-section-trigger-auth" data-request-secondary="true" class="zr-tab-trigger opacity-80">
+    <TabsTrigger value="auth" data-testid="request-section-trigger-auth" data-request-secondary="true" class="zr-tab-trigger zr-tab-trigger-secondary">
       {{ requestText.auth }}
       <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ authConfiguredCount }}</Badge>
     </TabsTrigger>
-    <TabsTrigger value="tests" data-testid="request-section-trigger-tests" data-request-secondary="true" class="zr-tab-trigger opacity-80">
+    <TabsTrigger value="tests" data-testid="request-section-trigger-tests" data-request-secondary="true" class="zr-tab-trigger zr-tab-trigger-secondary">
       {{ requestText.tests }}
       <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ testsCount }}</Badge>
     </TabsTrigger>
-    <TabsTrigger value="env" data-testid="request-section-trigger-env" data-request-secondary="true" class="zr-tab-trigger opacity-80">
+    <TabsTrigger value="env" data-testid="request-section-trigger-env" data-request-secondary="true" class="zr-tab-trigger zr-tab-trigger-secondary">
       {{ requestText.env }}
       <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ enabledEnvironmentVariablesCount }}</Badge>
       <Badge

@@ -108,6 +108,20 @@ describe('RequestUrlBar', () => {
     expect(wrapper.get('[data-testid="request-command-send"]').attributes('disabled')).toBeDefined()
   })
 
+  it('emits save when the save action is clicked', async () => {
+    const wrapper = mountUrlBar()
+
+    await wrapper.get('[data-testid="request-command-save"]').trigger('click')
+
+    expect(wrapper.emitted('save')).toHaveLength(1)
+  })
+
+  it('exposes an accessible label for the save action', () => {
+    const wrapper = mountUrlBar()
+
+    expect(wrapper.get('[data-testid="request-command-save"]').attributes('aria-label')).toBe('Save')
+  })
+
   it('keeps origin and persistence semantics separate for dirty canonical request tabs', () => {
     const wrapper = mountUrlBar({
       originKind: 'resource',

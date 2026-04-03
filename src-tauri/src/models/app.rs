@@ -630,3 +630,18 @@ fn default_body_type() -> String {
 fn default_execution_source() -> String {
     "live".to_string()
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveTextFilePayloadDto {
+    pub file_name: String,
+    pub contents: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveTextFileResultDto {
+    pub path: String,
+}

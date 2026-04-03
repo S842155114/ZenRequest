@@ -179,6 +179,8 @@ const createAdapter = (
       ok: false,
       error: { code: 'NOT_IMPLEMENTED', message: 'send_request is not implemented yet' },
     }),
+  saveTextFile: async (input) => ok({ path: input.targetPath ?? input.fileName }),
+  promptSavePath: async (options) => options?.defaultPath ?? null,
   ...overrides,
 })
 
@@ -230,6 +232,43 @@ describe('runtimeClient export scope forwarding', () => {
     await runtimeClient.exportWorkspace('workspace-1', 'application')
 
     expect(exportWorkspace).toHaveBeenCalledWith('workspace-1', 'application')
+  })
+})
+
+describe('runtimeClient save text file forwarding', () => {
+  it('forwards the file name and contents to the active runtime adapter', async () => {
+    const saveTextFile = vi.fn<RuntimeAdapter['saveTextFile']>(async (input) => ok({ path: input.fileName }))
+
+    setRuntimeAdapter(createAdapter({ saveTextFile }))
+
+    await runtimeClient.saveTextFile({
+      fileName: 'response-body.txt',
+      contents: '{"ok":true}',
+      targetPath: '/tmp/response-body.txt',
+    })
+
+    expect(saveTextFile).toHaveBeenCalledWith({
+      fileName: 'response-body.txt',
+      contents: '{"ok":true}',
+      targetPath: '/tmp/response-body.txt',
+    })
+  })
+})
+
+describe('runtimeClient prompt save path', () => {
+  it('returns the adapter-selected path', async () => {
+    const promptSavePath = vi.fn<RuntimeAdapter['promptSavePath']>(async () => '/tmp/selected.txt')
+
+    setRuntimeAdapter(createAdapter({ promptSavePath }))
+
+    const result = await runtimeClient.promptSavePath({
+      defaultPath: 'response-body.txt',
+    })
+
+    expect(promptSavePath).toHaveBeenCalledWith({
+      defaultPath: 'response-body.txt',
+    })
+    expect(result).toBe('/tmp/selected.txt')
   })
 })
 

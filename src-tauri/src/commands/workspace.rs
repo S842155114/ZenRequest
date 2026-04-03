@@ -1,3 +1,6 @@
+use std::fs;
+use std::path::PathBuf;
+
 use tauri::State;
 
 use crate::core::app_state::AppState;
@@ -12,8 +15,9 @@ use crate::models::{
     RuntimeCapabilitiesDto, RuntimeCapabilityDescriptorDto, RuntimeExecutionHookCapabilityDto,
     RuntimeImportAdapterCapabilityDto, RuntimePluginManifestCapabilityDto,
     RuntimeProtocolCapabilityDto, RuntimeToolPackagingCapabilityDto, SaveWorkspacePayloadDto,
-    SetActiveWorkspacePayloadDto, WorkspaceExportPayloadDto,
-    WorkspaceExportResultDto, WorkspaceImportResultDto, WorkspaceSaveResult, WorkspaceSummaryDto,
+    SaveTextFilePayloadDto, SaveTextFileResultDto, SetActiveWorkspacePayloadDto,
+    WorkspaceExportPayloadDto, WorkspaceExportResultDto, WorkspaceImportResultDto,
+    WorkspaceSaveResult, WorkspaceSummaryDto,
 };
 
 fn build_runtime_capabilities(state: &AppState) -> RuntimeCapabilitiesDto {
@@ -162,4 +166,89 @@ pub fn import_workspace(
 ) -> Result<ApiEnvelope<WorkspaceImportResultDto>, AppError> {
     let result = workspace_service::import_workspace(&state, payload)?;
     Ok(ApiEnvelope::success(result))
+}
+
+
+#[tauri::command]
+pub fn save_text_file(
+    payload: SaveTextFilePayloadDto,
+) -> ApiEnvelope<SaveTextFileResultDto> {
+    let trimmed_name = payload.file_name.trim();
+    if trimmed_name.is_empty() {
+        return ApiEnvelope::failure(AppError {
+            code: "INVALID_INPUT".to_string(),
+            message: "file name is required".to_string(),
+            details: None,
+        });
+    }
+
+    let target_path = payload
+        .target_path
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            let mut default_path = dirs::download_dir().unwrap_or_else(std::env::temp_dir);
+            default_path.push(trimmed_name);
+            default_path
+        });
+
+    let result = if payload.target_path.as_deref().map(str::trim).filter(|value| !value.is_empty()).is_some() {
+        write_text_file(&target_path, &payload.contents)
+    } else {
+        write_unique_text_file(&target_path, &payload.contents)
+    };
+    match result {
+        Ok(path) => ApiEnvelope::success(SaveTextFileResultDto {
+            path: path.to_string_lossy().to_string(),
+        }),
+        Err(error) => ApiEnvelope::failure(AppError {
+            code: "FILE_SAVE_FAILED".to_string(),
+            message: "failed to save file".to_string(),
+            details: Some(error.to_string()),
+        }),
+    }
+}
+
+fn write_text_file(target_path: &PathBuf, contents: &str) -> std::io::Result<PathBuf> {
+    let parent = target_path.parent().map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
+    fs::create_dir_all(&parent)?;
+    fs::write(target_path, contents)?;
+    Ok(target_path.clone())
+}
+
+fn write_unique_text_file(target_path: &PathBuf, contents: &str) -> std::io::Result<PathBuf> {
+    let parent = target_path.parent().map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
+    fs::create_dir_all(&parent)?;
+
+    let stem = target_path.file_stem().and_then(|value| value.to_str()).unwrap_or("download");
+    let extension = target_path.extension().and_then(|value| value.to_str()).unwrap_or("");
+
+    for index in 0..1000 {
+        let mut candidate = parent.clone();
+        let file_name = if index == 0 {
+            if extension.is_empty() {
+                stem.to_string()
+            } else {
+                format!("{stem}.{extension}")
+            }
+        } else if extension.is_empty() {
+            format!("{stem}-{index}")
+        } else {
+            format!("{stem}-{index}.{extension}")
+        };
+
+        candidate.push(file_name);
+
+        if !candidate.exists() {
+            fs::write(&candidate, contents)?;
+            return Ok(candidate);
+        }
+    }
+
+    Err(std::io::Error::new(
+        std::io::ErrorKind::AlreadyExists,
+        "unable to allocate a unique output file name",
+    ))
 }

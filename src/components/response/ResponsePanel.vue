@@ -8,6 +8,7 @@ import ResponseCodeViewer from './ResponseCodeViewer.vue'
 import ResponseHtmlPreview from './ResponseHtmlPreview.vue'
 import { CheckCircle2, ChevronDown, ChevronUp, Clock3, Copy, Download, HardDrive, XCircle } from 'lucide-vue-next'
 import { prepareResponseCodeView } from '@/lib/response-code-viewer'
+import { runtimeClient } from '@/lib/tauri-client'
 import type {
   AppLocale,
   RequestExecutionSource,
@@ -66,10 +67,17 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   (e: 'toggle-collapsed'): void
   (e: 'create-mock-template'): void
+  (e: 'copy-completed', payload: { contentType: string }): void
+  (e: 'copy-failed', payload: { contentType: string }): void
+  (e: 'download-completed', payload: { fileName: string; path?: string }): void
+  (e: 'download-failed', payload: { fileName: string }): void
 }>()
 
 const activeTab = ref<'body' | 'headers' | 'cookies' | 'tests'>('body')
 const bodyViewMode = ref<'source' | 'preview'>('source')
+const responseCodeViewer = ref<InstanceType<typeof ResponseCodeViewer> | null>(null)
+const responseHtmlPreview = ref<InstanceType<typeof ResponseHtmlPreview> | null>(null)
+const nonBodyContent = ref<HTMLElement | null>(null)
 
 const cookieHeaders = computed(() => props.headers.filter((header) => header.key.toLowerCase() === 'set-cookie'))
 const passedTestsCount = computed(() => props.testResults.filter((result) => result.passed).length)
@@ -122,8 +130,69 @@ const stateMeta = computed(() => {
 const showIdleState = computed(() => activeTab.value === 'body' && activeState.value === 'idle')
 const showPendingState = computed(() => activeTab.value === 'body' && activeState.value === 'pending' && !props.stale)
 
+const isBodyTab = computed(() => activeTab.value === 'body')
+
+const focusBodyContent = () => {
+  if (isHtmlPreviewMode.value) {
+    responseHtmlPreview.value?.focusContent()
+    return
+  }
+
+  responseCodeViewer.value?.focusContent()
+}
+
+const focusActiveContent = () => {
+  if (isBodyTab.value) {
+    focusBodyContent()
+    return
+  }
+
+  nonBodyContent.value?.focus()
+}
+
+const isSelectAllKey = (event: KeyboardEvent) => (
+  (event.ctrlKey || event.metaKey)
+  && !event.altKey
+  && event.key.toLowerCase() === 'a'
+)
+
+const handleScopedSelectAll = (event: KeyboardEvent) => {
+  if (!isSelectAllKey(event)) {
+    return
+  }
+
+  event.preventDefault()
+
+  if (isBodyTab.value && !isHtmlPreviewMode.value) {
+    responseCodeViewer.value?.selectAllContent()
+  }
+}
+
+const handleNonBodyKeydown = (event: KeyboardEvent) => {
+  if (!isSelectAllKey(event)) {
+    return
+  }
+
+  event.preventDefault()
+}
+
+const handleTabsKeydown = (event: KeyboardEvent) => {
+  if (event.key !== 'Tab' || event.shiftKey) {
+    return
+  }
+
+  event.preventDefault()
+  focusActiveContent()
+}
+
 watch(canPreviewHtml, (value) => {
   if (!value) {
+    bodyViewMode.value = 'source'
+  }
+})
+
+watch(activeTab, () => {
+  if (activeTab.value !== 'body') {
     bodyViewMode.value = 'source'
   }
 })
@@ -159,19 +228,68 @@ const getDownloadName = () => {
 }
 
 const copyCurrentContent = async () => {
-  if (!navigator?.clipboard) return
-  await navigator.clipboard.writeText(getActiveContent())
+  if (!navigator?.clipboard) {
+    console.error('[response-panel] clipboard API unavailable')
+    emit('copy-failed', {
+      contentType: activeTab.value,
+    })
+    return
+  }
+
+  try {
+    await navigator.clipboard.writeText(getActiveContent())
+    emit('copy-completed', {
+      contentType: activeTab.value,
+    })
+  } catch (error) {
+    console.error('[response-panel] failed to copy content', error)
+    emit('copy-failed', {
+      contentType: activeTab.value,
+    })
+  }
 }
 
-const downloadCurrentContent = () => {
+const downloadCurrentContent = async () => {
+  const fileName = getDownloadName()
   const content = getActiveContent()
-  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = getDownloadName()
-  link.click()
-  URL.revokeObjectURL(url)
+
+  try {
+    const targetPath = await runtimeClient.promptSavePath({
+      defaultPath: fileName,
+      filters: [
+        {
+          name: 'Text',
+          extensions: ['txt', 'json', 'html', 'xml', 'log'],
+        },
+      ],
+    })
+
+    if (!targetPath) {
+      return
+    }
+
+    const result = await runtimeClient.saveTextFile({
+      fileName,
+      contents: content,
+      targetPath,
+    })
+
+    if (result.ok) {
+      emit('download-completed', {
+        fileName,
+        path: result.data?.path,
+      })
+      return
+    }
+
+    console.error('[response-panel] failed to save response', result.error)
+  } catch (error) {
+    console.error('[response-panel] failed to select save path', error)
+  }
+
+  emit('download-failed', {
+    fileName,
+  })
 }
 </script>
 
@@ -181,17 +299,17 @@ const downloadCurrentContent = () => {
     :data-response-state="activeState"
     class="zr-panel zr-response-shell zr-response-diagnostic flex h-full min-h-0 flex-col overflow-hidden rounded-[0.7rem]"
   >
-    <div class="zr-response-header border-b border-[color:var(--zr-border)] bg-[var(--zr-response-accent)] p-2.5">
-      <div class="flex flex-wrap items-center justify-between gap-2">
+    <div class="zr-response-header border-b border-[color:var(--zr-border)] bg-[var(--zr-response-accent)] p-3">
+      <div class="flex flex-wrap items-center justify-between gap-2.5">
         <div class="flex items-center gap-2">
-          <span class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-[var(--zr-text-muted)]">
+          <span class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">
             <component :is="stateMeta.icon" :class="['h-4 w-4', stateMeta.iconClass]" />
             {{ text.response.title }}
           </span>
           <Badge
             data-testid="response-state-badge"
             variant="outline"
-            :class="['rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-[0.16em]', stateMeta.badgeClass]"
+            :class="['rounded-full px-2.5 py-0.5 text-[9px] font-semibold tracking-[0.14em]', stateMeta.badgeClass]"
           >
             {{ stateBadgeLabel }}
           </Badge>
@@ -219,24 +337,24 @@ const downloadCurrentContent = () => {
           <component :is="props.collapsed ? ChevronDown : ChevronUp" class="h-4 w-4" />
         </button>
       </div>
-      <div class="zr-response-meta-strip mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
+      <div class="zr-response-meta-strip mt-2 flex flex-wrap items-center gap-2 text-xs">
         <span
           data-testid="response-readout-request"
-          class="zr-response-readout inline-flex max-w-[320px] items-center gap-1.5 rounded-full px-1.5 py-0.5"
+          class="zr-response-readout inline-flex max-w-[320px] items-center gap-1.5 rounded-full px-2 py-0.5"
         >
           <span class="font-semibold text-orange-700 dark:text-orange-300">{{ requestMethod }}</span>
           <span class="truncate font-mono text-[var(--zr-text-primary)]">{{ requestUrl }}</span>
         </span>
         <span
           data-testid="response-readout-time"
-          class="zr-response-readout inline-flex items-center gap-1.5 rounded-full px-1.5 py-0.5"
+          class="zr-response-readout inline-flex items-center gap-1.5 rounded-full px-2 py-0.5"
         >
           <Clock3 class="h-3.5 w-3.5 text-[var(--zr-signal-strong)]" />
           <span class="font-mono text-[var(--zr-text-primary)]">{{ time }}</span>
         </span>
         <span
           data-testid="response-readout-size"
-          class="zr-response-readout inline-flex items-center gap-1.5 rounded-full px-1.5 py-0.5"
+          class="zr-response-readout inline-flex items-center gap-1.5 rounded-full px-2 py-0.5"
         >
           <HardDrive class="h-3.5 w-3.5 text-[var(--zr-text-muted)]" />
           <span class="font-mono text-[var(--zr-text-primary)]">{{ size }}</span>
@@ -247,12 +365,13 @@ const downloadCurrentContent = () => {
     <template v-if="!props.collapsed">
       <div
         data-testid="response-panel-tabs"
-        class="zr-response-tab-strip flex items-center gap-0.5 border-b border-[color:var(--zr-border-soft)] bg-[var(--zr-elevated)] px-2.5 py-1.5"
+        class="zr-response-tab-strip flex items-center gap-1 border-b border-[color:var(--zr-border-soft)] bg-[var(--zr-elevated)] px-3 py-2"
+        @keydown="handleTabsKeydown"
       >
-        <Button variant="ghost" size="sm" :class="['h-7 rounded-md px-2.5 text-[10px]', activeTab === 'body' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="activeTab = 'body'">{{ text.response.body }}</Button>
-        <Button variant="ghost" size="sm" :class="['h-7 rounded-md px-2.5 text-[10px]', activeTab === 'headers' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="activeTab = 'headers'">{{ text.response.headers }}</Button>
-        <Button variant="ghost" size="sm" :class="['h-7 rounded-md px-2.5 text-[10px]', activeTab === 'cookies' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="activeTab = 'cookies'">{{ text.response.cookies }}</Button>
-        <Button variant="ghost" size="sm" :class="['h-7 rounded-md px-2.5 text-[10px]', activeTab === 'tests' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="activeTab = 'tests'">{{ text.response.tests }}</Button>
+        <Button variant="ghost" size="sm" :class="['h-8 rounded-lg px-3 text-[10px]', activeTab === 'body' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="activeTab = 'body'">{{ text.response.body }}</Button>
+        <Button variant="ghost" size="sm" :class="['h-8 rounded-lg px-3 text-[10px]', activeTab === 'headers' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="activeTab = 'headers'">{{ text.response.headers }}</Button>
+        <Button variant="ghost" size="sm" :class="['h-8 rounded-lg px-3 text-[10px]', activeTab === 'cookies' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="activeTab = 'cookies'">{{ text.response.cookies }}</Button>
+        <Button variant="ghost" size="sm" :class="['h-8 rounded-lg px-3 text-[10px]', activeTab === 'tests' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="activeTab = 'tests'">{{ text.response.tests }}</Button>
         <div class="flex-1"></div>
         <Button
           v-if="showCreateMockAction"
@@ -267,7 +386,7 @@ const downloadCurrentContent = () => {
         <Button variant="ghost" size="icon-sm" class="zr-tool-button h-7 w-7 rounded-md" @click="copyCurrentContent">
           <Copy class="h-3 w-3" />
         </Button>
-        <Button variant="ghost" size="icon-sm" class="zr-tool-button h-7 w-7 rounded-md" @click="downloadCurrentContent">
+        <Button variant="ghost" size="icon-sm" class="zr-tool-button h-7 w-7 rounded-md" @click="void downloadCurrentContent()">
           <Download class="h-3 w-3" />
         </Button>
       </div>
@@ -325,21 +444,30 @@ const downloadCurrentContent = () => {
               </div>
             </div>
             <ResponseCodeViewer
+              ref="responseCodeViewer"
               v-else-if="!isHtmlPreviewMode"
               :content="preparedResponseView.content"
               :language="preparedResponseView.language"
               :theme="theme"
             />
             <ResponseHtmlPreview
+              ref="responseHtmlPreview"
               v-else
               :document="props.responseBody"
               :title="text.response.previewFrameTitle"
+              @scoped-select-all="handleScopedSelectAll"
             />
           </div>
         </div>
       </template>
       <ScrollArea v-else class="min-h-0 flex-1 p-2.5">
-        <div class="zr-code-panel zr-response-panel-surface rounded-lg p-2.5 pb-3 shadow-none">
+        <div
+          ref="nonBodyContent"
+          data-testid="response-non-body-content"
+          tabindex="0"
+          class="zr-code-panel zr-response-panel-surface rounded-lg p-2.5 pb-3 shadow-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--zr-focus-ring)]"
+          @keydown="handleNonBodyKeydown"
+        >
           <div class="mb-1.5 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">
             <span class="zr-chip rounded-full px-2 py-1">{{ contentType || 'text/plain' }}</span>
             <span>

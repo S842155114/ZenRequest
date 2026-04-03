@@ -147,20 +147,20 @@ const executionBadgeClass = computed(() => {
     data-testid="request-url-shell"
     class="zr-request-command-bar border-b border-[color:var(--zr-border)] bg-[var(--zr-editor-accent)]"
   >
-    <div class="zr-request-command-header flex items-start justify-between gap-2.5 px-3 pt-3">
+    <div class="zr-request-command-header flex items-start justify-between gap-3 px-3 pt-3.5">
       <div class="min-w-0">
-        <div class="flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] text-[var(--zr-text-muted)]">
+        <div class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">
           <Globe class="h-3 w-3 text-[#ff8b5f]" />
-          {{ text.request.requestBuilder }}
+          <span>{{ text.request.requestBuilder }}</span>
         </div>
-        <div class="mt-1 truncate text-sm font-semibold text-[var(--zr-text-primary)]">
+        <div class="mt-1.5 truncate text-[15px] font-semibold leading-5 text-[var(--zr-text-primary)]">
           {{ displayRequestName }}
         </div>
-        <div data-testid="request-command-context" class="mt-1.5 flex flex-wrap items-center gap-1.5">
+        <div data-testid="request-command-context" class="mt-2 flex flex-wrap items-center gap-1.5">
           <span
             data-testid="request-identity-origin"
             :class="[
-              'zr-status-pill rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em]',
+              'zr-status-pill rounded-full px-2.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em]',
               originBadgeClass,
             ]"
           >
@@ -169,7 +169,7 @@ const executionBadgeClass = computed(() => {
           <span
             data-testid="request-identity-persistence"
             :class="[
-              'zr-status-pill rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em]',
+              'zr-status-pill rounded-full px-2.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em]',
               persistenceBadgeClass,
             ]"
           >
@@ -178,7 +178,7 @@ const executionBadgeClass = computed(() => {
           <span
             data-testid="request-identity-execution"
             :class="[
-              'zr-status-pill rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em]',
+              'zr-status-pill rounded-full px-2.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em]',
               executionBadgeClass,
             ]"
           >
@@ -192,7 +192,7 @@ const executionBadgeClass = computed(() => {
             variant="ghost"
             size="icon-sm"
             data-testid="request-command-overflow-trigger"
-            class="zr-secondary-action h-8 w-8 shrink-0 rounded-md"
+            class="zr-secondary-action h-8 w-8 shrink-0 rounded-lg border border-[color:var(--zr-border-soft)] bg-[color:var(--zr-control-bg)]"
             :aria-label="text.request.requestActions"
           >
             <Ellipsis class="h-4 w-4" />
@@ -313,7 +313,14 @@ const executionBadgeClass = computed(() => {
           {{ isLoading ? text.request.sending : text.request.send }}
         </Button>
 
-        <Button variant="ghost" size="icon" class="zr-secondary-action h-9 w-9 rounded-md" @click="emit('save')">
+        <Button
+          data-testid="request-command-save"
+          variant="ghost"
+          size="icon"
+          class="zr-secondary-action h-9 w-9 rounded-md"
+          :aria-label="text.common.save"
+          @click="emit('save')"
+        >
           <Save class="h-3.5 w-3.5" />
         </Button>
       </div>

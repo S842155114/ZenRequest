@@ -1,6 +1,23 @@
-import { defineComponent } from 'vue'
-import { describe, expect, it, vi } from 'vitest'
+import { defineComponent, h, ref } from 'vue'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
+
+const { promptSavePathMock, saveTextFileMock } = vi.hoisted(() => ({
+  promptSavePathMock: vi.fn(),
+  saveTextFileMock: vi.fn(),
+}))
+
+vi.mock('@/lib/tauri-client', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/tauri-client')>('@/lib/tauri-client')
+  return {
+    ...actual,
+    runtimeClient: {
+      ...actual.runtimeClient,
+      promptSavePath: promptSavePathMock,
+      saveTextFile: saveTextFileMock,
+    },
+  }
+})
 
 vi.mock('./ResponseCodeViewer.vue', () => ({
   default: defineComponent({
@@ -15,7 +32,27 @@ vi.mock('./ResponseCodeViewer.vue', () => ({
         required: true,
       },
     },
-    template: '<div data-testid="response-code-viewer" :data-language="language" :data-content="content" />',
+    setup(props, { expose }) {
+      const root = ref<HTMLElement | null>(null)
+
+      expose({
+        focusContent() {
+          root.value?.focus()
+        },
+        selectAllContent() {
+          root.value?.setAttribute('data-selected', 'true')
+          root.value?.focus()
+        },
+      })
+
+      return () => h('div', {
+        ref: root,
+        tabindex: 0,
+        'data-testid': 'response-code-viewer',
+        'data-language': props.language,
+        'data-content': props.content,
+      })
+    },
   }),
 }))
 
@@ -32,7 +69,49 @@ vi.mock('./ResponseHtmlPreview.vue', () => ({
         default: '',
       },
     },
-    template: '<div data-testid="response-html-preview"><iframe data-testid="response-html-preview-frame" :srcdoc="document" :title="title" /></div>',
+    emits: ['scoped-select-all'],
+    setup(props, { emit, expose }) {
+      const root = ref<HTMLElement | null>(null)
+      const frame = ref<HTMLIFrameElement | null>(null)
+
+      const handleScopedSelectAll = (event: KeyboardEvent) => {
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
+          event.preventDefault()
+          emit('scoped-select-all', event)
+        }
+      }
+
+      const bindFrameKeydown = () => {
+        const iframe = frame.value as (HTMLIFrameElement & { __zrFrameKeydownHandler__?: (event: KeyboardEvent) => void }) | null
+        if (!iframe) {
+          return
+        }
+
+        iframe.__zrFrameKeydownHandler__ = handleScopedSelectAll
+      }
+
+      expose({
+        focusContent() {
+          root.value?.focus()
+        },
+      })
+
+      return () => h('div', {
+        ref: root,
+        tabindex: 0,
+        'data-testid': 'response-html-preview',
+        onVnodeMounted: bindFrameKeydown,
+        onKeydown: handleScopedSelectAll,
+      }, [
+        h('iframe', {
+          ref: frame,
+          tabindex: -1,
+          'data-testid': 'response-html-preview-frame',
+          srcdoc: props.document,
+          title: props.title,
+        }),
+      ])
+    },
   }),
 }))
 
@@ -40,6 +119,12 @@ import ResponsePanel from './ResponsePanel.vue'
 import { getMessages } from '@/lib/i18n'
 
 describe('ResponsePanel i18n copy', () => {
+  beforeEach(() => {
+    promptSavePathMock.mockReset()
+    promptSavePathMock.mockResolvedValue('response-body.txt')
+    saveTextFileMock.mockReset()
+    vi.restoreAllMocks()
+  })
   it('renders collapsed summary labels from i18n in zh-CN locale', () => {
     const wrapper = mount(ResponsePanel, {
       props: {
@@ -159,6 +244,252 @@ describe('ResponsePanel i18n copy', () => {
     await wrapper.get('[data-testid="response-body-mode-source"]').trigger('click')
 
     expect(wrapper.get('[data-testid="response-code-viewer"]').attributes('data-language')).toBe('html')
+  })
+
+  it('moves focus from response tabs into the active content region with tab', async () => {
+    const wrapper = mount(ResponsePanel, {
+      attachTo: document.body,
+      props: {
+        locale: 'en',
+      },
+    })
+
+    const tabs = wrapper.get('[data-testid="response-panel-tabs"]')
+
+    await tabs.trigger('keydown', {
+      key: 'Tab',
+      shiftKey: false,
+    })
+
+    const viewer = wrapper.get('[data-testid="response-code-viewer"]')
+    expect(document.activeElement).toBe(viewer.element)
+  })
+
+  it('moves focus from response tabs into the html preview container with tab', async () => {
+    const responseBody = '<html><body><main><h1>Hello</h1></main></body></html>'
+    const wrapper = mount(ResponsePanel, {
+      attachTo: document.body,
+      props: {
+        locale: 'en',
+        contentType: 'text/html',
+        responseBody,
+      },
+    })
+
+    await wrapper.get('[data-testid="response-body-mode-preview"]').trigger('click')
+
+    const tabs = wrapper.get('[data-testid="response-panel-tabs"]')
+    await tabs.trigger('keydown', {
+      key: 'Tab',
+      shiftKey: false,
+    })
+
+    const preview = wrapper.get('[data-testid="response-html-preview"]')
+    const iframe = wrapper.get('[data-testid="response-html-preview-frame"]').element as HTMLIFrameElement
+
+    expect(document.activeElement).toBe(preview.element)
+    expect(iframe.tabIndex).toBe(-1)
+  })
+
+  it('emits copy-completed after copying the active response content', async () => {
+    const writeTextMock = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText: writeTextMock,
+      },
+    })
+
+    const wrapper = mount(ResponsePanel, {
+      props: {
+        locale: 'en',
+        responseBody: '{"ok":true}',
+        contentType: 'application/json',
+      },
+    })
+
+    const actionButtons = wrapper.findAll('button')
+    const copyButton = actionButtons[actionButtons.length - 2]
+    await copyButton.trigger('click')
+
+    expect(writeTextMock).toHaveBeenCalledWith(`{
+  "ok": true
+}`)
+    expect(wrapper.emitted('copy-completed')).toEqual([[{ contentType: 'body' }]])
+  })
+
+  it('emits copy-failed when clipboard write rejects', async () => {
+    const writeTextMock = vi.fn().mockRejectedValue(new Error('Permission denied'))
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText: writeTextMock,
+      },
+    })
+
+    const wrapper = mount(ResponsePanel, {
+      props: {
+        locale: 'en',
+        responseBody: '{"ok":true}',
+        contentType: 'application/json',
+      },
+    })
+
+    const actionButtons = wrapper.findAll('button')
+    const copyButton = actionButtons[actionButtons.length - 2]
+    await copyButton.trigger('click')
+
+    expect(wrapper.emitted('copy-failed')).toEqual([[{ contentType: 'body' }]])
+  })
+
+  it('uses the runtime save-text-file flow for downloads', async () => {
+    saveTextFileMock.mockResolvedValue({
+      ok: true,
+      data: { path: '/tmp/response-body.txt' },
+    })
+
+    const wrapper = mount(ResponsePanel, {
+      props: {
+        locale: 'en',
+        responseBody: '{"ok":true}',
+        contentType: 'application/json',
+      },
+    })
+
+    const actionButtons = wrapper.findAll('button')
+    const downloadButton = actionButtons[actionButtons.length - 1]
+    await downloadButton.trigger('click')
+
+    expect(saveTextFileMock).toHaveBeenCalledWith({
+      fileName: 'response-body.txt',
+      contents: `{
+  "ok": true
+}`,
+      targetPath: 'response-body.txt',
+    })
+  })
+
+  it('emits download-failed when native save fails', async () => {
+    saveTextFileMock.mockResolvedValue({
+      ok: false,
+      error: { code: 'FILE_SAVE_FAILED', message: 'failed to save file' },
+    })
+
+    const wrapper = mount(ResponsePanel, {
+      props: {
+        locale: 'en',
+        responseBody: '{"ok":true}',
+        contentType: 'application/json',
+      },
+    })
+
+    const actionButtons = wrapper.findAll('button')
+    const downloadButton = actionButtons[actionButtons.length - 1]
+    await downloadButton.trigger('click')
+
+    expect(wrapper.emitted('download-failed')).toEqual([[{ fileName: 'response-body.txt' }]])
+  })
+
+  it('emits download-failed when save path selection throws', async () => {
+    promptSavePathMock.mockRejectedValue(new Error('dialog unavailable'))
+
+    const wrapper = mount(ResponsePanel, {
+      props: {
+        locale: 'en',
+        responseBody: '{"ok":true}',
+        contentType: 'application/json',
+      },
+    })
+
+    const actionButtons = wrapper.findAll('button')
+    const downloadButton = actionButtons[actionButtons.length - 1]
+    await downloadButton.trigger('click')
+
+    expect(saveTextFileMock).not.toHaveBeenCalled()
+    expect(wrapper.emitted('download-failed')).toEqual([[{ fileName: 'response-body.txt' }]])
+  })
+
+
+  it('prevents whole-page select-all on non-body views', async () => {
+    const wrapper = mount(ResponsePanel, {
+      attachTo: document.body,
+      props: {
+        locale: 'en',
+        headers: [{ key: 'Content-Type', value: 'application/json' }],
+      },
+    })
+
+    const text = getMessages('en')
+    const headersButton = wrapper.findAll('button').find((button) => button.text() === text.response.headers)
+    expect(headersButton).toBeDefined()
+
+    await headersButton!.trigger('click')
+
+    const surface = wrapper.get('[data-testid="response-non-body-content"]')
+    const event = new KeyboardEvent('keydown', {
+      key: 'a',
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    })
+
+    surface.element.dispatchEvent(event)
+
+    expect(event.defaultPrevented).toBe(true)
+  })
+
+  it('prevents whole-page select-all in html preview mode', async () => {
+    const responseBody = '<html><body><main><h1>Hello</h1></main></body></html>'
+    const wrapper = mount(ResponsePanel, {
+      attachTo: document.body,
+      props: {
+        locale: 'en',
+        contentType: 'text/html',
+        responseBody,
+      },
+    })
+
+    await wrapper.get('[data-testid="response-body-mode-preview"]').trigger('click')
+
+    const preview = wrapper.get('[data-testid="response-html-preview"]')
+    const event = new KeyboardEvent('keydown', {
+      key: 'a',
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    })
+
+    preview.element.dispatchEvent(event)
+
+    expect(event.defaultPrevented).toBe(true)
+  })
+
+  it('prevents whole-page select-all when ctrl+a originates inside the html preview iframe', async () => {
+    const responseBody = '<html><body><main><h1>Hello</h1></main></body></html>'
+    const wrapper = mount(ResponsePanel, {
+      attachTo: document.body,
+      props: {
+        locale: 'en',
+        contentType: 'text/html',
+        responseBody,
+      },
+    })
+
+    await wrapper.get('[data-testid="response-body-mode-preview"]').trigger('click')
+
+    const iframe = wrapper.get('[data-testid="response-html-preview-frame"]').element as HTMLIFrameElement & {
+      __zrFrameKeydownHandler__?: (event: KeyboardEvent) => void
+    }
+    const event = new KeyboardEvent('keydown', {
+      key: 'a',
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    })
+
+    expect(iframe.__zrFrameKeydownHandler__).toBeTypeOf('function')
+
+    iframe.__zrFrameKeydownHandler__?.(event)
+
+    expect(event.defaultPrevented).toBe(true)
   })
 
   it('keeps non-html responses on the source-only path', () => {

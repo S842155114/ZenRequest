@@ -74,4 +74,39 @@ describe('CodeEditorSurface', () => {
     expect(view!.state.doc.toString()).toBe('{"Xok":true}')
     expect(view!.state.selection.main.head).toBe(cursorPos + 1)
   })
+
+  it('captures primary-modifier select-all when read only from the focused editor surface', async () => {
+    const wrapper = mount(CodeEditorSurface, {
+      attachTo: document.body,
+      props: {
+        testId: 'code-editor-surface',
+        content: '{"ok":true}',
+        language: 'json',
+        readOnly: true,
+      },
+    })
+
+    const host = wrapper.get('[data-testid="code-editor-surface"]').element as HTMLElement
+    const editorRoot = wrapper.get('.cm-editor').element as HTMLElement
+    const content = wrapper.get('.cm-content').element as HTMLElement
+    const view = EditorView.findFromDOM(editorRoot)
+
+    expect(host.tabIndex).toBe(-1)
+    expect(content.tabIndex).toBe(0)
+    expect(view).toBeTruthy()
+
+    content.focus()
+    const event = new KeyboardEvent('keydown', {
+      key: 'a',
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    })
+
+    content.dispatchEvent(event)
+
+    expect(event.defaultPrevented).toBe(true)
+    expect(view?.state.selection.main.from).toBe(0)
+    expect(view?.state.selection.main.to).toBe(view?.state.doc.length)
+  })
 })

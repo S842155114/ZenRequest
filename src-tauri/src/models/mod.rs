@@ -15,10 +15,11 @@ pub use app::{
     RuntimeCapabilitiesDto, RuntimeCapabilityDescriptorDto, RuntimeExecutionHookCapabilityDto,
     RuntimeImportAdapterCapabilityDto, RuntimePluginManifestCapabilityDto,
     RuntimeProtocolCapabilityDto, RuntimeToolPackagingCapabilityDto, SaveRequestPayloadDto,
-    SaveWorkspacePayloadDto, SetActiveWorkspacePayloadDto, UpdateEnvironmentVariablesPayloadDto,
-    WorkspaceExportDataDto, WorkspaceExportPackageDto, WorkspaceExportPayloadDto,
-    WorkspaceExportResultDto, WorkspaceHistoryExportItemDto, WorkspaceImportResultDto,
-    WorkspaceSaveResult, WorkspaceSessionDto, WorkspaceSummaryDto,
+    SaveTextFilePayloadDto, SaveTextFileResultDto, SaveWorkspacePayloadDto,
+    SetActiveWorkspacePayloadDto, UpdateEnvironmentVariablesPayloadDto, WorkspaceExportDataDto,
+    WorkspaceExportPackageDto, WorkspaceExportPayloadDto, WorkspaceExportResultDto,
+    WorkspaceHistoryExportItemDto, WorkspaceImportResultDto, WorkspaceSaveResult,
+    WorkspaceSessionDto, WorkspaceSummaryDto,
 };
 pub use envelope::ApiEnvelope;
 pub use importing::{
