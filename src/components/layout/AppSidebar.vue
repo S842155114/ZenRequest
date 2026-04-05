@@ -176,14 +176,11 @@ const getHistoryStatusMetaClass = (status: number) => (
 )
 
 const getHistorySummary = (item: HistoryItem) => {
-  if (!item.mcpSummary) return ""
+  if (!item.mcpSummary) return ''
 
   const parts = [item.mcpSummary.operation, item.mcpSummary.transport]
-  if (item.mcpSummary.errorCategory) {
-    parts.push(item.mcpSummary.errorCategory)
-  }
-
-  return parts.join(" · ")
+  const errorCategory = item.mcpSummary.errorCategory
+  return errorCategory ? [...parts, errorCategory].join(' · ') : parts.join(' · ')
 }
 
 const getTestIdKey = (value: string) => value

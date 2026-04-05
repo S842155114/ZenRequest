@@ -101,7 +101,7 @@ const availableTools = computed<McpToolSchemaSnapshot[]>(() => {
 const selectedToolSchema = computed<McpToolSchemaSnapshot | undefined>(() => {
   if (props.mcp?.operation.type !== 'tools.call') return undefined
   if (props.mcp.operation.input.schema) return props.mcp.operation.input.schema
-  return availableTools.value.find((tool) => tool.name === props.mcp?.operation.input.toolName)
+  return availableTools.value.find((tool) => tool.name === toolName.value)
 })
 
 const currentToolArguments = computed<Record<string, unknown>>(() => (
@@ -142,7 +142,8 @@ const handleBaseUrlChange = (value: string | number) => {
   }))
 }
 
-const handleOperationChange = (value: string) => {
+const handleOperationChange = (value: string | null) => {
+  if (!value) return
   updateMcp((current) => {
     if (value === current.operation.type) return current
 
@@ -186,7 +187,8 @@ const handleOperationChange = (value: string) => {
   })
 }
 
-const handleToolSelection = (nextToolName: string) => {
+const handleToolSelection = (nextToolName: string | null) => {
+  if (!nextToolName) return
   updateMcp((current) => {
     if (current.operation.type !== 'tools.call') return current
     const matchedTool = availableTools.value.find((tool) => tool.name === nextToolName)
