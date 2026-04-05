@@ -67,6 +67,18 @@ impl CapabilityRegistry {
                     availability: "active".to_string(),
                 },
                 CapabilityDescriptor {
+                    key: "mcp.http".to_string(),
+                    kind: "mcp_transport".to_string(),
+                    display_name: "MCP over HTTP".to_string(),
+                    availability: "active".to_string(),
+                },
+                CapabilityDescriptor {
+                    key: "mcp.stdio".to_string(),
+                    kind: "mcp_transport".to_string(),
+                    display_name: "MCP over stdio".to_string(),
+                    availability: "reserved".to_string(),
+                },
+                CapabilityDescriptor {
                     key: "import.backup".to_string(),
                     kind: "import_adapter".to_string(),
                     display_name: "Backup Restore".to_string(),
@@ -238,6 +250,12 @@ mod tests {
             .iter()
             .any(|descriptor| descriptor.kind == "import_adapter"
                 && descriptor.key == "import.openapi"));
+        assert!(capability_registry
+            .descriptors()
+            .iter()
+            .any(|descriptor| descriptor.kind == "mcp_transport"
+                && descriptor.key == "mcp.http"
+                && descriptor.availability == "active"));
         assert!(protocol_registry
             .descriptors()
             .iter()
@@ -266,6 +284,7 @@ mod tests {
             "execution_hook.reserved",
             "tool_packaging.reserved",
             "plugin_manifest.reserved",
+            "mcp.stdio",
         ] {
             assert!(capability_registry
                 .descriptors()

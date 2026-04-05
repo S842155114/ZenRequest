@@ -17,6 +17,7 @@ import type {
 import type {
   AppBootstrapPayload as RuntimeBootstrapPayload,
   RuntimeCapabilities,
+  SendMcpRequestResult,
   SendRequestResult,
 } from '@/lib/tauri-client'
 import type { StartupState } from '../types'
@@ -31,6 +32,7 @@ import {
   cloneResponse,
   cloneTab,
   cloneTests,
+  createHistoryEntry,
   createRequestTabFromPreset,
   defaultEnvironments,
   formatBytes,
@@ -70,7 +72,7 @@ export interface AppShellState {
 
 export interface SendSuccessInput {
   payload: SendRequestPayload
-  response: SendRequestResult
+  response: SendRequestResult | SendMcpRequestResult
 }
 
 export interface SaveRequestMutationInput {
@@ -443,17 +445,33 @@ export const createAppShellStore = (state: AppShellState): AppShellStore => {
       }))
     },
     applySendSuccess: (input) => {
-      const artifact = input.response.executionArtifact
+      const artifact = 'executionArtifact' in input.response ? input.response.executionArtifact : undefined
+      const mcpArtifact = 'mcpArtifact' in input.response ? input.response.mcpArtifact : undefined
       const normalizedResponse = artifact?.normalizedResponse
       const compiledRequest = artifact?.compiledRequest
-      const assertionResults = input.response.assertionResults ?? artifact?.assertionResults
+      const assertionResults = 'assertionResults' in input.response
+        ? input.response.assertionResults ?? artifact?.assertionResults
+        : artifact?.assertionResults
       const status = normalizedResponse?.status ?? input.response.status
 
-      mutations.updateTab(input.payload.tabId, (tab) => ({
+      mutations.updateTab(input.payload.tabId, (tab) => {
+        const responseTools = mcpArtifact?.protocolResponse && typeof mcpArtifact.protocolResponse === 'object'
+          ? (((mcpArtifact.protocolResponse as Record<string, unknown>).result as Record<string, unknown> | undefined)?.tools as typeof mcpArtifact.cachedTools | undefined)
+          : undefined
+        const nextMcpArtifact = mcpArtifact
+          ? {
+            ...mcpArtifact,
+            cachedTools: mcpArtifact.cachedTools ?? responseTools ?? tab.response.mcpArtifact?.cachedTools,
+          }
+          : tab.response.mcpArtifact
+
+        return {
         ...tab,
         isSending: false,
         executionState: resolveResponseStateFromStatus(status),
         response: {
+          requestKind: input.payload.requestKind ?? 'http',
+          mcpArtifact: nextMcpArtifact,
           responseBody: normalizedResponse?.body || input.response.responseBody || '{\n  "message": "Empty response body"\n}',
           status,
           statusText: normalizedResponse?.statusText || input.response.statusText || 'OK',
@@ -468,10 +486,25 @@ export const createAppShellStore = (state: AppShellState): AppShellStore => {
           stale: false,
           executionSource: artifact?.executionSource ?? input.response.executionSource ?? 'live',
         },
-      }))
+      }
+      })
 
       if (input.response.historyItem) {
         mutations.prependHistoryItem(input.response.historyItem)
+      } else if (input.payload.requestKind === 'mcp' && mcpArtifact) {
+        mutations.prependHistoryItem(createHistoryEntry({
+          requestId: input.payload.requestId,
+          requestSnapshot: input.payload,
+          name: input.payload.name,
+          method: input.response.requestMethod || input.payload.method,
+          url: input.response.requestUrl || input.payload.url,
+          status,
+          mcpSummary: {
+            operation: mcpArtifact.operation,
+            transport: mcpArtifact.transport,
+            errorCategory: mcpArtifact.errorCategory,
+          },
+        }))
       }
     },
     applySendFailure: (input) => {

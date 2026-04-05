@@ -208,6 +208,10 @@ impl Default for RequestBodyDto {
 pub struct SendRequestPayloadDto {
     pub workspace_id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp: Option<McpRequestDefinitionDto>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active_environment_id: Option<String>,
     pub tab_id: String,
     pub request_id: Option<String>,
@@ -227,6 +231,107 @@ pub struct SendRequestPayloadDto {
     pub mock: Option<RequestMockStateDto>,
     #[serde(default)]
     pub execution_options: RequestExecutionOptionsDto,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct McpConnectionConfigDto {
+    #[serde(default)]
+    pub transport: String,
+    #[serde(default)]
+    pub base_url: String,
+    #[serde(default)]
+    pub headers: Vec<KeyValueItemDto>,
+    #[serde(default)]
+    pub auth: AuthConfigDto,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct McpInitializeInputDto {
+    #[serde(default)]
+    pub client_name: String,
+    #[serde(default)]
+    pub client_version: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub protocol_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct McpToolSchemaSnapshotDto {
+    #[serde(default)]
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_schema: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct McpToolsListInputDto {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct McpToolCallInputDto {
+    #[serde(default)]
+    pub tool_name: String,
+    #[serde(default)]
+    pub arguments: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub schema: Option<McpToolSchemaSnapshotDto>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum McpOperationInputDto {
+    #[serde(rename = "initialize")]
+    Initialize { input: McpInitializeInputDto },
+    #[serde(rename = "tools.list", alias = "toolsList")]
+    ToolsList { input: McpToolsListInputDto },
+    #[serde(rename = "tools.call", alias = "toolsCall")]
+    ToolsCall { input: McpToolCallInputDto },
+}
+
+impl Default for McpOperationInputDto {
+    fn default() -> Self {
+        Self::Initialize {
+            input: McpInitializeInputDto::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct McpRequestDefinitionDto {
+    pub connection: McpConnectionConfigDto,
+    pub operation: McpOperationInputDto,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SendMcpRequestPayloadDto {
+    pub workspace_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_environment_id: Option<String>,
+    pub tab_id: String,
+    pub request_id: Option<String>,
+    pub name: String,
+    pub description: String,
+    pub tags: Vec<String>,
+    pub collection_name: String,
+    pub request_kind: String,
+    pub mcp: McpRequestDefinitionDto,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -304,6 +409,23 @@ pub struct ExecutionArtifactDto {
     pub assertion_results: AssertionResultSetDto,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct McpExecutionArtifactDto {
+    #[serde(default)]
+    pub transport: String,
+    #[serde(default)]
+    pub operation: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub protocol_request: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub protocol_response: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selected_tool: Option<McpToolSchemaSnapshotDto>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_category: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SendRequestResultDto {
@@ -325,6 +447,47 @@ pub struct SendRequestResultDto {
     pub execution_artifact: Option<ExecutionArtifactDto>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub history_item: Option<HistoryItemDto>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SendMcpRequestResultDto {
+    pub request_method: String,
+    pub request_url: String,
+    pub status: u16,
+    pub status_text: String,
+    pub elapsed_ms: u64,
+    pub size_bytes: usize,
+    pub content_type: String,
+    pub response_body: String,
+    pub headers: Vec<ResponseHeaderItemDto>,
+    pub truncated: bool,
+    #[serde(default = "default_execution_source")]
+    pub execution_source: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_artifact: Option<McpExecutionArtifactDto>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub history_item: Option<HistoryItemDto>,
+}
+
+impl Default for SendMcpRequestResultDto {
+    fn default() -> Self {
+        Self {
+            request_method: "POST".to_string(),
+            request_url: String::new(),
+            status: 0,
+            status_text: "NOT_IMPLEMENTED".to_string(),
+            elapsed_ms: 0,
+            size_bytes: 0,
+            content_type: "application/json".to_string(),
+            response_body: String::new(),
+            headers: Vec::new(),
+            truncated: false,
+            execution_source: default_execution_source(),
+            mcp_artifact: None,
+            history_item: None,
+        }
+    }
 }
 
 impl Default for SendRequestResultDto {

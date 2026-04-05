@@ -45,6 +45,7 @@ pub fn run() {
             commands::history::clear_history,
             commands::history::remove_history_item,
             commands::request::send_request,
+            commands::request::send_mcp_request,
             commands::settings::get_settings,
             commands::settings::update_settings
         ])

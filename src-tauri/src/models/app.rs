@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::models::request::{
-    AuthConfigDto, FormDataFieldDto, KeyValueItemDto, RequestAssertionResultDto,
-    RequestExecutionOptionsDto, RequestMockStateDto, RequestTestDefinitionDto,
-    ResponseHeaderItemDto, SendRequestPayloadDto,
+    AuthConfigDto, FormDataFieldDto, KeyValueItemDto, McpExecutionArtifactDto,
+    McpRequestDefinitionDto, RequestAssertionResultDto, RequestExecutionOptionsDto,
+    RequestMockStateDto, RequestTestDefinitionDto, ResponseHeaderItemDto, SendRequestPayloadDto,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,6 +25,10 @@ impl Default for AppSettings {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ResponseStateDto {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_artifact: Option<McpExecutionArtifactDto>,
     pub response_body: String,
     pub status: u16,
     pub status_text: String,
@@ -49,6 +53,10 @@ pub struct ResponseStateDto {
 pub struct RequestPresetDto {
     #[serde(default)]
     pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp: Option<McpRequestDefinitionDto>,
     pub name: String,
     #[serde(default)]
     pub description: String,
@@ -110,6 +118,18 @@ pub struct EnvironmentDto {
     pub variables: Vec<KeyValueItemDto>,
 }
 
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct McpHistorySummaryDto {
+    #[serde(default)]
+    pub operation: String,
+    #[serde(default)]
+    pub transport: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_category: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct HistoryItemDto {
@@ -141,6 +161,8 @@ pub struct HistoryItemDto {
     #[serde(default = "default_execution_source")]
     pub execution_source: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_summary: Option<McpHistorySummaryDto>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub request_snapshot: Option<SendRequestPayloadDto>,
 }
 
@@ -159,6 +181,10 @@ pub struct RequestTabOriginDto {
 pub struct RequestTabStateDto {
     #[serde(default)]
     pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp: Option<McpRequestDefinitionDto>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

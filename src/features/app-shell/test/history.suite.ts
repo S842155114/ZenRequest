@@ -177,6 +177,369 @@ describe('App workbench shell - history recovery', () => {
     expect(getActiveRequestPanelTab(wrapper)?.id).toBe(firstReplay?.id)
   })
 
+  it('adds mcp sends to history with replayable summaries when runtime does not return a history item', async () => {
+    window.innerWidth = 1440
+
+    const payload = createBootstrapPayload()
+    payload.session = {
+      activeEnvironmentId: 'env-local',
+      activeTabId: 'tab-mcp',
+      openTabs: [{
+        id: 'tab-mcp',
+        requestKind: 'mcp',
+        mcp: {
+          connection: {
+            transport: 'http',
+            baseUrl: 'https://example.com/mcp',
+            headers: [],
+            auth: {
+              type: 'none',
+              bearerToken: '',
+              username: '',
+              password: '',
+              apiKeyKey: '',
+              apiKeyValue: '',
+              apiKeyPlacement: 'header',
+            },
+          },
+          operation: {
+            type: 'tools.call',
+            input: {
+              toolName: 'search',
+              arguments: { q: 'zen' },
+            },
+          },
+        },
+        name: 'MCP Search',
+        description: '',
+        tags: ['mcp'],
+        collectionName: 'Scratch Pad',
+        method: 'POST',
+        url: 'https://example.com/mcp',
+        params: [],
+        headers: [],
+        body: '',
+        bodyType: 'json',
+        auth: {
+          type: 'none',
+          bearerToken: '',
+          username: '',
+          password: '',
+          apiKeyKey: '',
+          apiKeyValue: '',
+          apiKeyPlacement: 'header',
+        },
+        tests: [],
+        response: {
+          requestKind: 'mcp',
+          responseBody: '',
+          status: 0,
+          statusText: '',
+          time: '0 ms',
+          size: '0 B',
+          headers: [],
+          contentType: 'application/json',
+          requestMethod: 'POST',
+          requestUrl: 'https://example.com/mcp',
+          testResults: [],
+        },
+        isSending: false,
+        isDirty: false,
+      }],
+    }
+
+    setRuntimeAdapter(createAdapter(payload, {
+      sendMcpRequest: async () => ok({
+        requestMethod: 'POST',
+        requestUrl: 'https://example.com/mcp',
+        status: 200,
+        statusText: 'OK',
+        elapsedMs: 16,
+        sizeBytes: 96,
+        contentType: 'application/json',
+        responseBody: '{"result":true}',
+        headers: [],
+        truncated: false,
+        executionSource: 'live' as const,
+        mcpArtifact: {
+          transport: 'http',
+          operation: 'tools.call',
+          errorCategory: 'protocol',
+        },
+      }),
+    }))
+
+    const wrapper = await mountApp()
+
+    await wrapper.get('[data-testid="request-panel-send"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    const historyItems = wrapper.findComponent(AppSidebarStub).props('historyItems') as HistoryItem[]
+    expect(historyItems[0]?.mcpSummary).toEqual({
+      operation: 'tools.call',
+      transport: 'http',
+      errorCategory: 'protocol',
+    })
+    expect(historyItems[0]?.requestSnapshot?.requestKind).toBe('mcp')
+
+    await wrapper.get('[data-testid="sidebar-select-history"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    const replayTab = getActiveRequestPanelTab(wrapper)
+    expect(replayTab?.origin?.kind).toBe('replay')
+    expect(replayTab?.requestKind).toBe('mcp')
+    expect(replayTab?.mcp?.operation.type).toBe('tools.call')
+  })
+
+
+  it('replays initialize, tools.list, and tools.call MCP history snapshots through one workbench flow', async () => {
+    window.innerWidth = 1440
+
+    const payload = createBootstrapPayload()
+    payload.history = [
+      {
+        id: 'history-mcp-init',
+        name: 'MCP Initialize',
+        method: 'POST',
+        status: 200,
+        time: '12 ms',
+        url: 'https://example.com/mcp',
+        executedAtEpochMs: 1_774_961_100_000,
+        statusText: 'OK',
+        elapsedMs: 12,
+        sizeBytes: 120,
+        contentType: 'application/json',
+        truncated: false,
+        responsePreview: '{"result":{"protocolVersion":"2025-03-26"}}',
+        responseHeaders: [{ key: 'content-type', value: 'application/json' }],
+        mcpSummary: {
+          operation: 'initialize',
+          transport: 'http',
+        },
+        requestSnapshot: {
+          workspaceId: 'workspace-1',
+          activeEnvironmentId: 'env-local',
+          tabId: 'tab-mcp-init',
+          requestKind: 'mcp',
+          mcp: {
+            connection: {
+              transport: 'http',
+              baseUrl: 'https://example.com/mcp',
+              headers: [],
+              auth: {
+                type: 'none',
+                bearerToken: '',
+                username: '',
+                password: '',
+                apiKeyKey: '',
+                apiKeyValue: '',
+                apiKeyPlacement: 'header',
+              },
+            },
+            operation: {
+              type: 'initialize',
+              input: {
+                clientName: 'ZenRequest',
+                clientVersion: '0.1.0',
+              },
+            },
+          },
+          name: 'MCP Initialize',
+          description: '',
+          tags: ['mcp'],
+          collectionName: 'Scratch Pad',
+          method: 'POST',
+          url: 'https://example.com/mcp',
+          params: [],
+          headers: [],
+          body: { kind: 'json', value: '' },
+          bodyType: 'json',
+          auth: {
+            type: 'none',
+            bearerToken: '',
+            username: '',
+            password: '',
+            apiKeyKey: '',
+            apiKeyValue: '',
+            apiKeyPlacement: 'header',
+          },
+          tests: [],
+        },
+      },
+      {
+        id: 'history-mcp-tools-list',
+        name: 'MCP Tools List',
+        method: 'POST',
+        status: 200,
+        time: '15 ms',
+        url: 'https://example.com/mcp',
+        executedAtEpochMs: 1_774_961_200_000,
+        statusText: 'OK',
+        elapsedMs: 15,
+        sizeBytes: 256,
+        contentType: 'application/json',
+        truncated: false,
+        responsePreview: '{"result":{"tools":[{"name":"search"}]}}',
+        responseHeaders: [{ key: 'content-type', value: 'application/json' }],
+        mcpSummary: {
+          operation: 'tools.list',
+          transport: 'http',
+        },
+        requestSnapshot: {
+          workspaceId: 'workspace-1',
+          activeEnvironmentId: 'env-local',
+          tabId: 'tab-mcp-tools-list',
+          requestKind: 'mcp',
+          mcp: {
+            connection: {
+              transport: 'http',
+              baseUrl: 'https://example.com/mcp',
+              headers: [],
+              auth: {
+                type: 'none',
+                bearerToken: '',
+                username: '',
+                password: '',
+                apiKeyKey: '',
+                apiKeyValue: '',
+                apiKeyPlacement: 'header',
+              },
+            },
+            operation: {
+              type: 'tools.list',
+              input: {
+                cursor: '',
+              },
+            },
+          },
+          name: 'MCP Tools List',
+          description: '',
+          tags: ['mcp'],
+          collectionName: 'Scratch Pad',
+          method: 'POST',
+          url: 'https://example.com/mcp',
+          params: [],
+          headers: [],
+          body: { kind: 'json', value: '' },
+          bodyType: 'json',
+          auth: {
+            type: 'none',
+            bearerToken: '',
+            username: '',
+            password: '',
+            apiKeyKey: '',
+            apiKeyValue: '',
+            apiKeyPlacement: 'header',
+          },
+          tests: [],
+        },
+      },
+      {
+        id: 'history-mcp-tools-call',
+        name: 'MCP Search',
+        method: 'POST',
+        status: 200,
+        time: '18 ms',
+        url: 'https://example.com/mcp',
+        executedAtEpochMs: 1_774_961_300_000,
+        statusText: 'OK',
+        elapsedMs: 18,
+        sizeBytes: 300,
+        contentType: 'application/json',
+        truncated: false,
+        responsePreview: '{"result":{"content":[{"type":"text","text":"zen"}]}}',
+        responseHeaders: [{ key: 'content-type', value: 'application/json' }],
+        mcpSummary: {
+          operation: 'tools.call',
+          transport: 'http',
+        },
+        requestSnapshot: {
+          workspaceId: 'workspace-1',
+          activeEnvironmentId: 'env-local',
+          tabId: 'tab-mcp-tools-call',
+          requestKind: 'mcp',
+          mcp: {
+            connection: {
+              transport: 'http',
+              baseUrl: 'https://example.com/mcp',
+              headers: [],
+              auth: {
+                type: 'none',
+                bearerToken: '',
+                username: '',
+                password: '',
+                apiKeyKey: '',
+                apiKeyValue: '',
+                apiKeyPlacement: 'header',
+              },
+            },
+            operation: {
+              type: 'tools.call',
+              input: {
+                toolName: 'search',
+                arguments: { q: 'zen' },
+              },
+            },
+          },
+          name: 'MCP Search',
+          description: '',
+          tags: ['mcp'],
+          collectionName: 'Scratch Pad',
+          method: 'POST',
+          url: 'https://example.com/mcp',
+          params: [],
+          headers: [],
+          body: { kind: 'json', value: '' },
+          bodyType: 'json',
+          auth: {
+            type: 'none',
+            bearerToken: '',
+            username: '',
+            password: '',
+            apiKeyKey: '',
+            apiKeyValue: '',
+            apiKeyPlacement: 'header',
+          },
+          tests: [],
+        },
+      },
+    ] as unknown as HistoryItem[]
+
+    setRuntimeAdapter(createAdapter(payload))
+
+    const wrapper = await mountApp()
+    const sidebar = wrapper.findComponent(AppSidebarStub)
+    const items = sidebar.props('historyItems') as HistoryItem[]
+
+    expect(items.map((item) => item.mcpSummary?.operation)).toEqual([
+      'initialize',
+      'tools.list',
+      'tools.call',
+    ])
+
+    sidebar.vm.$emit('select-history', items[0])
+    await flushPromises()
+    await nextTick()
+    expect(getActiveRequestPanelTab(wrapper)?.requestKind).toBe('mcp')
+    expect(getActiveRequestPanelTab(wrapper)?.mcp?.operation.type).toBe('initialize')
+    expect(wrapper.get('[data-testid="response-panel-stub"]').text()).toContain('protocolVersion')
+
+    sidebar.vm.$emit('select-history', items[1])
+    await flushPromises()
+    await nextTick()
+    expect(getActiveRequestPanelTab(wrapper)?.mcp?.operation.type).toBe('tools.list')
+    expect(wrapper.get('[data-testid="response-panel-stub"]').text()).toContain('search')
+
+    sidebar.vm.$emit('select-history', items[2])
+    await flushPromises()
+    await nextTick()
+    expect(getActiveRequestPanelTab(wrapper)?.mcp?.operation.type).toBe('tools.call')
+    expect(getActiveRequestPanelTab(wrapper)?.mcp?.operation.input.toolName).toBe('search')
+    expect(wrapper.get('[data-testid="response-panel-stub"]').text()).toContain('zen')
+  })
+
   it('restores runtime-owned history snapshots into canonical replay drafts after send', async () => {
     window.innerWidth = 1440
 

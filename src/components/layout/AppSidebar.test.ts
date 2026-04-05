@@ -113,6 +113,7 @@ const createHistoryItem = (overrides: Partial<HistoryItem> = {}): HistoryItem =>
   time: overrides.time ?? '10 ms',
   executedAtEpochMs: overrides.executedAtEpochMs,
   executionSource: overrides.executionSource,
+  mcpSummary: overrides.mcpSummary,
   requestSnapshot: overrides.requestSnapshot ?? {
     tabId: 'tab-orders-history',
     requestId: 'request-orders-list',
@@ -291,6 +292,28 @@ describe('AppSidebar', () => {
     await wrapper.get('[data-testid="sidebar-history-tab"]').trigger('click')
 
     expect(wrapper.get('[data-testid="history-source-history-mock"]').text()).toContain('Mock')
+  })
+
+  it('renders mcp summaries for mcp history rows', async () => {
+    const wrapper = mountSidebar({
+      historyItems: [
+        createHistoryItem({
+          id: 'history-mcp',
+          name: 'Search Tool',
+          mcpSummary: {
+            operation: 'tools.call',
+            transport: 'http',
+            errorCategory: 'protocol',
+          },
+        }),
+      ],
+    })
+
+    await wrapper.get('[data-testid="sidebar-history-tab"]').trigger('click')
+
+    expect(wrapper.get('[data-testid="history-mcp-summary-history-mcp"]').text()).toContain('tools.call')
+    expect(wrapper.get('[data-testid="history-mcp-summary-history-mcp"]').text()).toContain('http')
+    expect(wrapper.get('[data-testid="history-mcp-summary-history-mcp"]').text()).toContain('protocol')
   })
 
   it('shows collection context during search and marks the active request row', () => {

@@ -284,6 +284,8 @@ pub fn compiled_request_to_history_payload(
 ) -> SendRequestPayloadDto {
     SendRequestPayloadDto {
         workspace_id: payload.workspace_id.clone(),
+        request_kind: payload.request_kind.clone(),
+        mcp: payload.mcp.clone(),
         active_environment_id: payload.active_environment_id.clone(),
         tab_id: payload.tab_id.clone(),
         request_id: payload.request_id.clone(),

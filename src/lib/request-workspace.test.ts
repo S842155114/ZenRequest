@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   cloneResponse,
   cloneTab,
+  createHistoryEntry,
   createPresetFromTab,
   createRequestTabFromHistorySnapshot,
   createRequestTabFromPreset,
@@ -76,6 +77,91 @@ describe('request workspace mock state helpers', () => {
     expect(tab.origin?.kind).toBe('replay')
     expect(tab.mock?.enabled).toBe(true)
     expect(tab.mock?.body).toContain('"source":"mock"')
+  })
+
+
+
+  it('preserves mcp history summaries on creation', () => {
+    const item = createHistoryEntry({
+      requestId: 'request-mcp-search',
+      name: 'Search tool',
+      method: 'POST',
+      url: 'https://example.com/mcp',
+      status: 200,
+      mcpSummary: {
+        operation: 'tools.call',
+        transport: 'http',
+        errorCategory: 'tool_execution',
+      },
+    })
+
+    expect(item.mcpSummary).toEqual({
+      operation: 'tools.call',
+      transport: 'http',
+      errorCategory: 'tool_execution',
+    })
+    expect(item.executionSource).toBe('live')
+  })
+
+  it('preserves history snapshots when creating local entries', () => {
+    const item = createHistoryEntry({
+      requestId: 'request-mcp-search',
+      name: 'Search tool',
+      method: 'POST',
+      url: 'https://example.com/mcp',
+      status: 200,
+      requestSnapshot: {
+        tabId: 'tab-mcp',
+        requestId: 'request-mcp-search',
+        requestKind: 'mcp',
+        mcp: {
+          connection: {
+            transport: 'http',
+            baseUrl: 'https://example.com/mcp',
+            headers: [],
+            auth: {
+              type: 'none',
+              bearerToken: '',
+              username: '',
+              password: '',
+              apiKeyKey: '',
+              apiKeyValue: '',
+              apiKeyPlacement: 'header',
+            },
+          },
+          operation: {
+            type: 'tools.call',
+            input: {
+              toolName: 'search',
+              arguments: { q: 'zen' },
+            },
+          },
+        },
+        name: 'Search tool',
+        description: '',
+        tags: ['mcp'],
+        collectionName: 'Scratch Pad',
+        method: 'POST',
+        url: 'https://example.com/mcp',
+        params: [],
+        headers: [],
+        body: '',
+        bodyType: 'json',
+        auth: {
+          type: 'none',
+          bearerToken: '',
+          username: '',
+          password: '',
+          apiKeyKey: '',
+          apiKeyValue: '',
+          apiKeyPlacement: 'header',
+        },
+        tests: [],
+      },
+    })
+
+    expect(item.requestSnapshot?.requestKind).toBe('mcp')
+    expect(item.requestSnapshot?.mcp?.operation.type).toBe('tools.call')
   })
 
   it('carries explicit execution provenance through response helpers', () => {
@@ -211,5 +297,79 @@ describe('request workspace mock state helpers', () => {
     }, 'Recovered Orders', 'history-orders-execution')
 
     expect(historyTab.executionOptions).toEqual(executionOptions)
+  })
+
+  it('defaults legacy requests to http kind across preset and tab helpers', () => {
+    const preset: RequestPreset = {
+      id: 'request-legacy-http',
+      name: 'Legacy HTTP',
+      method: 'GET',
+      url: 'https://example.com/legacy',
+      headers: [],
+      params: [],
+    }
+
+    const tab = createRequestTabFromPreset(preset)
+    expect(tab.requestKind).toBe('http')
+    expect(tab.response.requestKind).toBe('http')
+
+    const cloned = cloneTab(tab)
+    expect(cloned.requestKind).toBe('http')
+
+    const roundtripPreset = createPresetFromTab(tab)
+    expect(roundtripPreset.requestKind).toBe('http')
+  })
+
+  it('preserves mcp request definitions across preset and tab helpers', () => {
+    const preset: RequestPreset = {
+      id: 'request-mcp-tools-list',
+      requestKind: 'mcp',
+      mcp: {
+        connection: {
+          transport: 'http',
+          baseUrl: 'https://example.com/mcp',
+          headers: [{ key: 'Accept', value: 'application/json', description: '', enabled: true }],
+          auth: {
+            type: 'bearer',
+            bearerToken: 'token',
+            username: '',
+            password: '',
+            apiKeyKey: 'X-API-Key',
+            apiKeyValue: '',
+            apiKeyPlacement: 'header',
+          },
+        },
+        operation: {
+          type: 'tools.call',
+          input: {
+            toolName: 'search',
+            arguments: { query: 'orders' },
+            schema: {
+              name: 'search',
+              description: 'Search orders',
+              inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+            },
+          },
+        },
+      },
+      name: 'MCP Search',
+      method: 'POST',
+      url: 'https://example.com/mcp',
+      headers: [],
+      params: [],
+    }
+
+    const tab = createRequestTabFromPreset(preset)
+    expect(tab.requestKind).toBe('mcp')
+    expect(tab.mcp?.operation.type).toBe('tools.call')
+    expect(tab.response.requestKind).toBe('mcp')
+
+    const cloned = cloneTab(tab)
+    expect(cloned.mcp).toEqual(tab.mcp)
+    expect(cloned.mcp).not.toBe(tab.mcp)
+
+    const roundtripPreset = createPresetFromTab(tab)
+    expect(roundtripPreset.requestKind).toBe('mcp')
+    expect(roundtripPreset.mcp).toEqual(tab.mcp)
   })
 })

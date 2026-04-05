@@ -176,6 +176,8 @@ fn map_request_row(row: &Row<'_>) -> rusqlite::Result<RequestPresetDto> {
 
     Ok(RequestPresetDto {
         id: row.get(0)?,
+        request_kind: None,
+        mcp: None,
         workspace_id: Some(row.get(1)?),
         collection_id: Some(row.get(2)?),
         collection_name: Some(row.get(3)?),
@@ -244,6 +246,8 @@ mod tests {
                 collection_id: collection.id.clone(),
                 request: RequestPresetDto {
                     id: "request-repo-roundtrip".to_string(),
+                    request_kind: None,
+                    mcp: None,
                     name: "GraphQL".to_string(),
                     description: "Request repo roundtrip".to_string(),
                     tags: vec!["graphql".to_string(), "repo".to_string()],

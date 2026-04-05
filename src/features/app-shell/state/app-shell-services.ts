@@ -10,6 +10,7 @@ import type {
 import type {
   EnvironmentPreset,
   KeyValueItem,
+  McpToolSchemaSnapshot,
   RequestCollection,
   RequestPreset,
   RequestTabState,
@@ -56,6 +57,7 @@ export interface AppShellServices {
   analyzeOpenApiImport: (input: { document: string }) => Promise<ServiceResult<OpenApiImportAnalysis>>
   applyOpenApiImport: (input: { analysis: OpenApiImportAnalysis }) => Promise<ServiceResult<OpenApiImportApplyResult>>
   importCurl: (input: { command: string }) => Promise<ServiceResult<RequestTabState>>
+  discoverMcpTools: (input: { payload: SendRequestPayload }) => Promise<ServiceResult<McpToolSchemaSnapshot[]>>
   sendRequest: (input: { payload: SendRequestPayload }) => Promise<ServiceResult<{ tabId: string; response: SendRequestResult }>>
 }
 
@@ -434,6 +436,24 @@ export const createAppShellServices = (deps: AppShellServiceDeps): AppShellServi
 
       return success('openapi.applied', applyResult.data)
     },
+    discoverMcpTools: async ({ payload }) => {
+      const workspaceId = getActiveWorkspaceId()
+      const activeEnvironmentId = deps.store.state.environment.activeId
+      if (!workspaceId || !activeEnvironmentId) {
+        return failure('mcp.discover_failed', 'Missing active workspace or environment')
+      }
+
+      if (payload.requestKind !== 'mcp' || !payload.mcp) {
+        return failure('mcp.discover_failed', 'discoverMcpTools requires an MCP payload')
+      }
+
+      const response = await deps.runtime.discoverMcpTools(workspaceId, activeEnvironmentId, payload)
+      if (!response.ok || !response.data) {
+        return failure('mcp.discover_failed', response.error?.message)
+      }
+
+      return success('mcp.discovered', response.data)
+    },
     importCurl: async ({ command }) => {
       const workspaceId = getActiveWorkspaceId()
       if (!workspaceId) {
@@ -459,10 +479,17 @@ export const createAppShellServices = (deps: AppShellServiceDeps): AppShellServi
       deps.store.mutations.applySendPending(payload)
 
       try {
-        const response = await deps.runtime.sendRequest(workspaceId, activeEnvironmentId, payload)
+        const response = payload.requestKind === 'mcp'
+          ? await deps.runtime.sendMcpRequest(workspaceId, activeEnvironmentId, payload)
+          : await deps.runtime.sendRequest(workspaceId, activeEnvironmentId, payload)
+
         if (!response.ok || !response.data) {
-          throw new Error(response.error?.message || 'send_request failed')
+          const message = response.error?.message || (payload.requestKind === 'mcp'
+            ? 'send_mcp_request failed'
+            : 'send_request failed')
+          throw new Error(message)
         }
+
 
         deps.store.mutations.applySendSuccess({
           payload,

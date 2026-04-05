@@ -207,6 +207,87 @@ describe('ResponsePanel i18n copy', () => {
     expect(wrapper.get('[data-testid="response-readout-size"]').classes()).toContain('zr-response-readout')
   })
 
+  it('renders mcp protocol summary badges and protocol-first chrome for mcp responses', () => {
+    const wrapper = mount(ResponsePanel, {
+      props: {
+        locale: 'en',
+        requestKind: 'mcp',
+        requestMethod: 'POST',
+        requestUrl: 'http://127.0.0.1:8788/mcp',
+        mcpArtifact: {
+          transport: 'http',
+          operation: 'tools.call',
+          errorCategory: 'tool_execution',
+          protocolRequest: { method: 'tools.call' },
+          protocolResponse: { result: { content: [] } },
+        },
+      },
+    })
+
+    expect(wrapper.get('[data-testid="response-mcp-summary"]').text()).toContain('mcp')
+    expect(wrapper.get('[data-testid="response-mcp-operation"]').text()).toContain('tools.call')
+    expect(wrapper.get('[data-testid="response-mcp-transport"]').text()).toContain('http')
+    expect(wrapper.get('[data-testid="response-mcp-error-category"]').text()).toContain('tool_execution')
+    expect(wrapper.get('[data-testid="response-mcp-protocol-badge"]').text()).toContain('protocol captured')
+    expect(wrapper.get('[data-testid="response-readout-request"]').text()).toContain('tools.call · http')
+    expect(wrapper.get('[data-testid="response-readout-request"]').text()).not.toContain('POST')
+    expect(wrapper.get('[data-testid="response-panel-tabs"]').text()).toContain('result')
+    expect(wrapper.get('[data-testid="response-panel-tabs"]').text()).toContain('transport headers')
+    expect(wrapper.get('[data-testid="response-panel-tabs"]').text()).not.toContain('Body')
+    expect(wrapper.get('[data-testid="response-panel-tabs"]').text()).not.toContain('Cookies')
+    expect(wrapper.get('[data-testid="response-panel-tabs"]').text()).not.toContain('Tests')
+  })
+
+  it('renders an in-body mcp error notice when the response carries an error category', () => {
+    const wrapper = mount(ResponsePanel, {
+      props: {
+        locale: 'en',
+        requestKind: 'mcp',
+        responseBody: JSON.stringify({ error: { code: -32000 } }),
+        contentType: 'application/json',
+        mcpArtifact: {
+          transport: 'http',
+          operation: 'tools.call',
+          errorCategory: 'protocol',
+          protocolResponse: { error: { code: -32000, message: 'bad request' } },
+        },
+      },
+    })
+
+    expect(wrapper.get('[data-testid="response-mcp-error-notice"]').text()).toContain('Protocol error')
+    expect(wrapper.get('[data-testid="response-mcp-error-notice"]').text()).toContain('Category: protocol')
+    expect(wrapper.get('[data-testid="response-mcp-error-code"]').text()).toContain('-32000')
+    expect(wrapper.get('[data-testid="response-mcp-error-message"]').text()).toContain('bad request')
+  })
+
+  it('renders mcp body mode toggles and switches to protocol envelope content', async () => {
+    const wrapper = mount(ResponsePanel, {
+      props: {
+        locale: 'en',
+        requestKind: 'mcp',
+        responseBody: JSON.stringify({ result: { structuredContent: { ok: true } } }),
+        contentType: 'application/json',
+        mcpArtifact: {
+          transport: 'http',
+          operation: 'tools.call',
+          protocolRequest: { method: 'tools.call', params: { name: 'search' } },
+          protocolResponse: { jsonrpc: '2.0', result: { content: [] } },
+        },
+      },
+    })
+
+    expect(wrapper.get('[data-testid="response-body-mode-result"]').text()).toContain('result')
+    expect(wrapper.get('[data-testid="response-body-mode-protocol"]').text()).toContain('protocol')
+    expect(wrapper.get('[data-testid="response-code-viewer"]').attributes('data-content')).toContain('structuredContent')
+
+    await wrapper.get('[data-testid="response-body-mode-protocol"]').trigger('click')
+
+    const protocolContent = wrapper.get('[data-testid="response-code-viewer"]').attributes('data-content')
+    expect(protocolContent).toContain('jsonrpc')
+    expect(protocolContent).toContain('method')
+    expect(protocolContent).toContain('params')
+  })
+
   it('renders the response body inside a read-only code viewer with detected language', () => {
     const wrapper = mount(ResponsePanel, {
       props: {

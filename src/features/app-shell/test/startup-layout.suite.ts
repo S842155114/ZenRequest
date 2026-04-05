@@ -23,6 +23,8 @@ const withOpenApiCapability = (payload: AppBootstrapPayload) => {
   payload.capabilities = {
     descriptors: [
       { key: 'protocol.http', kind: 'protocol', displayName: 'HTTP', availability: 'active' },
+      { key: 'mcp.http', kind: 'mcp_transport', displayName: 'MCP over HTTP', availability: 'active' },
+      { key: 'mcp.stdio', kind: 'mcp_transport', displayName: 'MCP over stdio', availability: 'reserved' },
       { key: 'import.backup', kind: 'import_adapter', displayName: 'Backup Restore', availability: 'active' },
       { key: 'import.curl', kind: 'import_adapter', displayName: 'Curl Import', availability: 'active' },
       { key: 'import.openapi', kind: 'import_adapter', displayName: 'OpenAPI Import', availability: 'active' },
@@ -248,6 +250,8 @@ describe('App workbench shell - startup and layout', () => {
     payload.capabilities = {
       descriptors: [
         { key: 'protocol.http', kind: 'protocol', displayName: 'HTTP', availability: 'active' },
+        { key: 'mcp.http', kind: 'mcp_transport', displayName: 'MCP over HTTP', availability: 'active' },
+        { key: 'mcp.stdio', kind: 'mcp_transport', displayName: 'MCP over stdio', availability: 'reserved' },
         { key: 'import.backup', kind: 'import_adapter', displayName: 'Backup Restore', availability: 'active' },
       ],
       protocols: [
@@ -280,6 +284,8 @@ describe('App workbench shell - startup and layout', () => {
     withoutOpenApi.capabilities = {
       descriptors: [
         { key: 'protocol.http', kind: 'protocol', displayName: 'HTTP', availability: 'active' },
+        { key: 'mcp.http', kind: 'mcp_transport', displayName: 'MCP over HTTP', availability: 'active' },
+        { key: 'mcp.stdio', kind: 'mcp_transport', displayName: 'MCP over stdio', availability: 'reserved' },
         { key: 'import.backup', kind: 'import_adapter', displayName: 'Backup Restore', availability: 'active' },
         { key: 'import.curl', kind: 'import_adapter', displayName: 'Curl Import', availability: 'active' },
       ],
@@ -759,6 +765,26 @@ describe('App workbench shell - startup and layout', () => {
     expect(wrapper.get('[data-testid="workbench-seam-request-response"]').classes()).toEqual(
       expect.arrayContaining(['zr-workbench-seam', 'zr-workbench-seam-horizontal']),
     )
+  })
+
+
+  it('keeps repeated request/response resize events with the same size from mutating layout state indefinitely', async () => {
+    window.innerWidth = 1440
+    setRuntimeAdapter(createAdapter())
+
+    const wrapper = await mountApp()
+    const requestCollapsedBefore = wrapper.findComponent(RequestPanelStub).props('collapsed')
+    const responseCollapsedBefore = wrapper.findComponent(ResponsePanelStub).props('collapsed')
+
+    for (let index = 0; index < 5; index += 1) {
+      window.dispatchEvent(new Event('resize'))
+    }
+    await nextTick()
+
+    expect(wrapper.findComponent(RequestPanelStub).props('collapsed')).toBe(requestCollapsedBefore)
+    expect(wrapper.findComponent(ResponsePanelStub).props('collapsed')).toBe(responseCollapsedBefore)
+    expect(wrapper.find('[data-testid="workbench-request"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="workbench-response"]').exists()).toBe(true)
   })
 
   it('suppresses global context menus on unsupported surfaces while allowing whitelisted targets', async () => {

@@ -175,6 +175,17 @@ const getHistoryStatusMetaClass = (status: number) => (
       : 'text-rose-700/85 dark:text-rose-300/85'
 )
 
+const getHistorySummary = (item: HistoryItem) => {
+  if (!item.mcpSummary) return ""
+
+  const parts = [item.mcpSummary.operation, item.mcpSummary.transport]
+  if (item.mcpSummary.errorCategory) {
+    parts.push(item.mcpSummary.errorCategory)
+  }
+
+  return parts.join(" · ")
+}
+
 const getTestIdKey = (value: string) => value
   .trim()
   .toLowerCase()
@@ -670,6 +681,13 @@ const worksetSummaryItems = computed(() => ([
               </div>
               <div class="mt-1.5 truncate text-[13px] font-medium text-[var(--zr-text-primary)]">{{ item.name }}</div>
               <div class="mt-0.5 truncate font-mono text-[10px] text-[var(--zr-text-muted)]">{{ item.url }}</div>
+              <div
+                v-if="item.mcpSummary"
+                :data-testid="`history-mcp-summary-${item.id}`"
+                class="mt-1 truncate text-[10px] uppercase tracking-[0.12em] text-[var(--zr-text-muted)]"
+              >
+                {{ getHistorySummary(item) }}
+              </div>
               <div
                 v-if="getActivityPills(getHistoryActivity(item.id)).length"
                 :data-testid="`history-activity-${getTestIdKey(item.id)}`"
