@@ -3,7 +3,7 @@ import type { ResolvedTheme } from '@/types/request'
 import { getMessages } from '@/lib/i18n'
 import type { OpenApiImportAnalysis } from '@/lib/tauri-client'
 import { runtimeClient } from '@/lib/tauri-client'
-import { readWorkspaceSnapshot } from '@/lib/request-workspace'
+import { readWorkspaceSnapshotResult } from '@/lib/request-workspace'
 import type { ToastItem } from '../types'
 import { createAppShellDialogs } from '../state/app-shell-dialogs'
 import { createAppShellServices } from '../state/app-shell-services'
@@ -12,7 +12,8 @@ import { useAppShellEffects } from './useAppShellEffects'
 import { createAppShellViewModel, type AppShellViewModel } from './useAppShellViewModel'
 
 export const useAppShell = (): AppShellViewModel => {
-  const legacySnapshot = readWorkspaceSnapshot()
+  const snapshotResult = readWorkspaceSnapshotResult()
+  const legacySnapshot = snapshotResult.ok ? snapshotResult.snapshot : null
   const state = reactive(createInitialAppShellState(legacySnapshot))
   const store = createAppShellStore(state)
   const services = createAppShellServices({
@@ -71,6 +72,11 @@ export const useAppShell = (): AppShellViewModel => {
   const isStartupReady = computed(() => startupState.value === 'ready')
   const isStartupLoading = computed(() => startupState.value === 'loading')
   const canImportOpenApi = computed(() => store.selectors.canImportOpenApi())
+
+  if (!snapshotResult.ok && snapshotResult.reason !== 'missing') {
+    state.runtime.startupState = 'degraded'
+    state.runtime.startupErrorMessage = snapshotResult.message
+  }
 
   const showToast = (toast: Omit<ToastItem, 'id'>) => {
     const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
