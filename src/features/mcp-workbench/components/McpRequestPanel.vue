@@ -142,8 +142,8 @@ const handleBaseUrlChange = (value: string | number) => {
   }))
 }
 
-const handleOperationChange = (value: string | null) => {
-  if (!value) return
+const handleOperationChange = (value: unknown) => {
+  if (typeof value !== 'string') return
   updateMcp((current) => {
     if (value === current.operation.type) return current
 
@@ -187,8 +187,8 @@ const handleOperationChange = (value: string | null) => {
   })
 }
 
-const handleToolSelection = (nextToolName: string | null) => {
-  if (!nextToolName) return
+const handleToolSelection = (nextToolName: unknown) => {
+  if (typeof nextToolName !== 'string' || nextToolName.length === 0) return
   updateMcp((current) => {
     if (current.operation.type !== 'tools.call') return current
     const matchedTool = availableTools.value.find((tool) => tool.name === nextToolName)
