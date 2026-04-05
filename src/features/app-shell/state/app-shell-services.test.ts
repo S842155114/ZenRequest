@@ -513,4 +513,223 @@ describe('app-shell services', () => {
       isDirty: false,
     })
   })
+
+  it('fails when a successful http response omits history snapshot data', async () => {
+    const state = reactive(createInitialAppShellState())
+    state.workspace.items = [{ id: 'workspace-1', name: 'Primary Workspace' }]
+    state.workspace.activeId = 'workspace-1'
+    state.environment.items = [{ id: 'env-local', name: 'Local', variables: [] }]
+    state.environment.activeId = 'env-local'
+
+    const store = createAppShellStore(state)
+    const runtime = {
+      sendRequest: vi.fn(async () => ({
+        ok: true,
+        data: {
+          requestMethod: 'GET',
+          requestUrl: 'https://example.com/api',
+          status: 200,
+          statusText: 'OK',
+          elapsedMs: 12,
+          sizeBytes: 16,
+          contentType: 'application/json',
+          responseBody: '{"ok":true}',
+          headers: [],
+          truncated: false,
+          executionSource: 'live',
+        },
+      })),
+      sendMcpRequest: vi.fn(async () => ({ ok: true, data: {} })),
+    } as const
+
+    const services = createAppShellServices({ runtime: runtime as never, store })
+    const tab = store.selectors.getActiveTab()!
+
+    const result = await services.sendRequest({
+      payload: {
+        tabId: tab.id,
+        requestKind: 'http',
+        requestId: tab.requestId,
+        name: tab.name,
+        description: tab.description,
+        tags: tab.tags,
+        collectionName: tab.collectionName,
+        method: tab.method,
+        url: tab.url,
+        params: tab.params,
+        headers: tab.headers,
+        body: tab.body,
+        bodyType: tab.bodyType,
+        auth: tab.auth,
+        tests: tab.tests,
+        executionOptions: tab.executionOptions,
+      },
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      code: 'request.send_failed',
+      message: 'HTTP request completed without a history snapshot',
+    })
+  })
+
+  it('prepends newest history item first across repeated successful sends', async () => {
+    const state = reactive(createInitialAppShellState())
+    state.workspace.items = [{ id: 'workspace-1', name: 'Primary Workspace' }]
+    state.workspace.activeId = 'workspace-1'
+    state.environment.items = [{ id: 'env-local', name: 'Local', variables: [] }]
+    state.environment.activeId = 'env-local'
+
+    const store = createAppShellStore(state)
+    const runtime = {
+      sendRequest: vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          data: {
+            requestMethod: 'GET',
+            requestUrl: 'https://example.com/api',
+            status: 200,
+            statusText: 'OK',
+            elapsedMs: 10,
+            sizeBytes: 16,
+            contentType: 'application/json',
+            responseBody: '{"run":1}',
+            headers: [],
+            truncated: false,
+            executionSource: 'live',
+            historyItem: {
+              id: 'history-1',
+              name: 'First',
+              method: 'GET',
+              time: '10:00:00',
+              status: 200,
+              url: 'https://example.com/api',
+            },
+          },
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          data: {
+            requestMethod: 'GET',
+            requestUrl: 'https://example.com/api',
+            status: 201,
+            statusText: 'Created',
+            elapsedMs: 11,
+            sizeBytes: 17,
+            contentType: 'application/json',
+            responseBody: '{"run":2}',
+            headers: [],
+            truncated: false,
+            executionSource: 'live',
+            historyItem: {
+              id: 'history-2',
+              name: 'Second',
+              method: 'GET',
+              time: '10:00:01',
+              status: 201,
+              url: 'https://example.com/api',
+            },
+          },
+        }),
+      sendMcpRequest: vi.fn(async () => ({ ok: true, data: {} })),
+    } as const
+
+    const services = createAppShellServices({ runtime: runtime as never, store })
+    const tab = store.selectors.getActiveTab()!
+    const payload: SendRequestPayload = {
+      tabId: tab.id,
+      requestKind: 'http',
+      requestId: tab.requestId,
+      name: tab.name,
+      description: tab.description,
+      tags: tab.tags,
+      collectionName: tab.collectionName,
+      method: tab.method,
+      url: tab.url,
+      params: tab.params,
+      headers: tab.headers,
+      body: tab.body,
+      bodyType: tab.bodyType,
+      auth: tab.auth,
+      tests: tab.tests,
+      executionOptions: tab.executionOptions,
+    }
+
+    await services.sendRequest({ payload })
+    await services.sendRequest({ payload })
+
+    expect(state.request.historyItems.map((item) => item.id)).toEqual(['history-2', 'history-1'])
+    expect(store.selectors.getActiveTab()?.response.status).toBe(201)
+    expect(store.selectors.getActiveTab()?.response.responseBody).toBe('{"run":2}')
+  })
+
+  it('preserves large response body and formatted size for a successful send', async () => {
+    const state = reactive(createInitialAppShellState())
+    state.workspace.items = [{ id: 'workspace-1', name: 'Primary Workspace' }]
+    state.workspace.activeId = 'workspace-1'
+    state.environment.items = [{ id: 'env-local', name: 'Local', variables: [] }]
+    state.environment.activeId = 'env-local'
+
+    const largeBody = 'x'.repeat(32 * 1024)
+    const store = createAppShellStore(state)
+    const runtime = {
+      sendRequest: vi.fn(async () => ({
+        ok: true,
+        data: {
+          requestMethod: 'GET',
+          requestUrl: 'https://example.com/large',
+          status: 200,
+          statusText: 'OK',
+          elapsedMs: 25,
+          sizeBytes: 32 * 1024,
+          contentType: 'text/plain',
+          responseBody: largeBody,
+          headers: [],
+          truncated: false,
+          executionSource: 'live',
+          historyItem: {
+            id: 'history-large-1',
+            name: 'Large Response',
+            method: 'GET',
+            time: '10:00:02',
+            status: 200,
+            url: 'https://example.com/large',
+            sizeBytes: 32 * 1024,
+            responsePreview: largeBody,
+          },
+        },
+      })),
+      sendMcpRequest: vi.fn(async () => ({ ok: true, data: {} })),
+    } as const
+
+    const services = createAppShellServices({ runtime: runtime as never, store })
+    const tab = store.selectors.getActiveTab()!
+
+    const result = await services.sendRequest({
+      payload: {
+        tabId: tab.id,
+        requestKind: 'http',
+        requestId: tab.requestId,
+        name: tab.name,
+        description: tab.description,
+        tags: tab.tags,
+        collectionName: tab.collectionName,
+        method: tab.method,
+        url: 'https://example.com/large',
+        params: tab.params,
+        headers: tab.headers,
+        body: tab.body,
+        bodyType: tab.bodyType,
+        auth: tab.auth,
+        tests: tab.tests,
+        executionOptions: tab.executionOptions,
+      },
+    })
+
+    expect(result).toMatchObject({ ok: true, code: 'request.sent' })
+    expect(store.selectors.getActiveTab()?.response.responseBody).toHaveLength(32 * 1024)
+    expect(store.selectors.getActiveTab()?.response.size).toBe('32.0 KB')
+    expect(state.request.historyItems[0]?.id).toBe('history-large-1')
+  })
 })

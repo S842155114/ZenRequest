@@ -144,6 +144,25 @@ describe('App workbench shell - startup and layout', () => {
     expect(wrapper.find('[data-testid="workbench-request"]').exists()).toBe(true)
   })
 
+  it('falls back to a fresh bootstrap when the stored snapshot is invalid', async () => {
+    window.innerWidth = 1440
+    window.localStorage.setItem('zenrequest.workspace', JSON.stringify({ activeTabId: 'tab-bad', openTabs: [] }))
+
+    const bootstrapApp = vi.fn<RuntimeAdapter['bootstrapApp']>()
+      .mockResolvedValueOnce(ok(createBootstrapPayload()))
+
+    setRuntimeAdapter(createAdapter(createBootstrapPayload(), {
+      bootstrapApp,
+    }))
+
+    const wrapper = await mountApp()
+
+    expect(bootstrapApp).toHaveBeenCalledTimes(1)
+    expect(bootstrapApp).toHaveBeenCalledWith(null)
+    expect(wrapper.find('[data-testid="startup-screen"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="workbench-request"]').exists()).toBe(true)
+  })
+
   it('shows a workbench-scoped busy overlay while switching workspaces', async () => {
     window.innerWidth = 1440
 

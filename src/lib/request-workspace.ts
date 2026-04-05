@@ -738,16 +738,37 @@ export const sanitizeSnapshot = (snapshot: Partial<WorkspaceSnapshot> | null | u
   }
 }
 
-export const readWorkspaceSnapshot = (): WorkspaceSnapshot | null => {
-  if (typeof window === 'undefined') return null
+export type SnapshotValidationResult =
+  | { ok: true; snapshot: WorkspaceSnapshot }
+  | { ok: false; reason: 'missing' | 'parse_failed' | 'invalid'; message: string }
+
+export const readWorkspaceSnapshotResult = (): SnapshotValidationResult => {
+  if (typeof window === 'undefined') {
+    return { ok: false, reason: 'missing', message: 'Workspace snapshot unavailable outside browser runtime' }
+  }
+
+  const raw = window.localStorage.getItem(WORKSPACE_STORAGE_KEY)
+  if (!raw) {
+    return { ok: false, reason: 'missing', message: 'No saved workspace snapshot found' }
+  }
 
   try {
-    const raw = window.localStorage.getItem(WORKSPACE_STORAGE_KEY)
-    if (!raw) return null
-    return sanitizeSnapshot(JSON.parse(raw))
+    const parsed = JSON.parse(raw) as Partial<WorkspaceSnapshot>
+    const snapshot = sanitizeSnapshot(parsed)
+
+    if (!snapshot) {
+      return { ok: false, reason: 'invalid', message: 'Saved workspace snapshot is invalid or incomplete' }
+    }
+
+    return { ok: true, snapshot }
   } catch {
-    return null
+    return { ok: false, reason: 'parse_failed', message: 'Saved workspace snapshot could not be parsed' }
   }
+}
+
+export const readWorkspaceSnapshot = (): WorkspaceSnapshot | null => {
+  const result = readWorkspaceSnapshotResult()
+  return result.ok ? result.snapshot : null
 }
 
 export const writeWorkspaceSnapshot = (snapshot: WorkspaceSnapshot) => {

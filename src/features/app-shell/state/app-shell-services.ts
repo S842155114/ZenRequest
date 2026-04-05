@@ -78,14 +78,17 @@ export const createAppShellServices = (deps: AppShellServiceDeps): AppShellServi
 
   const refreshRuntimeState = async (snapshot?: WorkspaceSnapshot | null): Promise<ServiceResult<RuntimeBootstrapPayload>> => {
     deps.store.mutations.setRuntimeReady(false)
+    deps.store.mutations.setStartupState('loading')
 
     const bootstrapResult = await deps.runtime.bootstrapApp(snapshot)
     if (!bootstrapResult.ok || !bootstrapResult.data) {
+      deps.store.mutations.setStartupState('degraded', bootstrapResult.error?.message ?? 'Failed to restore workspace state')
       return failure('runtime.bootstrap_failed', bootstrapResult.error?.message)
     }
 
     deps.store.mutations.applyBootstrapPayload(bootstrapResult.data)
     deps.store.mutations.setRuntimeReady(true)
+    deps.store.mutations.setStartupState('ready')
     return success('runtime.bootstrap_ready', bootstrapResult.data)
   }
 
@@ -488,6 +491,12 @@ export const createAppShellServices = (deps: AppShellServiceDeps): AppShellServi
             ? 'send_mcp_request failed'
             : 'send_request failed')
           throw new Error(message)
+        }
+
+        if (payload.requestKind !== 'mcp' && !response.data.historyItem && !('executionArtifact' in response.data && response.data.executionArtifact)) {
+          throw new Error(payload.requestKind === 'mcp'
+            ? 'MCP request completed without a history snapshot'
+            : 'HTTP request completed without a history snapshot')
         }
 
 

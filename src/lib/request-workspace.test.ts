@@ -8,6 +8,7 @@ import {
   createRequestTabFromHistorySnapshot,
   createRequestTabFromPreset,
   createResponseStateFromHistoryItem,
+  readWorkspaceSnapshotResult,
 } from './request-workspace'
 import type { HistoryItem, RequestPreset, RequestTabState } from '@/types/request'
 
@@ -371,5 +372,50 @@ describe('request workspace mock state helpers', () => {
     const roundtripPreset = createPresetFromTab(tab)
     expect(roundtripPreset.requestKind).toBe('mcp')
     expect(roundtripPreset.mcp).toEqual(tab.mcp)
+  })
+
+  it('returns a structured parse error for invalid snapshot json', () => {
+    Object.defineProperty(window, 'localStorage', {
+      value: {
+        getItem: () => '{invalid-json',
+      },
+      configurable: true,
+    })
+
+    expect(readWorkspaceSnapshotResult()).toEqual({
+      ok: false,
+      reason: 'parse_failed',
+      message: 'Saved workspace snapshot could not be parsed',
+    })
+  })
+
+  it('returns a structured invalid result for incomplete snapshot content', () => {
+    Object.defineProperty(window, 'localStorage', {
+      value: {
+        getItem: () => JSON.stringify({ activeTabId: 'tab-1', openTabs: [] }),
+      },
+      configurable: true,
+    })
+
+    expect(readWorkspaceSnapshotResult()).toEqual({
+      ok: false,
+      reason: 'invalid',
+      message: 'Saved workspace snapshot is invalid or incomplete',
+    })
+  })
+
+  it('returns missing when no snapshot exists', () => {
+    Object.defineProperty(window, 'localStorage', {
+      value: {
+        getItem: () => null,
+      },
+      configurable: true,
+    })
+
+    expect(readWorkspaceSnapshotResult()).toEqual({
+      ok: false,
+      reason: 'missing',
+      message: 'No saved workspace snapshot found',
+    })
   })
 })

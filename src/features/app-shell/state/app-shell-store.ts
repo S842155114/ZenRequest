@@ -491,6 +491,22 @@ export const createAppShellStore = (state: AppShellState): AppShellStore => {
 
       if (input.response.historyItem) {
         mutations.prependHistoryItem(input.response.historyItem)
+      } else if (input.payload.requestKind !== 'mcp') {
+        mutations.prependHistoryItem(createHistoryEntry({
+          requestId: input.payload.requestId,
+          requestSnapshot: input.payload,
+          name: input.payload.name,
+          method: input.response.requestMethod || input.payload.method,
+          url: input.response.requestUrl || input.payload.url,
+          status,
+          statusText: normalizedResponse?.statusText || input.response.statusText,
+          elapsedMs: normalizedResponse?.elapsedMs ?? input.response.elapsedMs,
+          sizeBytes: normalizedResponse?.sizeBytes ?? input.response.sizeBytes,
+          contentType: normalizedResponse?.contentType ?? input.response.contentType,
+          responseHeaders: normalizedResponse?.headers ?? input.response.headers,
+          responsePreview: normalizedResponse?.body || input.response.responseBody,
+          executionSource: artifact?.executionSource ?? input.response.executionSource ?? 'live',
+        }))
       } else if (input.payload.requestKind === 'mcp' && mcpArtifact) {
         mutations.prependHistoryItem(createHistoryEntry({
           requestId: input.payload.requestId,
