@@ -86,30 +86,49 @@ export const useAppShellEffects = (deps: AppShellEffectsDeps): AppShellEffects =
     }
   }
 
+  const normalizePanelSize = (size: number, minimum: number) => {
+    if (!Number.isFinite(size)) return minimum
+    return Math.max(minimum, Math.round(size * 100) / 100)
+  }
+
   const handleRequestPanelResize = (size: number) => {
     if (deps.requestPanelCollapsed.value) return
+    const nextSize = normalizePanelSize(size, deps.isCompactLayout.value ? 32 : 30)
     if (deps.isCompactLayout.value) {
-      deps.requestCompactExpandedSize.value = size
+      if (deps.requestCompactExpandedSize.value === nextSize) return
+      deps.requestCompactExpandedSize.value = nextSize
       return
     }
-    deps.requestDesktopExpandedSize.value = size
+    if (deps.requestDesktopExpandedSize.value === nextSize) return
+    deps.requestDesktopExpandedSize.value = nextSize
   }
 
   const handleResponsePanelResize = (size: number) => {
     if (deps.responsePanelCollapsed.value) return
+    const nextSize = normalizePanelSize(size, deps.isCompactLayout.value ? 14 : 10)
     if (deps.isCompactLayout.value) {
-      deps.responseCompactExpandedSize.value = size
+      if (deps.responseCompactExpandedSize.value === nextSize) return
+      deps.responseCompactExpandedSize.value = nextSize
       return
     }
-    deps.responseDesktopExpandedSize.value = size
+    if (deps.responseDesktopExpandedSize.value === nextSize) return
+    deps.responseDesktopExpandedSize.value = nextSize
   }
 
   const toggleRequestPanelCollapsed = () => {
-    deps.requestPanelCollapsed.value = !deps.requestPanelCollapsed.value
+    const nextCollapsed = !deps.requestPanelCollapsed.value
+    deps.requestPanelCollapsed.value = nextCollapsed
+    if (nextCollapsed) {
+      deps.responsePanelCollapsed.value = false
+    }
   }
 
   const toggleResponsePanelCollapsed = () => {
-    deps.responsePanelCollapsed.value = !deps.responsePanelCollapsed.value
+    const nextCollapsed = !deps.responsePanelCollapsed.value
+    deps.responsePanelCollapsed.value = nextCollapsed
+    if (nextCollapsed) {
+      deps.requestPanelCollapsed.value = false
+    }
   }
 
   const setMobileExplorerOpen = (value: boolean) => {

@@ -766,6 +766,8 @@ fn seed_demo_workspace_with_connection(
         requests: vec![
             RequestPresetDto {
                 id: generate_id("request"),
+                request_kind: None,
+                mcp: None,
                 workspace_id: Some(workspace.id.clone()),
                 collection_id: None,
                 collection_name: Some("Demo APIs".to_string()),
@@ -794,6 +796,8 @@ fn seed_demo_workspace_with_connection(
             },
             RequestPresetDto {
                 id: generate_id("request"),
+                request_kind: None,
+                mcp: None,
                 workspace_id: Some(workspace.id.clone()),
                 collection_id: None,
                 collection_name: Some("Demo APIs".to_string()),
@@ -879,6 +883,8 @@ fn seed_demo_workspace_with_connection(
         active_environment_id: Some(local_environment.id),
         open_tabs: vec![RequestTabStateDto {
             id: generate_id("tab"),
+            request_kind: None,
+            mcp: None,
             request_id: Some(collection.requests[0].id.clone()),
             origin: Some(crate::models::RequestTabOriginDto {
                 kind: "resource".to_string(),
@@ -1005,6 +1011,8 @@ fn migrate_legacy_snapshot_with_connection(
     for history_item in &snapshot.history_items {
         let request_snapshot = SendRequestPayloadDto {
             workspace_id: workspace.id.clone(),
+            request_kind: None,
+            mcp: None,
             active_environment_id: None,
             tab_id: generate_id("tab"),
             request_id: history_item.request_id.clone(),
@@ -1110,6 +1118,8 @@ mod tests {
                 expanded: true,
                 requests: vec![RequestPresetDto {
                     id: String::new(),
+                    request_kind: None,
+                    mcp: None,
                     name: "GET /health".to_string(),
                     description: String::new(),
                     tags: Vec::new(),
@@ -1173,6 +1183,8 @@ mod tests {
                         .map(|environment| environment.id.clone()),
                     open_tabs: vec![crate::models::RequestTabStateDto {
                         id: "tab-formdata".to_string(),
+                        request_kind: None,
+                        mcp: None,
                         request_id: None,
                         origin: Some(crate::models::RequestTabOriginDto {
                             kind: "scratch".to_string(),
@@ -1279,6 +1291,8 @@ mod tests {
                     active_environment_id: Some(environment_id.clone()),
                     open_tabs: vec![crate::models::RequestTabStateDto {
                         id: "tab-import-test".to_string(),
+                        request_kind: None,
+                        mcp: None,
                         request_id: Some(request.id.clone()),
                         origin: Some(crate::models::RequestTabOriginDto {
                             kind: "resource".to_string(),
@@ -1333,6 +1347,8 @@ mod tests {
                 request_url: request.url.clone(),
                 request_snapshot: SendRequestPayloadDto {
                     workspace_id: workspace_id.clone(),
+                    request_kind: None,
+                    mcp: None,
                     active_environment_id: None,
                     tab_id: "tab-import-test".to_string(),
                     request_id: Some(request.id.clone()),

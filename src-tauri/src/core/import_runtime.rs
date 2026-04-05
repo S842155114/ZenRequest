@@ -1133,6 +1133,8 @@ fn analyze_operation(
         render_collection_name(spec_title, operation.tags.first().map(String::as_str));
     let request = RequestPresetDto {
         id: String::new(),
+        request_kind: None,
+        mcp: None,
         name: derive_request_name_from_operation(method, path, operation),
         description: operation.description.clone().unwrap_or_default(),
         tags: operation.tags.clone(),
@@ -1611,6 +1613,8 @@ pub fn import_curl_to_draft(command: &str) -> Result<RequestTabStateDto, AppErro
 
     Ok(RequestTabStateDto {
         id: format!("tab-import-{}", Uuid::new_v4()),
+        request_kind: None,
+        mcp: None,
         request_id: None,
         origin: Some(RequestTabOriginDto {
             kind: "scratch".to_string(),

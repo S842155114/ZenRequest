@@ -152,9 +152,36 @@ export const useRequestPanelState = (
   const handleSend = () => {
     if (!activeTab.value) return
 
-    const composeValidationPassed = requestParamsRef.value?.prepareForSubmit?.() ?? true
-    if (!composeValidationPassed) return
+    if (activeTab.value.requestKind !== 'mcp') {
+      const composeValidationPassed = requestParamsRef.value?.prepareForSubmit?.() ?? true
+      if (!composeValidationPassed) return
+    }
+
     if (requestReadiness.value.blockers.length > 0) return
+
+    if (activeTab.value.requestKind === 'mcp') {
+      emit('send', {
+        tabId: activeTab.value.id,
+        requestKind: 'mcp',
+        mcp: activeTab.value.mcp,
+        requestId: activeTab.value.requestId,
+        name: activeTab.value.name,
+        description: activeTab.value.description,
+        tags: [...activeTab.value.tags],
+        collectionName: activeTab.value.collectionName,
+        method: method.value,
+        url: activeTab.value.mcp?.connection.baseUrl ?? url.value,
+        params: [],
+        headers: [],
+        body: '',
+        bodyType: 'json',
+        auth: cloneAuth(auth.value),
+        tests: cloneTests(tests.value),
+        mock: cloneMock(mock.value),
+        executionOptions: cloneExecutionOptions(executionOptions.value),
+      } satisfies SendRequestPayload)
+      return
+    }
 
     emit('send', {
       tabId: activeTab.value.id,
@@ -207,13 +234,49 @@ export const useRequestPanelState = (
         .map((item) => [item.key.trim(), item.value.trim()]),
     )
 
-    if (!url.value.trim()) {
+    const isMcpRequest = activeTab.value.requestKind === 'mcp'
+
+    if (isMcpRequest) {
+      const baseUrl = activeTab.value.mcp?.connection.baseUrl?.trim() ?? ''
+      if (!baseUrl) {
+        blockers.push(text.value.request.emptyUrlBlocker)
+      }
+
+      const operation = activeTab.value.mcp?.operation
+      if (operation?.type === 'initialize') {
+        if (!operation.input.clientName.trim()) {
+          blockers.push(text.value.request.mcp.blockerClientName)
+        }
+        if (!operation.input.clientVersion.trim()) {
+          blockers.push(text.value.request.mcp.blockerClientVersion)
+        }
+      }
+
+      if (operation?.type === 'tools.call') {
+        if (!operation.input.toolName.trim()) {
+          blockers.push(text.value.request.mcp.blockerSelectTool)
+        }
+
+        const requiredKeys = Array.isArray(operation.input.schema?.inputSchema?.required)
+          ? operation.input.schema.inputSchema.required.filter((item): item is string => typeof item === 'string')
+          : []
+        const missingRequiredKeys = requiredKeys.filter((key) => {
+          const value = operation.input.arguments[key]
+          if (typeof value === 'string') return !value.trim()
+          return value === undefined || value === null
+        })
+
+        if (missingRequiredKeys.length > 0) {
+          blockers.push(text.value.request.mcp.blockerRequiredArguments(missingRequiredKeys.join(', ')))
+        }
+      }
+    } else if (!url.value.trim()) {
       blockers.push(text.value.request.emptyUrlBlocker)
     }
 
     const unresolvedKeys = new Set<string>()
     const stringSources = [
-      url.value,
+      ...(activeTab.value.requestKind === 'mcp' ? [activeTab.value.mcp?.connection.baseUrl ?? ''] : [url.value]),
       bodyType.value === 'json' || bodyType.value === 'raw' ? bodyContent.value : '',
       bodyContentType.value,
       binaryFileName.value,
@@ -252,7 +315,7 @@ export const useRequestPanelState = (
       blockers.push(text.value.request.missingVariablesBlocker([...unresolvedKeys].join(', ')))
     }
 
-    if (bodyType.value === 'binary' && !bodyContent.value.trim()) {
+    if (activeTab.value.requestKind !== 'mcp' && bodyType.value === 'binary' && !bodyContent.value.trim()) {
       blockers.push(text.value.request.missingBinaryPayloadBlocker)
     }
 
@@ -260,7 +323,7 @@ export const useRequestPanelState = (
       advisories.push(text.value.request.unsavedChangesAdvisory)
     }
 
-    if (bodyType.value === 'json' && jsonBodyError.value) {
+    if (activeTab.value.requestKind !== 'mcp' && bodyType.value === 'json' && jsonBodyError.value) {
       blockers.push(text.value.request.jsonInvalid)
     }
 

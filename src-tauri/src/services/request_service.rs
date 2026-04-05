@@ -1,4 +1,5 @@
 use crate::core::app_state::AppState;
+use crate::core::mcp_runtime::execute_mcp_request;
 use crate::core::request_executor::execute_request;
 use crate::core::request_runtime::{
     build_execution_artifact, compile_request, compiled_request_to_history_payload,
@@ -7,7 +8,8 @@ use crate::core::request_runtime::{
 use crate::errors::AppError;
 use crate::models::{
     ApiEnvelope, AuthConfigDto, HistoryStoredPayloadDto, KeyValueItemDto,
-    NormalizedResponseDto, ResponseHeaderItemDto, SendRequestPayloadDto, SendRequestResultDto,
+    NormalizedResponseDto, ResponseHeaderItemDto, SendMcpRequestPayloadDto,
+    SendMcpRequestResultDto, SendRequestPayloadDto, SendRequestResultDto,
 };
 use crate::storage::db;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -239,4 +241,61 @@ pub async fn send_request(
     };
 
     Ok(response)
+}
+
+
+pub async fn send_mcp_request(
+    state: &AppState,
+    payload: SendMcpRequestPayloadDto,
+) -> Result<ApiEnvelope<SendMcpRequestResultDto>, AppError> {
+    match execute_mcp_request(&payload).await {
+        Ok(mut result) => {
+            let executed_at_epoch_ms = now_epoch_ms();
+            let (preview, preview_truncated) = preview_response_body(&result.response_body);
+            let request_snapshot = SendRequestPayloadDto {
+                workspace_id: payload.workspace_id.clone(),
+                request_kind: Some(payload.request_kind.clone()),
+                mcp: Some(payload.mcp.clone()),
+                active_environment_id: payload.active_environment_id.clone(),
+                tab_id: payload.tab_id.clone(),
+                request_id: payload.request_id.clone(),
+                name: payload.name.clone(),
+                description: payload.description.clone(),
+                tags: payload.tags.clone(),
+                collection_name: payload.collection_name.clone(),
+                method: result.request_method.clone(),
+                url: result.request_url.clone(),
+                params: Vec::new(),
+                headers: Vec::new(),
+                body: crate::models::request::RequestBodyDto::Json {
+                    value: String::new(),
+                },
+                auth: Default::default(),
+                tests: Vec::new(),
+                mock: None,
+                execution_options: Default::default(),
+            };
+            let stored = HistoryStoredPayloadDto {
+                request_id: payload.request_id.clone(),
+                request_name: payload.name.clone(),
+                request_method: result.request_method.clone(),
+                request_url: result.request_url.clone(),
+                request_snapshot,
+                status: result.status,
+                status_text: result.status_text.clone(),
+                elapsed_ms: result.elapsed_ms,
+                size_bytes: result.size_bytes,
+                content_type: result.content_type.clone(),
+                response_headers: redact_response_headers(&result.headers),
+                response_preview: preview,
+                truncated: result.truncated || preview_truncated,
+                execution_source: result.execution_source.clone(),
+                executed_at_epoch_ms,
+            };
+
+            result.history_item = db::insert_history_item(&state.db_path, &payload.workspace_id, &stored).ok();
+            Ok(ApiEnvelope::success(result))
+        }
+        Err(error) => Ok(ApiEnvelope::failure(error)),
+    }
 }

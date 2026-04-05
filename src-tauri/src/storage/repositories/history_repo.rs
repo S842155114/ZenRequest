@@ -7,6 +7,7 @@ use crate::models::{
     HistoryItemDto, HistoryStoredPayloadDto, RemoveHistoryItemPayloadDto,
     WorkspaceHistoryExportItemDto,
 };
+use crate::models::app::McpHistorySummaryDto;
 use crate::storage::connection::{
     db_error, generate_id, open_connection, serialize_json, touch_workspace,
 };
@@ -185,26 +186,78 @@ pub(crate) fn insert_history_item_in_connection(
     load_history_item_with_connection(connection, &history_id)
 }
 
+fn derive_mcp_error_category(
+    operation: &str,
+    status: u16,
+    response_preview: &str,
+) -> Option<String> {
+    if status >= 400 {
+        return Some("transport".to_string());
+    }
+
+    let response = serde_json::from_str::<serde_json::Value>(response_preview).ok()?;
+    let error = response.get("error")?;
+    if !error.is_object() {
+        return None;
+    }
+
+    if operation == "initialize" {
+        return Some("initialize".to_string());
+    }
+
+    Some("protocol".to_string())
+}
+
+fn derive_mcp_history_summary(
+    snapshot: &Option<crate::models::SendRequestPayloadDto>,
+    status: u16,
+    response_preview: &str,
+) -> Option<McpHistorySummaryDto> {
+    let snapshot = snapshot.as_ref()?;
+    if snapshot.request_kind.as_deref() != Some("mcp") {
+        return None;
+    }
+
+    let mcp = snapshot.mcp.as_ref()?;
+    let operation = match &mcp.operation {
+        crate::models::request::McpOperationInputDto::Initialize { .. } => "initialize".to_string(),
+        crate::models::request::McpOperationInputDto::ToolsList { .. } => "tools.list".to_string(),
+        crate::models::request::McpOperationInputDto::ToolsCall { .. } => "tools.call".to_string(),
+    };
+    let error_category = derive_mcp_error_category(&operation, status, response_preview);
+
+    Some(McpHistorySummaryDto {
+        operation,
+        transport: mcp.connection.transport.clone(),
+        error_category,
+    })
+}
+
 fn map_history_row(row: &Row<'_>) -> rusqlite::Result<HistoryItemDto> {
     let request_snapshot_json: String = row.get(5)?;
     let response_headers_json: String = row.get(11)?;
+    let response_preview: String = row.get(12)?;
+    let status: u16 = row.get(6)?;
     let executed_at_epoch_ms: i64 = row.get(15)?;
+    let request_snapshot = serde_json::from_str(&request_snapshot_json).ok();
+    let mcp_summary = derive_mcp_history_summary(&request_snapshot, status, &response_preview);
     Ok(HistoryItemDto {
         id: row.get(0)?,
         request_id: row.get(1)?,
         name: row.get(2)?,
         method: row.get(3)?,
         url: row.get(4)?,
-        request_snapshot: serde_json::from_str(&request_snapshot_json).ok(),
-        status: row.get(6)?,
+        request_snapshot,
+        status,
         status_text: row.get(7)?,
         elapsed_ms: row.get::<_, i64>(8)? as u64,
         size_bytes: row.get::<_, i64>(9)? as usize,
         content_type: row.get(10)?,
         response_headers: serde_json::from_str(&response_headers_json).unwrap_or_default(),
-        response_preview: row.get(12)?,
+        response_preview,
         truncated: row.get::<_, i64>(13)? != 0,
         execution_source: row.get(14)?,
+        mcp_summary,
         executed_at_epoch_ms: executed_at_epoch_ms as u64,
         time: format_history_time(executed_at_epoch_ms),
     })
@@ -221,9 +274,10 @@ fn format_history_time(epoch_ms: i64) -> String {
 #[cfg(test)]
 mod tests {
     use super::{clear_history, insert_history_item, list_history};
-use crate::models::request::{
-    RequestBodyDto, RequestExecutionOptionsDto, RequestMockStateDto,
-};
+    use crate::models::request::{
+        McpConnectionConfigDto, McpInitializeInputDto, McpOperationInputDto, McpRequestDefinitionDto,
+        McpToolCallInputDto, RequestBodyDto, RequestExecutionOptionsDto, RequestMockStateDto,
+    };
     use crate::models::{HistoryQueryPayloadDto, HistoryStoredPayloadDto, SendRequestPayloadDto};
     use crate::storage::db::initialize_database;
     use crate::storage::repositories::workspace_repo::ensure_bootstrap_data;
@@ -237,6 +291,230 @@ use crate::models::request::{
             .map(|duration| duration.as_millis())
             .unwrap_or_default();
         std::env::temp_dir().join(format!("zenrequest-{name}-{suffix}.sqlite3"))
+    }
+
+    #[test]
+    fn history_repo_derives_mcp_summary_from_request_snapshot() {
+        let db_path = temp_db_path("history-mcp-summary");
+        initialize_database(&db_path).expect("database initialized");
+
+        let bootstrap = ensure_bootstrap_data(&db_path, None).expect("bootstrap payload");
+        let workspace_id = bootstrap
+            .active_workspace_id
+            .clone()
+            .expect("active workspace id");
+
+        let persisted = insert_history_item(
+            &db_path,
+            &workspace_id,
+            &HistoryStoredPayloadDto {
+                request_id: None,
+                request_name: "MCP Search".to_string(),
+                request_method: "POST".to_string(),
+                request_url: "https://example.com/mcp".to_string(),
+                request_snapshot: SendRequestPayloadDto {
+                    workspace_id: workspace_id.clone(),
+                    request_kind: Some("mcp".to_string()),
+                    mcp: Some(crate::models::request::McpRequestDefinitionDto {
+                        connection: crate::models::request::McpConnectionConfigDto {
+                            transport: "http".to_string(),
+                            base_url: "https://example.com/mcp".to_string(),
+                            headers: Vec::new(),
+                            auth: Default::default(),
+                            session_id: None,
+                        },
+                        operation: crate::models::request::McpOperationInputDto::ToolsCall {
+                            input: crate::models::request::McpToolCallInputDto {
+                                tool_name: "search".to_string(),
+                                arguments: serde_json::json!({ "q": "zen" }),
+                                schema: None,
+                            },
+                        },
+                    }),
+                    active_environment_id: None,
+                    tab_id: "tab-mcp".to_string(),
+                    request_id: None,
+                    name: "MCP Search".to_string(),
+                    description: String::new(),
+                    tags: vec!["mcp".to_string()],
+                    collection_name: "Scratch Pad".to_string(),
+                    method: "POST".to_string(),
+                    url: "https://example.com/mcp".to_string(),
+                    params: Vec::new(),
+                    headers: Vec::new(),
+                    body: RequestBodyDto::Json { value: String::new() },
+                    auth: Default::default(),
+                    tests: Vec::new(),
+                    mock: None,
+                    execution_options: RequestExecutionOptionsDto::default(),
+                },
+                status: 200,
+                status_text: "OK".to_string(),
+                elapsed_ms: 12,
+                size_bytes: 24,
+                content_type: "application/json".to_string(),
+                response_headers: Vec::new(),
+                response_preview: "{\"result\":true}".to_string(),
+                truncated: false,
+                execution_source: "live".to_string(),
+                executed_at_epoch_ms: 1_775_000_000_000,
+            },
+        )
+        .expect("history inserted");
+
+        let summary = persisted.mcp_summary.expect("mcp summary");
+        assert_eq!(summary.operation, "tools.call");
+        assert_eq!(summary.transport, "http");
+        assert_eq!(summary.error_category, None);
+    }
+
+    #[test]
+    fn history_repo_derives_transport_error_category_from_status_code() {
+        let db_path = temp_db_path("history-mcp-transport-error");
+        initialize_database(&db_path).expect("database initialized");
+
+        let bootstrap = ensure_bootstrap_data(&db_path, None).expect("bootstrap payload");
+        let workspace_id = bootstrap
+            .active_workspace_id
+            .clone()
+            .expect("active workspace id");
+
+        let persisted = insert_history_item(
+            &db_path,
+            &workspace_id,
+            &HistoryStoredPayloadDto {
+                request_id: None,
+                request_name: "MCP Search Error".to_string(),
+                request_method: "POST".to_string(),
+                request_url: "https://example.com/mcp".to_string(),
+                request_snapshot: SendRequestPayloadDto {
+                    workspace_id: workspace_id.clone(),
+                    request_kind: Some("mcp".to_string()),
+                    mcp: Some(McpRequestDefinitionDto {
+                        connection: McpConnectionConfigDto {
+                            transport: "http".to_string(),
+                            base_url: "https://example.com/mcp".to_string(),
+                            headers: Vec::new(),
+                            auth: Default::default(),
+                            session_id: None,
+                        },
+                        operation: McpOperationInputDto::ToolsCall {
+                            input: McpToolCallInputDto {
+                                tool_name: "search".to_string(),
+                                arguments: serde_json::json!({ "q": "zen" }),
+                                schema: None,
+                            },
+                        },
+                    }),
+                    active_environment_id: None,
+                    tab_id: "tab-mcp-transport-error".to_string(),
+                    request_id: None,
+                    name: "MCP Search Error".to_string(),
+                    description: String::new(),
+                    tags: vec!["mcp".to_string()],
+                    collection_name: "Scratch Pad".to_string(),
+                    method: "POST".to_string(),
+                    url: "https://example.com/mcp".to_string(),
+                    params: Vec::new(),
+                    headers: Vec::new(),
+                    body: RequestBodyDto::Json { value: String::new() },
+                    auth: Default::default(),
+                    tests: Vec::new(),
+                    mock: None,
+                    execution_options: RequestExecutionOptionsDto::default(),
+                },
+                status: 502,
+                status_text: "Bad Gateway".to_string(),
+                elapsed_ms: 12,
+                size_bytes: 24,
+                content_type: "application/json".to_string(),
+                response_headers: Vec::new(),
+                response_preview: "{\"error\":{\"code\":-32000,\"message\":\"gateway failed\"}}".to_string(),
+                truncated: false,
+                execution_source: "live".to_string(),
+                executed_at_epoch_ms: 1_775_000_000_100,
+            },
+        )
+        .expect("history inserted");
+
+        let summary = persisted.mcp_summary.expect("mcp summary");
+        assert_eq!(summary.operation, "tools.call");
+        assert_eq!(summary.error_category.as_deref(), Some("transport"));
+    }
+
+    #[test]
+    fn history_repo_derives_initialize_error_category_from_protocol_error_payload() {
+        let db_path = temp_db_path("history-mcp-initialize-error");
+        initialize_database(&db_path).expect("database initialized");
+
+        let bootstrap = ensure_bootstrap_data(&db_path, None).expect("bootstrap payload");
+        let workspace_id = bootstrap
+            .active_workspace_id
+            .clone()
+            .expect("active workspace id");
+
+        let persisted = insert_history_item(
+            &db_path,
+            &workspace_id,
+            &HistoryStoredPayloadDto {
+                request_id: None,
+                request_name: "MCP Initialize".to_string(),
+                request_method: "POST".to_string(),
+                request_url: "https://example.com/mcp".to_string(),
+                request_snapshot: SendRequestPayloadDto {
+                    workspace_id: workspace_id.clone(),
+                    request_kind: Some("mcp".to_string()),
+                    mcp: Some(McpRequestDefinitionDto {
+                        connection: McpConnectionConfigDto {
+                            transport: "http".to_string(),
+                            base_url: "https://example.com/mcp".to_string(),
+                            headers: Vec::new(),
+                            auth: Default::default(),
+                            session_id: None,
+                        },
+                        operation: McpOperationInputDto::Initialize {
+                            input: McpInitializeInputDto {
+                                client_name: "ZenRequest".to_string(),
+                                client_version: "0.1.0".to_string(),
+                                protocol_version: None,
+                                capabilities: None,
+                            },
+                        },
+                    }),
+                    active_environment_id: None,
+                    tab_id: "tab-mcp-initialize-error".to_string(),
+                    request_id: None,
+                    name: "MCP Initialize".to_string(),
+                    description: String::new(),
+                    tags: vec!["mcp".to_string()],
+                    collection_name: "Scratch Pad".to_string(),
+                    method: "POST".to_string(),
+                    url: "https://example.com/mcp".to_string(),
+                    params: Vec::new(),
+                    headers: Vec::new(),
+                    body: RequestBodyDto::Json { value: String::new() },
+                    auth: Default::default(),
+                    tests: Vec::new(),
+                    mock: None,
+                    execution_options: RequestExecutionOptionsDto::default(),
+                },
+                status: 200,
+                status_text: "OK".to_string(),
+                elapsed_ms: 8,
+                size_bytes: 48,
+                content_type: "application/json".to_string(),
+                response_headers: Vec::new(),
+                response_preview: "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32002,\"message\":\"initialize failed\"}}".to_string(),
+                truncated: false,
+                execution_source: "live".to_string(),
+                executed_at_epoch_ms: 1_775_000_000_200,
+            },
+        )
+        .expect("history inserted");
+
+        let summary = persisted.mcp_summary.expect("mcp summary");
+        assert_eq!(summary.operation, "initialize");
+        assert_eq!(summary.error_category.as_deref(), Some("initialize"));
     }
 
     #[test]
@@ -262,6 +540,8 @@ use crate::models::request::{
                 request_url: request.url.clone(),
                 request_snapshot: SendRequestPayloadDto {
                     workspace_id: workspace_id.clone(),
+                    request_kind: None,
+                    mcp: None,
                     active_environment_id: Some(environment_id.clone()),
                     tab_id: "tab-history-binary".to_string(),
                     request_id: Some(request.id.clone()),

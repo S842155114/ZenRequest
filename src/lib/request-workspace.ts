@@ -6,8 +6,11 @@ import type {
   KeyValueItem,
   RequestCollection,
   RequestExecutionOptions,
+  RequestKind,
   RequestMockState,
   RequestBodySnapshot,
+  McpExecutionArtifact,
+  McpRequestDefinition,
   ResponseLifecycleState,
   RequestPreset,
   RequestTestDefinition,
@@ -75,6 +78,8 @@ export const defaultRequestTest = (): RequestTestDefinition => ({
 })
 
 export const defaultResponseState = (overrides?: Partial<ResponseState>): ResponseState => ({
+  requestKind: 'http',
+  mcpArtifact: undefined,
   responseBody: `{
   "message": "Ready to send",
   "hint": "Select a request from the sidebar or edit the current one."
@@ -130,6 +135,76 @@ export const cloneAuth = (auth?: Partial<AuthConfig>): AuthConfig => ({
   ...auth,
 })
 
+const clonePlainData = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
+
+const cloneMcpExecutionArtifact = (artifact?: McpExecutionArtifact): McpExecutionArtifact | undefined => (
+  artifact
+    ? {
+      ...artifact,
+      protocolRequest: artifact.protocolRequest ? clonePlainData(artifact.protocolRequest) : undefined,
+      protocolResponse: artifact.protocolResponse ? clonePlainData(artifact.protocolResponse) : undefined,
+      selectedTool: artifact.selectedTool
+        ? {
+          ...artifact.selectedTool,
+          inputSchema: artifact.selectedTool.inputSchema ? clonePlainData(artifact.selectedTool.inputSchema) : undefined,
+        }
+        : undefined,
+      cachedTools: artifact.cachedTools
+        ? artifact.cachedTools.map((tool) => ({
+          ...tool,
+          inputSchema: tool.inputSchema ? clonePlainData(tool.inputSchema) : undefined,
+        }))
+        : undefined,
+    }
+    : undefined
+)
+
+const cloneMcpRequestDefinition = (definition?: McpRequestDefinition): McpRequestDefinition | undefined => (
+  definition
+    ? {
+      connection: {
+        ...definition.connection,
+        headers: cloneItems(definition.connection.headers),
+        auth: cloneAuth(definition.connection.auth),
+      },
+      operation: definition.operation.type === 'tools.call'
+        ? {
+          type: 'tools.call',
+          input: {
+            ...definition.operation.input,
+            arguments: clonePlainData(definition.operation.input.arguments),
+            schema: definition.operation.input.schema
+              ? {
+                ...definition.operation.input.schema,
+                inputSchema: definition.operation.input.schema.inputSchema
+                  ? clonePlainData(definition.operation.input.schema.inputSchema)
+                  : undefined,
+              }
+              : undefined,
+          },
+        }
+        : definition.operation.type === 'initialize'
+          ? {
+            type: 'initialize',
+            input: {
+              ...definition.operation.input,
+              capabilities: definition.operation.input.capabilities
+                ? clonePlainData(definition.operation.input.capabilities)
+                : undefined,
+            },
+          }
+          : {
+            type: 'tools.list',
+            input: { ...definition.operation.input },
+          },
+    }
+    : undefined
+)
+
+const resolveRequestKind = (payload: { requestKind?: RequestKind; mcp?: McpRequestDefinition }): RequestKind => (
+  payload.requestKind ?? (payload.mcp ? 'mcp' : 'http')
+)
+
 export const cloneResponse = (response?: Partial<ResponseState>): ResponseState => {
   const merged = {
     ...defaultResponseState(),
@@ -138,6 +213,8 @@ export const cloneResponse = (response?: Partial<ResponseState>): ResponseState 
 
   return {
     ...merged,
+    requestKind: response?.requestKind ?? merged.requestKind ?? 'http',
+    mcpArtifact: cloneMcpExecutionArtifact(response?.mcpArtifact ?? merged.mcpArtifact),
     state: response?.state ?? resolveResponseStateFromStatus(merged.status),
     stale: response?.stale ?? false,
     executionSource: response?.executionSource ?? merged.executionSource ?? 'live',
@@ -157,6 +234,8 @@ export const clonePreset = (preset: RequestPreset): RequestPreset => ({
   tags: [...(preset.tags ?? [])],
   params: cloneItems(preset.params),
   headers: cloneItems(preset.headers),
+  requestKind: resolveRequestKind(preset),
+  mcp: cloneMcpRequestDefinition(preset.mcp),
   bodyDefinition: preset.bodyDefinition ? cloneBodyDefinition(preset.bodyDefinition) : createRequestBodyDefinition(preset),
   formDataFields: (preset.formDataFields ?? []).map((field) => ({ ...field })),
   auth: cloneAuth(preset.auth),
@@ -287,8 +366,11 @@ export const applyRequestBodyDefinition = (bodyDefinition: RequestBodySnapshot):
 
 export const normalizeRequestTabState = (tab: RequestTabState): RequestTabState => {
   const origin = resolveTabOrigin(tab)
+  const requestKind = resolveRequestKind(tab)
   return {
     ...tab,
+    requestKind,
+    mcp: cloneMcpRequestDefinition(tab.mcp),
     origin,
     persistenceState: resolveTabPersistenceState(tab, origin),
     executionState: resolveTabExecutionState(tab, resolveResponseStateFromStatus),
@@ -299,6 +381,8 @@ export const normalizeRequestTabState = (tab: RequestTabState): RequestTabState 
 
 export const createRequestTabFromPreset = (preset: RequestPreset): RequestTabState => ({
   ...applyRequestBodyDefinition(createRequestBodyDefinition(preset)),
+  requestKind: resolveRequestKind(preset),
+  mcp: cloneMcpRequestDefinition(preset.mcp),
   id: createTabId(),
   requestId: preset.id,
   origin: {
@@ -322,6 +406,7 @@ export const createRequestTabFromPreset = (preset: RequestPreset): RequestTabSta
   mock: cloneMock(preset.mock),
   executionOptions: cloneExecutionOptions(preset.executionOptions),
   response: defaultResponseState({
+    requestKind: resolveRequestKind(preset),
     requestMethod: preset.method,
     requestUrl: preset.url,
     executionSource: 'live',
@@ -332,6 +417,8 @@ export const createRequestTabFromPreset = (preset: RequestPreset): RequestTabSta
 
 export const createBlankRequestTab = (): RequestTabState => ({
   id: createTabId(),
+  requestKind: 'http',
+  mcp: undefined,
   requestId: undefined,
   origin: {
     kind: 'scratch',
@@ -363,8 +450,13 @@ export const createBlankRequestTab = (): RequestTabState => ({
   isDirty: true,
 })
 
-export const cloneTab = (tab: RequestTabState): RequestTabState => ({
-  ...normalizeRequestTabState(tab),
+export const cloneTab = (tab: RequestTabState): RequestTabState => {
+  const requestKind = resolveRequestKind(tab)
+
+  return ({
+    ...normalizeRequestTabState(tab),
+    requestKind,
+    mcp: cloneMcpRequestDefinition(tab.mcp),
   description: tab.description ?? '',
   tags: [...(tab.tags ?? [])],
   params: cloneItems(tab.params),
@@ -374,14 +466,17 @@ export const cloneTab = (tab: RequestTabState): RequestTabState => ({
   tests: cloneTests(tab.tests),
   formDataFields: (tab.formDataFields ?? []).map((field) => ({ ...field })),
   mock: cloneMock(tab.mock),
-  executionOptions: cloneExecutionOptions(tab.executionOptions),
-  response: cloneResponse(tab.response),
-  origin: cloneTabOrigin(resolveTabOrigin(tab)),
-  isDirty: tab.isDirty ?? false,
-})
+    executionOptions: cloneExecutionOptions(tab.executionOptions),
+    response: cloneResponse({ ...tab.response, requestKind, mcpArtifact: tab.response?.mcpArtifact }),
+    origin: cloneTabOrigin(resolveTabOrigin(tab)),
+    isDirty: tab.isDirty ?? false,
+  })
+}
 
 export const createPresetFromTab = (tab: RequestTabState): RequestPreset => ({
   id: tab.requestId ?? `request-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  requestKind: resolveRequestKind(tab),
+  mcp: cloneMcpRequestDefinition(tab.mcp),
   name: tab.name,
   description: tab.description,
   tags: [...tab.tags],
@@ -418,10 +513,13 @@ export const formatBytes = (value: number) => {
 
 export const createHistoryEntry = (payload: {
   requestId?: string
+  requestSnapshot?: HistoryItem['requestSnapshot']
+  executionSource?: HistoryItem['executionSource']
   name: string
   method: string
   url: string
   status: number
+  mcpSummary?: HistoryItem['mcpSummary']
 }): HistoryItem => ({
   id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   requestId: payload.requestId,
@@ -430,7 +528,9 @@ export const createHistoryEntry = (payload: {
   time: new Date().toLocaleTimeString('zh-CN', { hour12: false }),
   status: payload.status,
   url: payload.url,
-  executionSource: 'live',
+  requestSnapshot: payload.requestSnapshot ? clonePlainData(payload.requestSnapshot) : undefined,
+  executionSource: payload.executionSource ?? 'live',
+  mcpSummary: payload.mcpSummary ? { ...payload.mcpSummary } : undefined,
 })
 
 const getHeaderValue = (headers: ResponseHeaderItem[], target: string) => {
@@ -497,6 +597,8 @@ export const createRequestTabFromHistorySnapshot = (
 
   return {
     id: createTabId(),
+    requestKind: resolveRequestKind(snapshot),
+    mcp: cloneMcpRequestDefinition(snapshot.mcp),
     requestId: snapshot.requestId,
     origin: {
       kind: 'replay',
@@ -526,6 +628,7 @@ export const createRequestTabFromHistorySnapshot = (
     mock: cloneMock(snapshot.mock),
     executionOptions: cloneExecutionOptions(snapshot.executionOptions),
     response: defaultResponseState({
+      requestKind: resolveRequestKind(snapshot),
       requestMethod: snapshot.method,
       requestUrl: snapshot.url,
       executionSource: 'live',
@@ -540,6 +643,7 @@ export const createResponseStateFromHistoryItem = (
   requestMethod: string,
   requestUrl: string,
 ): ResponseState => defaultResponseState({
+  requestKind: item.requestSnapshot?.requestKind ?? 'http',
   responseBody: item.responsePreview || defaultResponseState().responseBody,
   status: item.status,
   statusText: item.statusText || 'OK',

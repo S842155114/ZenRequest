@@ -19,6 +19,9 @@ export type RequestProxyMode = 'inherit' | 'off' | 'custom'
 export type RequestTabOriginKind = 'resource' | 'replay' | 'scratch' | 'detached'
 export type RequestTabPersistenceState = 'saved' | 'unsaved' | 'unbound'
 export type RequestTabExecutionState = ResponseLifecycleState
+export type RequestKind = 'http' | 'mcp'
+export type McpTransportKind = 'http' | 'stdio'
+export type McpOperationType = 'initialize' | 'tools.list' | 'tools.call'
 
 export interface WorkbenchActivitySignal {
   active: boolean
@@ -140,6 +143,58 @@ export interface ExecutionArtifact {
   assertionResults: AssertionResultSet
 }
 
+export interface McpConnectionConfig {
+  transport: McpTransportKind
+  baseUrl: string
+  headers: KeyValueItem[]
+  auth: AuthConfig
+  sessionId?: string
+}
+
+export interface McpInitializeInput {
+  clientName: string
+  clientVersion: string
+  protocolVersion?: string
+  capabilities?: Record<string, unknown>
+}
+
+export interface McpToolSchemaSnapshot {
+  name: string
+  title?: string
+  description?: string
+  inputSchema?: Record<string, unknown>
+}
+
+export interface McpToolsListInput {
+  cursor?: string
+}
+
+export interface McpToolCallInput {
+  toolName: string
+  arguments: Record<string, unknown>
+  schema?: McpToolSchemaSnapshot
+}
+
+export type McpOperationInput =
+  | { type: 'initialize'; input: McpInitializeInput }
+  | { type: 'tools.list'; input: McpToolsListInput }
+  | { type: 'tools.call'; input: McpToolCallInput }
+
+export interface McpRequestDefinition {
+  connection: McpConnectionConfig
+  operation: McpOperationInput
+}
+
+export interface McpExecutionArtifact {
+  transport: McpTransportKind
+  operation: McpOperationType
+  protocolRequest?: Record<string, unknown>
+  protocolResponse?: Record<string, unknown>
+  selectedTool?: McpToolSchemaSnapshot
+  cachedTools?: McpToolSchemaSnapshot[]
+  errorCategory?: 'transport' | 'initialize' | 'protocol' | 'tool_execution'
+}
+
 export type HistoryRequestSnapshot = Omit<SendRequestPayload, 'body' | 'bodyType'> & {
   body: string | RequestBodySnapshot
   bodyType?: RequestBodyType
@@ -147,6 +202,8 @@ export type HistoryRequestSnapshot = Omit<SendRequestPayload, 'body' | 'bodyType
 
 export interface RequestPreset {
   id: string
+  requestKind?: RequestKind
+  mcp?: McpRequestDefinition
   name: string
   description?: string
   tags?: string[]
@@ -195,6 +252,11 @@ export interface HistoryItem {
   responsePreview?: string
   requestSnapshot?: HistoryRequestSnapshot
   executionSource?: RequestExecutionSource
+  mcpSummary?: {
+    operation: McpOperationType
+    transport: McpTransportKind
+    errorCategory?: McpExecutionArtifact['errorCategory']
+  }
 }
 
 export interface ResponseHeaderItem {
@@ -203,6 +265,8 @@ export interface ResponseHeaderItem {
 }
 
 export interface ResponseState {
+  requestKind?: RequestKind
+  mcpArtifact?: McpExecutionArtifact
   responseBody: string
   status: number
   statusText: string
@@ -232,6 +296,8 @@ export interface RequestTabOrigin {
 
 export interface RequestTabState {
   id: string
+  requestKind?: RequestKind
+  mcp?: McpRequestDefinition
   requestId?: string
   origin?: RequestTabOrigin
   persistenceState?: RequestTabPersistenceState
@@ -263,6 +329,8 @@ export interface RequestTabState {
 
 export interface SendRequestPayload {
   tabId: string
+  requestKind?: RequestKind
+  mcp?: McpRequestDefinition
   requestId?: string
   name: string
   description: string

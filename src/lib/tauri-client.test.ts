@@ -8,11 +8,12 @@ import type {
   OpenApiImportAnalysis,
   OpenApiImportApplyResult,
   RuntimeAdapter,
+  SendMcpRequestResult,
   WorkspaceExportResult,
   WorkspaceImportResult,
   WorkspaceSaveResult,
 } from './tauri-client'
-import { detectImportPackageMeta, runtimeClient, setRuntimeAdapter, toRequestBodyDto, toSendRequestPayloadDto } from './tauri-client'
+import { detectImportPackageMeta, runtimeClient, setRuntimeAdapter, toRequestBodyDto, toSendMcpRequestPayloadDto, toSendRequestPayloadDto } from './tauri-client'
 import type {
   EnvironmentPreset,
   RequestCollection,
@@ -179,6 +180,12 @@ const createAdapter = (
       ok: false,
       error: { code: 'NOT_IMPLEMENTED', message: 'send_request is not implemented yet' },
     }),
+  sendMcpRequest: async (_payload) =>
+    ({
+      ok: false,
+      error: { code: 'NOT_IMPLEMENTED', message: 'send_mcp_request is not implemented yet' },
+    }),
+  discoverMcpTools: async (_payload) => ok([]),
   saveTextFile: async (input) => ok({ path: input.targetPath ?? input.fileName }),
   promptSavePath: async (options) => options?.defaultPath ?? null,
   ...overrides,
@@ -324,6 +331,156 @@ describe('runtimeClient curl import forwarding', () => {
   })
 })
 
+describe('runtimeClient MCP discovery forwarding', () => {
+  it('discovers MCP tools by routing through the active runtime adapter', async () => {
+    const discoverMcpTools = vi.fn<RuntimeAdapter['discoverMcpTools']>(async (_payload) => ok([{
+      name: 'search',
+      inputSchema: { type: 'object' },
+    }]))
+
+    setRuntimeAdapter(createAdapter({ discoverMcpTools }))
+
+    const result = await runtimeClient.discoverMcpTools('workspace-1', 'env-1', {
+      tabId: 'tab-mcp',
+      requestKind: 'mcp',
+      mcp: {
+        connection: {
+          transport: 'http',
+          baseUrl: 'https://example.com/mcp',
+          headers: [],
+          auth: {
+            type: 'none',
+            bearerToken: '',
+            username: '',
+            password: '',
+            apiKeyKey: '',
+            apiKeyValue: '',
+            apiKeyPlacement: 'header',
+          },
+        },
+        operation: {
+          type: 'tools.call',
+          input: { toolName: 'search', arguments: {} },
+        },
+      },
+      requestId: 'request-mcp',
+      name: 'MCP Search',
+      description: '',
+      tags: [],
+      collectionName: 'Scratch Pad',
+      method: 'POST',
+      url: 'https://example.com/mcp',
+      params: [],
+      headers: [],
+      body: '',
+      bodyType: 'json',
+      auth: {
+        type: 'none',
+        bearerToken: '',
+        username: '',
+        password: '',
+        apiKeyKey: '',
+        apiKeyValue: '',
+        apiKeyPlacement: 'header',
+      },
+      tests: [],
+      executionOptions: { redirectPolicy: 'follow', proxy: { mode: 'inherit' }, verifySsl: true },
+    })
+
+    expect(result).toEqual(ok([{ name: 'search', inputSchema: { type: 'object' } }]))
+    expect(discoverMcpTools).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('runtimeClient MCP send forwarding', () => {
+  it('forwards MCP payloads to the active runtime adapter', async () => {
+    const sendMcpRequest = vi.fn<RuntimeAdapter['sendMcpRequest']>(async (_payload) => ok<SendMcpRequestResult>({
+      requestMethod: 'POST',
+      requestUrl: 'https://example.com/mcp',
+      status: 200,
+      statusText: 'OK',
+      elapsedMs: 12,
+      sizeBytes: 32,
+      contentType: 'application/json',
+      responseBody: '{"result":true}',
+      headers: [],
+      truncated: false,
+      executionSource: 'live',
+      mcpArtifact: {
+        transport: 'http',
+        operation: 'tools.call',
+      },
+    }))
+
+    setRuntimeAdapter(createAdapter({ sendMcpRequest }))
+
+    await runtimeClient.sendMcpRequest('workspace-1', 'env-1', {
+      tabId: 'tab-mcp',
+      requestKind: 'mcp',
+      mcp: {
+        connection: {
+          transport: 'http',
+          baseUrl: 'https://example.com/mcp',
+          headers: [],
+          auth: {
+            type: 'none',
+            bearerToken: '',
+            username: '',
+            password: '',
+            apiKeyKey: '',
+            apiKeyValue: '',
+            apiKeyPlacement: 'header',
+          },
+        },
+        operation: {
+          type: 'tools.call',
+          input: {
+            toolName: 'search',
+            arguments: { q: 'zen' },
+          },
+        },
+      },
+      requestId: 'request-mcp',
+      name: 'MCP Search',
+      description: '',
+      tags: ['mcp'],
+      collectionName: 'Scratch Pad',
+      method: 'POST',
+      url: 'https://example.com/mcp',
+      params: [],
+      headers: [],
+      body: '',
+      bodyType: 'json',
+      auth: {
+        type: 'none',
+        bearerToken: '',
+        username: '',
+        password: '',
+        apiKeyKey: '',
+        apiKeyValue: '',
+        apiKeyPlacement: 'header',
+      },
+      tests: [],
+    })
+
+    expect(sendMcpRequest).toHaveBeenCalledWith({
+      workspaceId: 'workspace-1',
+      activeEnvironmentId: 'env-1',
+      tabId: 'tab-mcp',
+      requestId: 'request-mcp',
+      name: 'MCP Search',
+      description: '',
+      tags: ['mcp'],
+      collectionName: 'Scratch Pad',
+      requestKind: 'mcp',
+      mcp: expect.objectContaining({
+        connection: expect.objectContaining({ baseUrl: 'https://example.com/mcp' }),
+        operation: expect.objectContaining({ type: 'tools.call' }),
+      }),
+    })
+  })
+})
+
 describe('runtimeClient OpenAPI import forwarding', () => {
   it('forwards the workspace id and document to OpenAPI analyze', async () => {
     const analyzeOpenApiImport = vi.fn<RuntimeAdapter['analyzeOpenApiImport']>(async (_workspaceId, _document) =>
@@ -427,5 +584,92 @@ describe('toSendRequestPayloadDto', () => {
       verifySsl: false,
     })
     expect(payload).not.toHaveProperty('executionSource')
+  })
+})
+
+
+describe('toSendMcpRequestPayloadDto', () => {
+  it('extracts the MCP-specific runtime payload from the shared send payload', () => {
+    expect(toSendMcpRequestPayloadDto('workspace-1', 'env-1', {
+      tabId: 'tab-mcp',
+      requestKind: 'mcp',
+      mcp: {
+        connection: {
+          transport: 'http',
+          baseUrl: 'https://example.com/mcp',
+          headers: [],
+          auth: {
+            type: 'none',
+            bearerToken: '',
+            username: '',
+            password: '',
+            apiKeyKey: '',
+            apiKeyValue: '',
+            apiKeyPlacement: 'header',
+          },
+        },
+        operation: {
+          type: 'tools.call',
+          input: {
+            toolName: 'search',
+            arguments: { q: 'zen' },
+          },
+        },
+      },
+      requestId: 'request-mcp',
+      name: 'MCP Search',
+      description: 'Search via MCP',
+      tags: ['mcp'],
+      collectionName: 'Scratch Pad',
+      method: 'POST',
+      url: 'https://example.com/mcp',
+      params: [],
+      headers: [],
+      body: '',
+      bodyType: 'json',
+      auth: {
+        type: 'none',
+        bearerToken: '',
+        username: '',
+        password: '',
+        apiKeyKey: '',
+        apiKeyValue: '',
+        apiKeyPlacement: 'header',
+      },
+      tests: [],
+    })).toEqual({
+      workspaceId: 'workspace-1',
+      activeEnvironmentId: 'env-1',
+      tabId: 'tab-mcp',
+      requestId: 'request-mcp',
+      name: 'MCP Search',
+      description: 'Search via MCP',
+      tags: ['mcp'],
+      collectionName: 'Scratch Pad',
+      requestKind: 'mcp',
+      mcp: {
+        connection: {
+          transport: 'http',
+          baseUrl: 'https://example.com/mcp',
+          headers: [],
+          auth: {
+            type: 'none',
+            bearerToken: '',
+            username: '',
+            password: '',
+            apiKeyKey: '',
+            apiKeyValue: '',
+            apiKeyPlacement: 'header',
+          },
+        },
+        operation: {
+          type: 'tools.call',
+          input: {
+            toolName: 'search',
+            arguments: { q: 'zen' },
+          },
+        },
+      },
+    })
   })
 })

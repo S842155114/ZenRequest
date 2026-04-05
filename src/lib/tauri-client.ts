@@ -6,6 +6,9 @@ import type {
   ExecutionArtifact,
   FormDataFieldSnapshot,
   HistoryItem,
+  McpExecutionArtifact,
+  McpRequestDefinition,
+  McpToolSchemaSnapshot,
   RequestCollection,
   RequestPreset,
   RequestTabState,
@@ -34,7 +37,7 @@ export interface AppSettings {
 
 export interface RuntimeCapabilityDescriptor {
   key: string
-  kind: 'protocol' | 'import_adapter' | 'execution_hook' | 'tool_packaging' | 'plugin_manifest'
+  kind: 'protocol' | 'mcp_transport' | 'import_adapter' | 'execution_hook' | 'tool_packaging' | 'plugin_manifest'
   displayName: string
   availability: 'active' | 'reserved'
 }
@@ -193,6 +196,19 @@ export type SendRequestPayloadDto = Omit<SendRequestPayload, 'body' | 'bodyType'
   body: RequestBodyDto
 }
 
+export interface SendMcpRequestPayloadDto {
+  workspaceId: string
+  activeEnvironmentId?: string
+  tabId: string
+  requestId?: string
+  name: string
+  description: string
+  tags: string[]
+  collectionName: string
+  requestKind: 'mcp'
+  mcp: McpRequestDefinition
+}
+
 export interface SendRequestResult {
   requestMethod: string
   requestUrl: string
@@ -207,6 +223,22 @@ export interface SendRequestResult {
   executionSource?: 'live' | 'mock'
   assertionResults?: AssertionResultSet
   executionArtifact?: ExecutionArtifact
+  historyItem?: HistoryItem
+}
+
+export interface SendMcpRequestResult {
+  requestMethod: string
+  requestUrl: string
+  status: number
+  statusText: string
+  elapsedMs: number
+  sizeBytes: number
+  contentType: string
+  responseBody: string
+  headers: Array<{ key: string; value: string }>
+  truncated: boolean
+  executionSource?: 'live' | 'mock'
+  mcpArtifact?: McpExecutionArtifact
   historyItem?: HistoryItem
 }
 
@@ -235,6 +267,8 @@ export interface RuntimeAdapter {
   getSettings(): Promise<ApiEnvelope<AppSettings>>
   updateSettings(payload: AppSettings): Promise<ApiEnvelope<AppSettings>>
   sendRequest(payload: SendRequestPayloadDto): Promise<ApiEnvelope<SendRequestResult>>
+  sendMcpRequest(payload: SendMcpRequestPayloadDto): Promise<ApiEnvelope<SendMcpRequestResult>>
+  discoverMcpTools(payload: SendMcpRequestPayloadDto): Promise<ApiEnvelope<McpToolSchemaSnapshot[]>>
   saveTextFile(input: SaveTextFileInput): Promise<ApiEnvelope<SaveTextFileResult>>
   promptSavePath(options?: SaveDialogOptions): Promise<string | null>
 }
@@ -376,6 +410,29 @@ export const toSendRequestPayloadDto = (
   body: toRequestBodyDto(payload),
 })
 
+export const toSendMcpRequestPayloadDto = (
+  workspaceId: string,
+  activeEnvironmentId: string | undefined,
+  payload: SendRequestPayload,
+): SendMcpRequestPayloadDto => {
+  if (payload.requestKind !== 'mcp' || !payload.mcp) {
+    throw new Error('MCP payload requires requestKind="mcp" and an mcp definition')
+  }
+
+  return {
+    workspaceId,
+    activeEnvironmentId,
+    tabId: payload.tabId,
+    requestId: payload.requestId,
+    name: payload.name,
+    description: payload.description,
+    tags: [...payload.tags],
+    collectionName: payload.collectionName,
+    requestKind: 'mcp',
+    mcp: payload.mcp,
+  }
+}
+
 export const detectImportPackageMeta = (packageJson: string): ImportPackageMeta => {
   const parsed = JSON.parse(packageJson) as Record<string, unknown>
   if (!parsed || typeof parsed !== 'object') {
@@ -460,6 +517,35 @@ const tauriAdapter: RuntimeAdapter = {
   getSettings: () => invokeEnvelope<AppSettings>('get_settings'),
   updateSettings: (payload) => invokeEnvelope<AppSettings>('update_settings', { payload }),
   sendRequest: (payload) => invokeEnvelope<SendRequestResult>('send_request', { payload }),
+  sendMcpRequest: (payload) => invokeEnvelope<SendMcpRequestResult>('send_mcp_request', { payload }),
+  discoverMcpTools: async (payload) => {
+    const result = await invokeEnvelope<SendMcpRequestResult>('send_mcp_request', {
+      payload: {
+        ...payload,
+        mcp: {
+          ...payload.mcp,
+          operation: { type: 'tools.list', input: { cursor: '' } },
+        },
+      },
+    })
+    if (!result.ok || !result.data) return { ok: false, error: result.error }
+    const tools = (((result.data.mcpArtifact?.protocolResponse as Record<string, unknown> | undefined)?.result as Record<string, unknown> | undefined)?.tools)
+    if (!Array.isArray(tools)) return { ok: true, data: [] }
+    return {
+      ok: true,
+      data: tools
+        .filter((tool): tool is Record<string, unknown> => typeof tool === 'object' && tool !== null)
+        .map((tool) => ({
+          name: typeof tool.name === 'string' ? tool.name : '',
+          title: typeof tool.title === 'string' ? tool.title : undefined,
+          description: typeof tool.description === 'string' ? tool.description : undefined,
+          inputSchema: typeof tool.inputSchema === 'object' && tool.inputSchema !== null
+            ? JSON.parse(JSON.stringify(tool.inputSchema)) as Record<string, unknown>
+            : undefined,
+        }))
+        .filter((tool) => tool.name.trim().length > 0),
+    }
+  },
   saveTextFile: (input) => invokeEnvelope<SaveTextFileResult>('save_text_file', { payload: input }),
   promptSavePath: async (options = {}) => {
     const selected = await save({
@@ -538,6 +624,8 @@ const mockAdapter: RuntimeAdapter = {
   getSettings: async () => ({ ok: true, data: { themeMode: 'dark', locale: 'en' } }),
   updateSettings: async (payload) => ({ ok: true, data: payload }),
   sendRequest: async () => ({ ok: false, error: buildNotImplementedError('send_request') }),
+  sendMcpRequest: async () => ({ ok: false, error: buildNotImplementedError('send_mcp_request') }),
+  discoverMcpTools: async () => ({ ok: false, error: buildNotImplementedError('discover_mcp_tools') }),
   saveTextFile: async (input) => ({ ok: true, data: { path: input.targetPath ?? input.fileName } }),
   promptSavePath: async (options) => options?.defaultPath ?? null,
 }
@@ -574,6 +662,10 @@ export const runtimeClient = {
   updateSettings: (payload: AppSettings) => activeAdapter.updateSettings(payload),
   sendRequest: (workspaceId: string, activeEnvironmentId: string | undefined, payload: SendRequestPayload) =>
     activeAdapter.sendRequest(toSendRequestPayloadDto(workspaceId, activeEnvironmentId, payload)),
+  sendMcpRequest: (workspaceId: string, activeEnvironmentId: string | undefined, payload: SendRequestPayload) =>
+    activeAdapter.sendMcpRequest(toSendMcpRequestPayloadDto(workspaceId, activeEnvironmentId, payload)),
+  discoverMcpTools: (workspaceId: string, activeEnvironmentId: string | undefined, payload: SendRequestPayload) =>
+    activeAdapter.discoverMcpTools(toSendMcpRequestPayloadDto(workspaceId, activeEnvironmentId, payload)),
   saveTextFile: (input: SaveTextFileInput) => activeAdapter.saveTextFile(input),
   promptSavePath: (options: SaveDialogOptions = {}) => activeAdapter.promptSavePath(options),
 }

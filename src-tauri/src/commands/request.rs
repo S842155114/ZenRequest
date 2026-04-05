@@ -2,7 +2,10 @@ use tauri::State;
 
 use crate::core::app_state::AppState;
 use crate::errors::AppError;
-use crate::models::{ApiEnvelope, SendRequestPayloadDto, SendRequestResultDto};
+use crate::models::{
+    ApiEnvelope, SendMcpRequestPayloadDto, SendMcpRequestResultDto, SendRequestPayloadDto,
+    SendRequestResultDto,
+};
 use crate::services::request_service;
 
 #[cfg(test)]
@@ -163,6 +166,14 @@ pub async fn send_request(
     request_service::send_request(&state, payload).await
 }
 
+#[tauri::command]
+pub async fn send_mcp_request(
+    state: State<'_, AppState>,
+    payload: SendMcpRequestPayloadDto,
+) -> Result<ApiEnvelope<SendMcpRequestResultDto>, AppError> {
+    request_service::send_mcp_request(&state, payload).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -176,6 +187,8 @@ mod tests {
     fn redacts_sensitive_request_fields() {
         let payload = SendRequestPayloadDto {
             workspace_id: "workspace-1".to_string(),
+            request_kind: None,
+            mcp: None,
             active_environment_id: None,
             tab_id: "tab-1".to_string(),
             request_id: Some("request-1".to_string()),
@@ -239,6 +252,8 @@ mod tests {
     fn builds_mock_send_results_from_request_local_mock_templates() {
         let payload = SendRequestPayloadDto {
             workspace_id: "workspace-1".to_string(),
+            request_kind: None,
+            mcp: None,
             active_environment_id: None,
             tab_id: "tab-1".to_string(),
             request_id: Some("request-1".to_string()),
@@ -296,6 +311,8 @@ mod tests {
     fn runtime_pipeline_compiles_requests_from_environment_variables() {
         let mut payload = SendRequestPayloadDto {
             workspace_id: "workspace-1".to_string(),
+            request_kind: None,
+            mcp: None,
             active_environment_id: Some("env-local".to_string()),
             tab_id: "tab-1".to_string(),
             request_id: Some("request-1".to_string()),

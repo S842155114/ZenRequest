@@ -4,6 +4,7 @@ import { defineComponent, nextTick } from 'vue'
 
 import RequestPanel from './RequestPanel.vue'
 import type { RequestTabState } from '@/types/request'
+import McpRequestPanel from '@/features/mcp-workbench/components/McpRequestPanel.vue'
 
 const RequestComposeRailStub = defineComponent({
   name: 'RequestComposeRail',
@@ -696,6 +697,700 @@ describe('RequestPanel i18n copy', () => {
     })
   })
 
+
+  it('renders the request mode switch inside the compose shell and switches into mcp mode', async () => {
+    const wrapper = mount(RequestPanel, {
+      props: {
+        locale: 'en',
+        tabs: [createTab({ id: 'tab-http-switch', name: 'Switch Me' })],
+        activeTabId: 'tab-http-switch',
+        activeEnvironmentName: 'Local',
+        activeEnvironmentVariables: [],
+        resolvedActiveUrl: 'https://example.com/orders',
+      },
+      global: {
+        stubs: {
+          RequestUrlBar: defineComponent({ template: '<div data-testid="request-url-bar-stub" />' }),
+          RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
+        },
+      },
+    })
+
+    const composeSwitch = wrapper.get('[data-testid="request-compose-mode-switch"]')
+
+    expect(composeSwitch.text()).toContain('Mode')
+    expect(composeSwitch.text()).toContain('Choose how this request is composed and executed.')
+    expect(composeSwitch.get('[data-testid="request-kind-http"]').text()).toContain('HTTP')
+    expect(composeSwitch.get('[data-testid="request-kind-mcp"]').text()).toContain('MCP')
+    expect(wrapper.get('[data-testid="request-panel-header"]').text()).not.toContain('Mode')
+
+    await composeSwitch.get('[data-testid="request-kind-mcp"]').trigger('click')
+    await nextTick()
+
+    const emitted = wrapper.emitted('update-active-tab') ?? []
+    expect(emitted[emitted.length - 1]?.[0]).toMatchObject({
+      requestKind: 'mcp',
+      mcp: {
+        connection: {
+          transport: 'http',
+          baseUrl: '',
+        },
+        operation: {
+          type: 'initialize',
+          input: {
+            clientName: 'ZenRequest',
+            clientVersion: '0.1.0',
+          },
+        },
+      },
+    })
+  })
+
+  it('renders the mcp request panel for mcp tabs and hides the http compose panel', () => {
+    const wrapper = mount(RequestPanel, {
+      props: {
+        locale: 'en',
+        tabs: [
+          createTab({
+            id: 'tab-mcp',
+            name: 'MCP Search',
+            requestKind: 'mcp',
+            mcp: {
+              connection: {
+                transport: 'http',
+                baseUrl: 'https://example.com/mcp',
+                headers: [{ key: 'Accept', value: 'application/json', description: '', enabled: true }],
+                auth: {
+                  type: 'none',
+                  bearerToken: '',
+                  username: '',
+                  password: '',
+                  apiKeyKey: 'X-API-Key',
+                  apiKeyValue: '',
+                  apiKeyPlacement: 'header',
+                },
+              },
+              operation: {
+                type: 'tools.call',
+                input: {
+                  toolName: 'search',
+                  arguments: { query: 'orders' },
+                },
+              },
+            },
+          }),
+        ],
+        activeTabId: 'tab-mcp',
+        activeEnvironmentName: 'Local',
+        activeEnvironmentVariables: [],
+        resolvedActiveUrl: 'https://example.com/mcp',
+      },
+      global: {
+        stubs: {
+          RequestUrlBar: defineComponent({ template: '<div data-testid="request-url-bar-stub" />' }),
+          RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
+        },
+      },
+    })
+
+    expect(wrapper.findComponent(McpRequestPanel).exists()).toBe(true)
+    expect(wrapper.get('[data-testid="mcp-request-panel"]').text()).toContain('MCP Workbench')
+    expect(wrapper.get('[data-testid="mcp-request-scroll-area"]').classes()).toEqual(
+      expect.arrayContaining(['min-h-0', 'flex-1', 'overflow-y-auto']),
+    )
+    expect(wrapper.find('[data-testid="mcp-operation-select"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="mcp-transport-value"]').text()).toContain('http')
+    expect(wrapper.get('[data-testid="mcp-transport-hint"]').text()).toContain('stdio is planned')
+    expect(wrapper.get('[data-testid="mcp-endpoint-value"]').text()).toContain('https://example.com/mcp')
+    expect(wrapper.get('[data-testid="mcp-tool-name"]').text()).toContain('search')
+    expect(wrapper.get('[data-testid="mcp-command-transport"]').text()).toContain('http')
+    expect(wrapper.get('[data-testid="mcp-command-operation"]').text()).toContain('tools.call')
+    expect(wrapper.get('[data-testid="mcp-command-endpoint"]').text()).toContain('https://example.com/mcp')
+    expect(wrapper.find('[data-testid="request-url-bar-stub"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="request-compose-body-host"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="request-params-stub"]').exists()).toBe(false)
+  })
+
+  it('forwards mcp panel edits through update-active-tab', async () => {
+    const wrapper = mount(RequestPanel, {
+      props: {
+        locale: 'en',
+        tabs: [
+          createTab({
+            id: 'tab-mcp-edit',
+            name: 'MCP Edit',
+            requestKind: 'mcp',
+            mcp: {
+              connection: {
+                transport: 'http',
+                baseUrl: 'https://example.com/mcp',
+                headers: [],
+                auth: {
+                  type: 'none',
+                  bearerToken: '',
+                  username: '',
+                  password: '',
+                  apiKeyKey: 'X-API-Key',
+                  apiKeyValue: '',
+                  apiKeyPlacement: 'header',
+                },
+              },
+              operation: {
+                type: 'initialize',
+                input: {
+                  clientName: 'ZenRequest',
+                  clientVersion: '0.1.0',
+                },
+              },
+            },
+          }),
+        ],
+        activeTabId: 'tab-mcp-edit',
+        activeEnvironmentName: 'Local',
+        activeEnvironmentVariables: [],
+        resolvedActiveUrl: 'https://example.com/mcp',
+      },
+      global: {
+        stubs: {
+          RequestUrlBar: defineComponent({ template: '<div data-testid="request-url-bar-stub" />' }),
+          RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
+        },
+      },
+    })
+
+    wrapper.findComponent(McpRequestPanel).vm.$emit('update:mcp', {
+      connection: {
+        transport: 'http',
+        baseUrl: 'https://example.com/next-mcp',
+        headers: [],
+        auth: {
+          type: 'none',
+          bearerToken: '',
+          username: '',
+          password: '',
+          apiKeyKey: 'X-API-Key',
+          apiKeyValue: '',
+          apiKeyPlacement: 'header',
+        },
+      },
+      operation: {
+        type: 'tools.call',
+        input: {
+          toolName: 'search',
+          arguments: {},
+        },
+      },
+    })
+    await nextTick()
+
+    const emitted = wrapper.emitted('update-active-tab') ?? []
+    expect(emitted[emitted.length - 1]?.[0]).toMatchObject({
+      requestKind: 'mcp',
+      mcp: {
+        connection: {
+          baseUrl: 'https://example.com/next-mcp',
+        },
+        operation: {
+          type: 'tools.call',
+        },
+      },
+    })
+  })
+
+  it('sends mcp payloads through the shared send event', async () => {
+    const wrapper = mount(RequestPanel, {
+      props: {
+        locale: 'en',
+        tabs: [
+          createTab({
+            id: 'tab-mcp-send',
+            name: 'MCP Send',
+            requestKind: 'mcp',
+            mcp: {
+              connection: {
+                transport: 'http',
+                baseUrl: 'https://example.com/mcp',
+                headers: [],
+                auth: {
+                  type: 'none',
+                  bearerToken: '',
+                  username: '',
+                  password: '',
+                  apiKeyKey: 'X-API-Key',
+                  apiKeyValue: '',
+                  apiKeyPlacement: 'header',
+                },
+              },
+              operation: {
+                type: 'tools.call',
+                input: {
+                  toolName: 'search',
+                  arguments: {},
+                },
+              },
+            },
+          }),
+        ],
+        activeTabId: 'tab-mcp-send',
+        activeEnvironmentName: 'Local',
+        activeEnvironmentVariables: [],
+        resolvedActiveUrl: 'https://example.com/mcp',
+      },
+      global: {
+        stubs: {
+          RequestUrlBar: RequestUrlBarSendStub,
+          RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
+        },
+      },
+    })
+
+    await wrapper.get('[data-testid="request-url-bar-send"]').trigger('click')
+    await nextTick()
+
+    expect(wrapper.emitted('send')?.[0]?.[0]).toMatchObject({
+      requestKind: 'mcp',
+      url: 'https://example.com/mcp',
+      mcp: {
+        operation: {
+          type: 'tools.call',
+        },
+      },
+    })
+  })
+
+  it('blocks mcp send when tools.call is missing a tool name', async () => {
+    const wrapper = mount(RequestPanel, {
+      props: {
+        locale: 'en',
+        tabs: [
+          createTab({
+            id: 'tab-mcp-blocked',
+            name: 'MCP Blocked',
+            requestKind: 'mcp',
+            mcp: {
+              connection: {
+                transport: 'http',
+                baseUrl: 'https://example.com/mcp',
+                headers: [],
+                auth: {
+                  type: 'none',
+                  bearerToken: '',
+                  username: '',
+                  password: '',
+                  apiKeyKey: 'X-API-Key',
+                  apiKeyValue: '',
+                  apiKeyPlacement: 'header',
+                },
+              },
+              operation: {
+                type: 'tools.call',
+                input: {
+                  toolName: '',
+                  arguments: {},
+                },
+              },
+            },
+          }),
+        ],
+        activeTabId: 'tab-mcp-blocked',
+        activeEnvironmentName: 'Local',
+        activeEnvironmentVariables: [],
+        resolvedActiveUrl: 'https://example.com/mcp',
+      },
+      global: {
+        stubs: {
+          RequestUrlBar: RequestUrlBarCaptureStub,
+          RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
+        },
+      },
+    })
+
+    expect(wrapper.get('[data-testid="request-url-bar-blockers"]').text()).toContain('Select an MCP tool')
+  })
+
+
+  it('blocks mcp initialize send when client identity is incomplete', async () => {
+    const wrapper = mount(RequestPanel, {
+      props: {
+        locale: 'en',
+        tabs: [
+          createTab({
+            id: 'tab-mcp-init-blocked',
+            name: 'MCP Init Blocked',
+            requestKind: 'mcp',
+            mcp: {
+              connection: {
+                transport: 'http',
+                baseUrl: 'https://example.com/mcp',
+                headers: [],
+                auth: {
+                  type: 'none',
+                  bearerToken: '',
+                  username: '',
+                  password: '',
+                  apiKeyKey: 'X-API-Key',
+                  apiKeyValue: '',
+                  apiKeyPlacement: 'header',
+                },
+              },
+              operation: {
+                type: 'initialize',
+                input: {
+                  clientName: '',
+                  clientVersion: '',
+                },
+              },
+            },
+          }),
+        ],
+        activeTabId: 'tab-mcp-init-blocked',
+        activeEnvironmentName: 'Local',
+        activeEnvironmentVariables: [],
+        resolvedActiveUrl: 'https://example.com/mcp',
+      },
+      global: {
+        stubs: {
+          RequestUrlBar: RequestUrlBarCaptureStub,
+          RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
+        },
+      },
+    })
+
+    expect(wrapper.get('[data-testid="request-url-bar-blockers"]').text()).toContain('Enter an MCP client name')
+    expect(wrapper.get('[data-testid="request-url-bar-blockers"]').text()).toContain('Enter an MCP client version')
+  })
+
+  it('blocks mcp tools.call when schema-required arguments are missing', async () => {
+    const wrapper = mount(RequestPanel, {
+      props: {
+        locale: 'en',
+        tabs: [
+          createTab({
+            id: 'tab-mcp-required-args',
+            name: 'MCP Required Args',
+            requestKind: 'mcp',
+            mcp: {
+              connection: {
+                transport: 'http',
+                baseUrl: 'https://example.com/mcp',
+                headers: [],
+                auth: {
+                  type: 'none',
+                  bearerToken: '',
+                  username: '',
+                  password: '',
+                  apiKeyKey: 'X-API-Key',
+                  apiKeyValue: '',
+                  apiKeyPlacement: 'header',
+                },
+              },
+              operation: {
+                type: 'tools.call',
+                input: {
+                  toolName: 'search',
+                  arguments: {},
+                  schema: {
+                    name: 'search',
+                    inputSchema: {
+                      type: 'object',
+                      properties: {
+                        query: { type: 'string' },
+                        limit: { type: 'integer' },
+                      },
+                      required: ['query', 'limit'],
+                    },
+                  },
+                },
+              },
+            },
+          }),
+        ],
+        activeTabId: 'tab-mcp-required-args',
+        activeEnvironmentName: 'Local',
+        activeEnvironmentVariables: [],
+        resolvedActiveUrl: 'https://example.com/mcp',
+      },
+      global: {
+        stubs: {
+          RequestUrlBar: RequestUrlBarCaptureStub,
+          RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
+        },
+      },
+    })
+
+    expect(wrapper.get('[data-testid="request-url-bar-blockers"]').text()).toContain('Fill required MCP arguments: query, limit')
+  })
+
+
+  it('renders structured mcp tool arguments when a flat schema is available', () => {
+    const wrapper = mount(RequestPanel, {
+      props: {
+        locale: 'en',
+        tabs: [
+          createTab({
+            id: 'tab-mcp-structured',
+            name: 'MCP Structured',
+            requestKind: 'mcp',
+            mcp: {
+              connection: {
+                transport: 'http',
+                baseUrl: 'https://example.com/mcp',
+                headers: [],
+                auth: {
+                  type: 'none',
+                  bearerToken: '',
+                  username: '',
+                  password: '',
+                  apiKeyKey: 'X-API-Key',
+                  apiKeyValue: '',
+                  apiKeyPlacement: 'header',
+                },
+              },
+              operation: {
+                type: 'tools.call',
+                input: {
+                  toolName: 'search',
+                  arguments: { query: 'orders' },
+                  schema: {
+                    name: 'search',
+                    inputSchema: {
+                      type: 'object',
+                      properties: {
+                        query: { type: 'string', title: 'Query' },
+                        limit: { type: 'integer' },
+                      },
+                      required: ['query'],
+                    },
+                  },
+                },
+              },
+            },
+          }),
+        ],
+        activeTabId: 'tab-mcp-structured',
+        activeEnvironmentName: 'Local',
+        activeEnvironmentVariables: [],
+        resolvedActiveUrl: 'https://example.com/mcp',
+      },
+      global: {
+        stubs: {
+          RequestUrlBar: defineComponent({ template: '<div data-testid="request-url-bar-stub" />' }),
+          RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
+        },
+      },
+    })
+
+    expect(wrapper.get('[data-testid="mcp-arguments-mode"]').text()).toContain('Structured form')
+    expect(wrapper.get('[data-testid="mcp-schema-name"]').text()).toContain('search')
+    expect(wrapper.find('[data-testid="mcp-arg-input-query"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="mcp-arg-input-limit"]').exists()).toBe(true)
+  })
+
+  it('falls back to raw json arguments when the schema is not flattenable', () => {
+    const wrapper = mount(RequestPanel, {
+      props: {
+        locale: 'en',
+        tabs: [
+          createTab({
+            id: 'tab-mcp-raw',
+            name: 'MCP Raw',
+            requestKind: 'mcp',
+            mcp: {
+              connection: {
+                transport: 'http',
+                baseUrl: 'https://example.com/mcp',
+                headers: [],
+                auth: {
+                  type: 'none',
+                  bearerToken: '',
+                  username: '',
+                  password: '',
+                  apiKeyKey: 'X-API-Key',
+                  apiKeyValue: '',
+                  apiKeyPlacement: 'header',
+                },
+              },
+              operation: {
+                type: 'tools.call',
+                input: {
+                  toolName: 'search',
+                  arguments: { filters: { tag: 'orders' } },
+                  schema: {
+                    name: 'search',
+                    inputSchema: {
+                      type: 'object',
+                      properties: {
+                        filters: { type: 'object' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          }),
+        ],
+        activeTabId: 'tab-mcp-raw',
+        activeEnvironmentName: 'Local',
+        activeEnvironmentVariables: [],
+        resolvedActiveUrl: 'https://example.com/mcp',
+      },
+      global: {
+        stubs: {
+          RequestUrlBar: defineComponent({ template: '<div data-testid="request-url-bar-stub" />' }),
+          RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
+        },
+      },
+    })
+
+    expect(wrapper.get('[data-testid="mcp-arguments-mode"]').text()).toContain('Raw JSON')
+    expect(wrapper.find('[data-testid="mcp-raw-arguments-input"]').exists()).toBe(true)
+  })
+
+  it('shows fallback reason when tool schema cannot be flattened', () => {
+    const wrapper = mount(RequestPanel, {
+      props: {
+        locale: 'en',
+        tabs: [
+          createTab({
+            id: 'tab-mcp-raw-reason',
+            name: 'MCP Raw Reason',
+            requestKind: 'mcp',
+            mcp: {
+              connection: {
+                transport: 'http',
+                baseUrl: 'https://example.com/mcp',
+                headers: [],
+                auth: {
+                  type: 'none',
+                  bearerToken: '',
+                  username: '',
+                  password: '',
+                  apiKeyKey: 'X-API-Key',
+                  apiKeyValue: '',
+                  apiKeyPlacement: 'header',
+                },
+              },
+              operation: {
+                type: 'tools.call',
+                input: {
+                  toolName: 'search',
+                  arguments: { filters: { tag: 'orders' } },
+                  schema: {
+                    name: 'search',
+                    inputSchema: {
+                      type: 'object',
+                      properties: {
+                        filters: { type: 'object' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          }),
+        ],
+        activeTabId: 'tab-mcp-raw-reason',
+        activeEnvironmentName: 'Local',
+        activeEnvironmentVariables: [],
+        resolvedActiveUrl: 'https://example.com/mcp',
+      },
+      global: {
+        stubs: {
+          RequestUrlBar: defineComponent({ template: '<div data-testid="request-url-bar-stub" />' }),
+          RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
+        },
+      },
+    })
+
+    expect(wrapper.get('[data-testid="mcp-raw-arguments-fallback-reason"]').text()).toContain('nested or unsupported fields')
+  })
+
+
+  it('prefills tools.call from tools.list response artifacts', () => {
+    const wrapper = mount(RequestPanel, {
+      props: {
+        locale: 'en',
+        tabs: [
+          createTab({
+            id: 'tab-mcp-tools-list-artifact',
+            name: 'MCP Tools',
+            requestKind: 'mcp',
+            mcp: {
+              connection: {
+                transport: 'http',
+                baseUrl: 'https://example.com/mcp',
+                headers: [],
+                auth: {
+                  type: 'none',
+                  bearerToken: '',
+                  username: '',
+                  password: '',
+                  apiKeyKey: 'X-API-Key',
+                  apiKeyValue: '',
+                  apiKeyPlacement: 'header',
+                },
+              },
+              operation: {
+                type: 'tools.call',
+                input: {
+                  toolName: 'search',
+                  arguments: {},
+                },
+              },
+            },
+            response: {
+              responseBody: '{}',
+              status: 200,
+              statusText: 'OK',
+              time: '10 ms',
+              size: '1 KB',
+              headers: [],
+              contentType: 'application/json',
+              requestMethod: 'POST',
+              requestUrl: 'https://example.com/mcp',
+              testResults: [],
+              requestKind: 'mcp',
+              mcpArtifact: {
+                transport: 'http',
+                operation: 'tools.list',
+                protocolResponse: {
+                  result: {
+                    tools: [
+                      {
+                        name: 'search',
+                        title: 'Search',
+                        inputSchema: {
+                          type: 'object',
+                          properties: {
+                            query: { type: 'string', title: 'Query' },
+                          },
+                          required: ['query'],
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+          }),
+        ],
+        activeTabId: 'tab-mcp-tools-list-artifact',
+        activeEnvironmentName: 'Local',
+        activeEnvironmentVariables: [],
+        resolvedActiveUrl: 'https://example.com/mcp',
+      },
+      global: {
+        stubs: {
+          RequestUrlBar: defineComponent({ template: '<div data-testid="request-url-bar-stub" />' }),
+          RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
+        },
+      },
+    })
+
+    expect(wrapper.get('[data-testid="mcp-schema-name"]').text()).toContain('search')
+    expect(wrapper.find('[data-testid="mcp-arg-input-query"]').exists()).toBe(true)
+  })
+
   it('allows sending when the only incomplete params row is disabled', async () => {
     const wrapper = mount(RequestPanel, {
       props: {
@@ -729,5 +1424,80 @@ describe('RequestPanel i18n copy', () => {
     expect(wrapper.emitted('send')).toHaveLength(1)
     expect(wrapper.find('[data-testid="request-row-error-params-0"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="request-section-invalid-params"]').exists()).toBe(false)
+  })
+})
+
+describe('McpRequestPanel discoverability', () => {
+  it('renders MCP workbench copy in zh-CN locale', () => {
+    const wrapper = mount(McpRequestPanel, {
+      props: {
+        locale: 'zh-CN',
+        requestName: 'MCP 调试',
+        mcp: {
+          connection: {
+            transport: 'http',
+            baseUrl: 'https://example.com/mcp',
+            headers: [],
+            auth: {
+              type: 'none',
+              bearerToken: '',
+              username: '',
+              password: '',
+              apiKeyKey: 'X-API-Key',
+              apiKeyValue: '',
+              apiKeyPlacement: 'header',
+            },
+          },
+          operation: {
+            type: 'initialize',
+            input: {
+              clientName: 'ZenRequest',
+              clientVersion: '0.1.0',
+            },
+          },
+        },
+      },
+    })
+
+    expect(wrapper.text()).toContain('MCP 工作台')
+    expect(wrapper.text()).toContain('传输方式')
+    expect(wrapper.text()).toContain('操作')
+    expect(wrapper.get('[data-testid="mcp-transport-hint"]').text()).toContain('当前版本已支持 HTTP 传输')
+  })
+
+  it('shows HTTP active and stdio planned guidance in the transport hint', () => {
+    const wrapper = mount(McpRequestPanel, {
+      props: {
+        locale: 'en',
+        requestName: 'MCP Debug',
+        mcp: {
+          connection: {
+            transport: 'http',
+            baseUrl: 'https://example.com/mcp',
+            headers: [],
+            auth: {
+              type: 'none',
+              bearerToken: '',
+              username: '',
+              password: '',
+              apiKeyKey: 'X-API-Key',
+              apiKeyValue: '',
+              apiKeyPlacement: 'header',
+            },
+          },
+          operation: {
+            type: 'initialize',
+            input: {
+              clientName: 'ZenRequest',
+              clientVersion: '0.1.0',
+            },
+          },
+        },
+      },
+    })
+
+    expect(wrapper.get('[data-testid="mcp-transport-value"]').text()).toContain('http')
+    expect(wrapper.get('[data-testid="mcp-transport-hint"]').text()).toContain('HTTP transport is available in this release')
+    expect(wrapper.get('[data-testid="mcp-transport-hint"]').text()).toContain('stdio is planned')
   })
 })

@@ -11,7 +11,9 @@ import { prepareResponseCodeView } from '@/lib/response-code-viewer'
 import { runtimeClient } from '@/lib/tauri-client'
 import type {
   AppLocale,
+  McpExecutionArtifact,
   RequestExecutionSource,
+  RequestKind,
   RequestTestResult,
   ResponseHeaderItem,
   ResolvedTheme,
@@ -24,6 +26,8 @@ defineOptions({
 
 const props = withDefaults(defineProps<{
   locale: AppLocale
+  requestKind?: RequestKind
+  mcpArtifact?: McpExecutionArtifact
   responseBody?: string
   status?: number
   statusText?: string
@@ -41,6 +45,8 @@ const props = withDefaults(defineProps<{
   executionSource?: RequestExecutionSource
   collapsed?: boolean
 }>(), {
+  requestKind: 'http',
+  mcpArtifact: undefined,
   responseBody: `{
   "userId": 1,
   "id": 1,
@@ -74,7 +80,7 @@ const emit = defineEmits<{
 }>()
 
 const activeTab = ref<'body' | 'headers' | 'cookies' | 'tests'>('body')
-const bodyViewMode = ref<'source' | 'preview'>('source')
+const bodyViewMode = ref<'source' | 'preview' | 'result' | 'protocol'>('source')
 const responseCodeViewer = ref<InstanceType<typeof ResponseCodeViewer> | null>(null)
 const responseHtmlPreview = ref<InstanceType<typeof ResponseHtmlPreview> | null>(null)
 const nonBodyContent = ref<HTMLElement | null>(null)
@@ -85,6 +91,18 @@ const failedTestsCount = computed(() => props.testResults.length - passedTestsCo
 const text = computed(() => getMessages(props.locale))
 const preparedResponseView = computed(() => prepareResponseCodeView(props.responseBody, props.contentType))
 const canPreviewHtml = computed(() => preparedResponseView.value.canPreviewAsHtml)
+const mcpProtocolContent = computed(() => JSON.stringify({
+  request: props.mcpArtifact?.protocolRequest ?? null,
+  response: props.mcpArtifact?.protocolResponse ?? null,
+}, null, 2))
+const activeBodyContent = computed(() => (
+  isMcpResponse.value && bodyViewMode.value === 'protocol'
+    ? mcpProtocolContent.value
+    : preparedResponseView.value.content
+))
+const activeBodyLanguage = computed(() => (
+  isMcpResponse.value && bodyViewMode.value === 'protocol' ? 'json' : preparedResponseView.value.language
+))
 const isHtmlPreviewMode = computed(() => canPreviewHtml.value && bodyViewMode.value === 'preview')
 const activeState = computed<ResponseLifecycleState>(() => props.state)
 const showCreateMockAction = computed(() => (
@@ -129,6 +147,43 @@ const stateMeta = computed(() => {
 })
 const showIdleState = computed(() => activeTab.value === 'body' && activeState.value === 'idle')
 const showPendingState = computed(() => activeTab.value === 'body' && activeState.value === 'pending' && !props.stale)
+const isMcpResponse = computed(() => props.requestKind === 'mcp')
+const visibleResponseTabs = computed(() => (isMcpResponse.value ? ['body', 'headers'] : ['body', 'headers', 'cookies', 'tests']))
+const responseRequestReadoutLabel = computed(() => (isMcpResponse.value ? `${mcpOperationLabel.value} · ${mcpTransportLabel.value}` : props.requestMethod))
+const responseRequestReadoutToneClass = computed(() => (isMcpResponse.value ? 'text-sky-700 dark:text-sky-300' : 'text-orange-700 dark:text-orange-300'))
+const mcpOperationLabel = computed(() => props.mcpArtifact?.operation ?? 'unknown')
+const mcpTransportLabel = computed(() => props.mcpArtifact?.transport ?? 'unknown')
+const mcpErrorCategoryLabel = computed(() => props.mcpArtifact?.errorCategory ?? 'none')
+const hasMcpProtocolEnvelope = computed(() => Boolean(props.mcpArtifact?.protocolRequest || props.mcpArtifact?.protocolResponse))
+const showMcpErrorNotice = computed(() => isMcpResponse.value && mcpErrorCategoryLabel.value !== 'none')
+const mcpProtocolError = computed(() => {
+  const error = props.mcpArtifact?.protocolResponse && typeof props.mcpArtifact.protocolResponse === 'object'
+    ? (props.mcpArtifact.protocolResponse as Record<string, unknown>).error
+    : undefined
+  return error && typeof error === 'object' ? error as Record<string, unknown> : undefined
+})
+const mcpErrorNoticeTitle = computed(() => {
+  switch (mcpErrorCategoryLabel.value) {
+    case 'transport':
+      return 'Transport error'
+    case 'initialize':
+      return 'Initialize error'
+    case 'protocol':
+      return 'Protocol error'
+    case 'tool_execution':
+      return 'Tool execution error'
+    default:
+      return 'MCP error'
+  }
+})
+const mcpErrorCode = computed(() => {
+  const code = mcpProtocolError.value?.code
+  return typeof code === 'number' || typeof code === 'string' ? String(code) : ''
+})
+const mcpErrorMessage = computed(() => {
+  const message = mcpProtocolError.value?.message
+  return typeof message === 'string' ? message : ''
+})
 
 const isBodyTab = computed(() => activeTab.value === 'body')
 
@@ -186,16 +241,20 @@ const handleTabsKeydown = (event: KeyboardEvent) => {
 }
 
 watch(canPreviewHtml, (value) => {
-  if (!value) {
-    bodyViewMode.value = 'source'
+  if (!value && bodyViewMode.value === 'preview') {
+    bodyViewMode.value = isMcpResponse.value ? 'result' : 'source'
   }
 })
 
 watch(activeTab, () => {
   if (activeTab.value !== 'body') {
-    bodyViewMode.value = 'source'
+    bodyViewMode.value = isMcpResponse.value ? 'result' : 'source'
   }
 })
+
+watch(isMcpResponse, (value) => {
+  bodyViewMode.value = value ? 'result' : 'source'
+}, { immediate: true })
 
 const serializeTests = () => props.testResults
   .map((result) => `${result.passed ? text.value.response.testPass : text.value.response.testFail} ${result.name}: ${result.message}`)
@@ -204,7 +263,7 @@ const serializeTests = () => props.testResults
 const getActiveContent = () => {
   switch (activeTab.value) {
     case 'body':
-      return isHtmlPreviewMode.value ? props.responseBody : preparedResponseView.value.content
+      return isHtmlPreviewMode.value ? props.responseBody : activeBodyContent.value
     case 'headers':
       return props.headers.map((header) => `${header.key}: ${header.value}`).join('\n')
     case 'cookies':
@@ -340,9 +399,9 @@ const downloadCurrentContent = async () => {
       <div class="zr-response-meta-strip mt-2 flex flex-wrap items-center gap-2 text-xs">
         <span
           data-testid="response-readout-request"
-          class="zr-response-readout inline-flex max-w-[320px] items-center gap-1.5 rounded-full px-2 py-0.5"
+          class="zr-response-readout inline-flex max-w-[360px] items-center gap-1.5 rounded-full px-2 py-0.5"
         >
-          <span class="font-semibold text-orange-700 dark:text-orange-300">{{ requestMethod }}</span>
+          <span :class="['font-semibold', responseRequestReadoutToneClass]">{{ responseRequestReadoutLabel }}</span>
           <span class="truncate font-mono text-[var(--zr-text-primary)]">{{ requestUrl }}</span>
         </span>
         <span
@@ -362,16 +421,43 @@ const downloadCurrentContent = async () => {
       </div>
     </div>
 
+    <div
+      v-if="isMcpResponse"
+      data-testid="response-mcp-summary"
+      class="border-b border-[color:var(--zr-border-soft)] bg-[var(--zr-elevated)] px-3 py-2"
+    >
+      <div class="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">
+        <span>mcp</span>
+        <Badge data-testid="response-mcp-operation" variant="outline" class="rounded-full px-2 py-0.5 text-[9px] font-semibold tracking-[0.14em]">
+          {{ mcpOperationLabel }}
+        </Badge>
+        <Badge data-testid="response-mcp-transport" variant="outline" class="rounded-full px-2 py-0.5 text-[9px] font-semibold tracking-[0.14em]">
+          {{ mcpTransportLabel }}
+        </Badge>
+        <Badge data-testid="response-mcp-error-category" variant="outline" class="rounded-full px-2 py-0.5 text-[9px] font-semibold tracking-[0.14em]">
+          {{ mcpErrorCategoryLabel }}
+        </Badge>
+        <Badge
+          v-if="hasMcpProtocolEnvelope"
+          data-testid="response-mcp-protocol-badge"
+          variant="outline"
+          class="rounded-full px-2 py-0.5 text-[9px] font-semibold tracking-[0.14em]"
+        >
+          protocol captured
+        </Badge>
+      </div>
+    </div>
+
     <template v-if="!props.collapsed">
       <div
         data-testid="response-panel-tabs"
         class="zr-response-tab-strip flex items-center gap-1 border-b border-[color:var(--zr-border-soft)] bg-[var(--zr-elevated)] px-3 py-2"
         @keydown="handleTabsKeydown"
       >
-        <Button variant="ghost" size="sm" :class="['h-8 rounded-lg px-3 text-[10px]', activeTab === 'body' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="activeTab = 'body'">{{ text.response.body }}</Button>
-        <Button variant="ghost" size="sm" :class="['h-8 rounded-lg px-3 text-[10px]', activeTab === 'headers' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="activeTab = 'headers'">{{ text.response.headers }}</Button>
-        <Button variant="ghost" size="sm" :class="['h-8 rounded-lg px-3 text-[10px]', activeTab === 'cookies' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="activeTab = 'cookies'">{{ text.response.cookies }}</Button>
-        <Button variant="ghost" size="sm" :class="['h-8 rounded-lg px-3 text-[10px]', activeTab === 'tests' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="activeTab = 'tests'">{{ text.response.tests }}</Button>
+        <Button v-if="visibleResponseTabs.includes('body')" variant="ghost" size="sm" :class="['h-8 rounded-lg px-3 text-[10px]', activeTab === 'body' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="activeTab = 'body'">{{ isMcpResponse ? 'result' : text.response.body }}</Button>
+        <Button v-if="visibleResponseTabs.includes('headers')" variant="ghost" size="sm" :class="['h-8 rounded-lg px-3 text-[10px]', activeTab === 'headers' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="activeTab = 'headers'">{{ isMcpResponse ? 'transport headers' : text.response.headers }}</Button>
+        <Button v-if="visibleResponseTabs.includes('cookies')" variant="ghost" size="sm" :class="['h-8 rounded-lg px-3 text-[10px]', activeTab === 'cookies' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="activeTab = 'cookies'">{{ text.response.cookies }}</Button>
+        <Button v-if="visibleResponseTabs.includes('tests')" variant="ghost" size="sm" :class="['h-8 rounded-lg px-3 text-[10px]', activeTab === 'tests' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="activeTab = 'tests'">{{ text.response.tests }}</Button>
         <div class="flex-1"></div>
         <Button
           v-if="showCreateMockAction"
@@ -400,7 +486,30 @@ const downloadCurrentContent = async () => {
                 <span v-if="!canPreviewHtml">{{ text.response.pretty }}</span>
               </div>
               <div
-                v-if="canPreviewHtml"
+                v-if="isMcpResponse"
+                class="inline-flex items-center gap-1 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-soft-bg)] p-1"
+              >
+                <Button
+                  data-testid="response-body-mode-result"
+                  variant="ghost"
+                  size="sm"
+                  :class="['h-7 rounded-full px-2.5 text-[10px]', bodyViewMode === 'result' ? 'zr-tab-button-active' : 'zr-tab-button']"
+                  @click="bodyViewMode = 'result'"
+                >
+                  result
+                </Button>
+                <Button
+                  data-testid="response-body-mode-protocol"
+                  variant="ghost"
+                  size="sm"
+                  :class="['h-7 rounded-full px-2.5 text-[10px]', bodyViewMode === 'protocol' ? 'zr-tab-button-active' : 'zr-tab-button']"
+                  @click="bodyViewMode = 'protocol'"
+                >
+                  protocol
+                </Button>
+              </div>
+              <div
+                v-else-if="canPreviewHtml"
                 class="inline-flex items-center gap-1 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-soft-bg)] p-1"
               >
                 <Button
@@ -443,11 +552,21 @@ const downloadCurrentContent = async () => {
                 <div class="text-xs leading-5 text-[var(--zr-text-muted)]">{{ text.response.pendingDescription }}</div>
               </div>
             </div>
+            <div
+              v-if="showMcpErrorNotice && !showIdleState && !showPendingState"
+              data-testid="response-mcp-error-notice"
+              class="mb-2 rounded-lg border border-rose-500/20 bg-rose-500/8 px-3 py-2"
+            >
+              <div class="text-xs font-semibold uppercase tracking-[0.16em] text-rose-300">{{ mcpErrorNoticeTitle }}</div>
+              <div class="mt-1 text-xs text-[var(--zr-text-muted)]">Category: {{ mcpErrorCategoryLabel }}</div>
+              <div v-if="mcpErrorCode" data-testid="response-mcp-error-code" class="mt-1 font-mono text-xs text-[var(--zr-text-primary)]">Code: {{ mcpErrorCode }}</div>
+              <div v-if="mcpErrorMessage" data-testid="response-mcp-error-message" class="mt-1 text-xs text-[var(--zr-text-primary)]">{{ mcpErrorMessage }}</div>
+            </div>
             <ResponseCodeViewer
               ref="responseCodeViewer"
               v-else-if="!isHtmlPreviewMode"
-              :content="preparedResponseView.content"
-              :language="preparedResponseView.language"
+              :content="activeBodyContent"
+              :language="activeBodyLanguage"
               :theme="theme"
             />
             <ResponseHtmlPreview

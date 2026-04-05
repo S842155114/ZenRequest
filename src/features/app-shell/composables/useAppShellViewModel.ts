@@ -364,6 +364,8 @@ export const createAppShellViewModel = (deps: AppShellViewModelDeps): AppShellVi
 
   const responsePanelProps = computed<ResponsePanelBindings>(() => ({
     locale: deps.locale.value,
+    requestKind: deps.activeTab.value?.requestKind ?? 'http',
+    mcpArtifact: deps.activeTab.value?.response.mcpArtifact,
     responseBody: deps.activeTab.value?.response.responseBody,
     status: deps.activeTab.value?.response.status,
     statusText: deps.activeTab.value?.response.statusText,

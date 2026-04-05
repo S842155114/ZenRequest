@@ -29,7 +29,8 @@ pub use importing::{
 };
 pub use request::{
     AssertionResultSetDto, AuthConfigDto, CompiledRequestDto, ExecutionArtifactDto,
-    KeyValueItemDto, NormalizedResponseDto, RequestAssertionResultDto, RequestBodyDto,
-    RequestExecutionOptionsDto, RequestTestDefinitionDto, ResponseHeaderItemDto,
-    SendRequestPayloadDto, SendRequestResultDto,
+    KeyValueItemDto, McpExecutionArtifactDto, McpOperationInputDto, NormalizedResponseDto,
+    RequestAssertionResultDto, RequestBodyDto, RequestExecutionOptionsDto,
+    RequestTestDefinitionDto, ResponseHeaderItemDto, SendMcpRequestPayloadDto,
+    SendMcpRequestResultDto, SendRequestPayloadDto, SendRequestResultDto,
 };

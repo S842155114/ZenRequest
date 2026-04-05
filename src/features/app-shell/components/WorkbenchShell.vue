@@ -46,6 +46,8 @@ const props = defineProps<{
 
 const requestWorkbenchPanel = ref<PanelController | null>(null)
 const responseWorkbenchPanel = ref<PanelController | null>(null)
+const lastSyncedRequestSize = ref<number | null>(null)
+const lastSyncedResponseSize = ref<number | null>(null)
 
 const getRequestExpandedSize = () => (
   props.isCompactLayout ? props.layout.requestCompactExpandedSize : props.layout.requestDesktopExpandedSize
@@ -55,36 +57,46 @@ const getResponseExpandedSize = () => (
   props.isCompactLayout ? props.layout.responseCompactExpandedSize : props.layout.responseDesktopExpandedSize
 )
 
-const syncWorkbenchPanelStates = () => {
-  if (requestWorkbenchPanel.value) {
-    if (props.layout.requestPanelCollapsed) {
-      requestWorkbenchPanel.value.collapse()
-    } else {
-      requestWorkbenchPanel.value.expand()
-      requestWorkbenchPanel.value.resize(getRequestExpandedSize())
-    }
+const syncPanelCollapsedState = (panel: PanelController | null, collapsed: boolean) => {
+  if (!panel) return
+  if (collapsed) {
+    panel.collapse()
+    return
   }
+  panel.expand()
+}
 
-  if (responseWorkbenchPanel.value) {
-    if (props.layout.responsePanelCollapsed) {
-      responseWorkbenchPanel.value.collapse()
-    } else {
-      responseWorkbenchPanel.value.expand()
-      responseWorkbenchPanel.value.resize(getResponseExpandedSize())
-    }
-  }
+const syncPanelExpandedSize = (panel: PanelController | null, size: number, lastSyncedSize: typeof lastSyncedRequestSize) => {
+  if (!panel) return
+  if (lastSyncedSize.value === size) return
+  lastSyncedSize.value = size
+  panel.resize(size)
 }
 
 watch(
-  () => ({
-    ...props.layout,
-    isCompactLayout: props.isCompactLayout,
-  }),
+  () => [props.layout.requestPanelCollapsed, props.layout.responsePanelCollapsed] as const,
+  async ([requestCollapsed, responseCollapsed]) => {
+    await nextTick()
+    syncPanelCollapsedState(requestWorkbenchPanel.value, requestCollapsed)
+    syncPanelCollapsedState(responseWorkbenchPanel.value, responseCollapsed)
+  },
+  { immediate: true },
+)
+
+watch(
+  () => props.isCompactLayout,
   async () => {
     await nextTick()
-    syncWorkbenchPanelStates()
+    lastSyncedRequestSize.value = null
+    lastSyncedResponseSize.value = null
+    if (!props.layout.requestPanelCollapsed) {
+      syncPanelExpandedSize(requestWorkbenchPanel.value, getRequestExpandedSize(), lastSyncedRequestSize)
+    }
+    if (!props.layout.responsePanelCollapsed) {
+      syncPanelExpandedSize(responseWorkbenchPanel.value, getResponseExpandedSize(), lastSyncedResponseSize)
+    }
   },
-  { deep: true, immediate: true },
+  { immediate: true },
 )
 </script>
 
