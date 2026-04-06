@@ -423,6 +423,8 @@ pub struct McpExecutionArtifactDto {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selected_tool: Option<McpToolSchemaSnapshotDto>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub error_category: Option<String>,
 }
 

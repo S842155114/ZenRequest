@@ -98,4 +98,24 @@ describe('parseMcpStructuredArguments', () => {
       exact: true,
     })
   })
+
+  it('keeps structured and raw json semantics aligned for flat values', () => {
+    const structured = parseMcpStructuredArguments([
+      { key: 'query', label: 'Query', type: 'string', required: true, defaultValue: '' },
+      { key: 'limit', label: 'Limit', type: 'integer', required: false, defaultValue: '' },
+      { key: 'exact', label: 'Exact', type: 'boolean', required: false, defaultValue: '' },
+    ], {
+      query: 'orders',
+      limit: '20',
+      exact: 'false',
+    })
+
+    const raw = JSON.parse(`{
+      "query": "orders",
+      "limit": 20,
+      "exact": false
+    }`) as Record<string, unknown>
+
+    expect(structured).toEqual(raw)
+  })
 })

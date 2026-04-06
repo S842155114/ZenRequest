@@ -192,7 +192,8 @@ export interface McpExecutionArtifact {
   protocolResponse?: Record<string, unknown>
   selectedTool?: McpToolSchemaSnapshot
   cachedTools?: McpToolSchemaSnapshot[]
-  errorCategory?: 'transport' | 'initialize' | 'protocol' | 'tool_execution'
+  sessionId?: string
+  errorCategory?: 'transport' | 'session' | 'protocol' | 'tool-call' | 'initialize' | 'tool_execution'
 }
 
 export type HistoryRequestSnapshot = Omit<SendRequestPayload, 'body' | 'bodyType'> & {
@@ -252,10 +253,13 @@ export interface HistoryItem {
   responsePreview?: string
   requestSnapshot?: HistoryRequestSnapshot
   executionSource?: RequestExecutionSource
+  mcpArtifact?: McpExecutionArtifact
   mcpSummary?: {
     operation: McpOperationType
     transport: McpTransportKind
     errorCategory?: McpExecutionArtifact['errorCategory']
+    toolName?: string
+    sessionId?: string
   }
 }
 

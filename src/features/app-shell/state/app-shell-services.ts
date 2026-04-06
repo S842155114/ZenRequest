@@ -100,6 +100,61 @@ const buildRecoveryAdvice = (family: ReturnType<typeof classifyErrorFamily>) => 
   }
 }
 
+const classifyMcpErrorLayer = (runtimeCode?: string, protocolResponse?: Record<string, unknown>) => {
+  const normalized = runtimeCode?.trim().toUpperCase() ?? ''
+  if (normalized.includes('TRANSPORT') || normalized.includes('REQUEST_FAILED') || normalized.includes('READ_BODY') || normalized.includes('INVALID_MCP_URL')) {
+    return 'transport' as const
+  }
+  if (normalized.includes('SESSION') || normalized.includes('INITIALIZE')) {
+    return 'session' as const
+  }
+
+  const errorObject = protocolResponse?.error
+  if (errorObject && typeof errorObject === 'object') {
+    const message = String((errorObject as Record<string, unknown>).message ?? '').toLowerCase()
+    if (message.includes('session') || message.includes('initialize')) {
+      return 'session' as const
+    }
+    return 'tool-call' as const
+  }
+
+  return 'tool-call' as const
+}
+
+const buildMcpErrorAdvice = (layer: ReturnType<typeof classifyMcpErrorLayer>) => {
+  switch (layer) {
+    case 'session':
+      return 'Re-run initialize or verify the server session state before retrying the MCP action.'
+    case 'tool-call':
+      return 'Check the selected tool, arguments, and server tool response before retrying.'
+    default:
+      return 'Check MCP transport connectivity, target URL, and server availability, then retry.'
+  }
+}
+
+const formatStructuredMcpErrorMessage = (
+  error?: AppError,
+  fallback = 'send_mcp_request failed',
+  protocolResponse?: Record<string, unknown>,
+) => {
+  const layer = classifyMcpErrorLayer(error?.code, protocolResponse)
+  const baseMessage = error?.message?.trim() || fallback
+  const advice = buildMcpErrorAdvice(layer)
+  return {
+    layer,
+    code: error?.code ?? 'MCP_REQUEST_FAILED',
+    message: `${baseMessage} ${advice}`,
+    responseBody: JSON.stringify({
+      error: 'mcp',
+      layer,
+      code: error?.code ?? 'MCP_REQUEST_FAILED',
+      message: baseMessage,
+      advice,
+      protocolResponse: protocolResponse ?? null,
+    }, null, 2),
+  }
+}
+
 const formatStructuredErrorMessage = (error?: AppError, fallback = 'Unexpected failure') => {
   const family = classifyErrorFamily(error?.code)
   const baseMessage = error?.message?.trim() || fallback
@@ -577,10 +632,9 @@ export const createAppShellServices = (deps: AppShellServiceDeps): AppShellServi
           : await deps.runtime.sendRequest(workspaceId, activeEnvironmentId, resolvedPayload)
 
         if (!response.ok || !response.data) {
-          const structured = formatStructuredErrorMessage(
-            response.error,
-            payload.requestKind === 'mcp' ? 'send_mcp_request failed' : 'send_request failed',
-          )
+          const structured = payload.requestKind === 'mcp'
+            ? formatStructuredMcpErrorMessage(response.error, 'send_mcp_request failed')
+            : formatStructuredErrorMessage(response.error, 'send_request failed')
           deps.store.mutations.applySendFailure({
             payload,
             message: structured.message,
@@ -612,10 +666,15 @@ export const createAppShellServices = (deps: AppShellServiceDeps): AppShellServi
           response: response.data,
         })
       } catch (error) {
-        const structured = formatStructuredErrorMessage(
-          error instanceof Error ? { code: 'TAURI_INVOKE_ERROR', message: error.message } : undefined,
-          error instanceof Error ? error.message : String(error),
-        )
+        const structured = payload.requestKind === 'mcp'
+          ? formatStructuredMcpErrorMessage(
+              error instanceof Error ? { code: 'MCP_TRANSPORT_INVOKE_ERROR', message: error.message } : undefined,
+              error instanceof Error ? error.message : String(error),
+            )
+          : formatStructuredErrorMessage(
+              error instanceof Error ? { code: 'TAURI_INVOKE_ERROR', message: error.message } : undefined,
+              error instanceof Error ? error.message : String(error),
+            )
         deps.store.mutations.applySendFailure({
           payload,
           message: structured.message,
