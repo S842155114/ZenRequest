@@ -458,7 +458,7 @@ const messages = {
       }),
       workspaceImported: (name: string) => ({
         title: 'Workspace imported',
-        description: `"${name}" was loaded successfully.`,
+        description: `"${name}" was loaded successfully and the active workspace state was refreshed.`,
       }),
       curlImported: (name: string) => ({
         title: 'Curl imported',
@@ -470,7 +470,7 @@ const messages = {
       }),
       applicationImported: (count: number) => ({
         title: 'Application backup restored',
-        description: `${count} workspace(s) were restored successfully.`,
+        description: `${count} workspace(s) were restored successfully and the active workspace state was refreshed.`,
       }),
       collectionAlreadyExists: (name: string) => ({
         title: 'Collection already exists',
@@ -1026,7 +1026,7 @@ const messages = {
       }),
       workspaceImported: (name: string) => ({
         title: '工作区已导入',
-        description: `“${name}” 已成功载入。`,
+        description: `“${name}” 已成功载入，并已刷新当前工作区状态。`,
       }),
       curlImported: (name: string) => ({
         title: 'Curl 已导入',
@@ -1038,7 +1038,7 @@ const messages = {
       }),
       applicationImported: (count: number) => ({
         title: '应用备份已恢复',
-        description: `已成功恢复 ${count} 个工作区。`,
+        description: `已成功恢复 ${count} 个工作区，并已刷新当前工作区状态。`,
       }),
       collectionAlreadyExists: (name: string) => ({
         title: '集合已存在',

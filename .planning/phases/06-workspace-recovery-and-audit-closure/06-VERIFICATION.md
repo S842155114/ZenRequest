@@ -1,25 +1,25 @@
 # Phase 6 Plan Verification
 
 **Verified:** 2026-04-06
-**Status:** PARTIAL PASS
+**Status:** PASS
 
 ## Checks
 
-- Phase 6 has begun closing milestone blockers with repo-aligned, minimal changes rather than broad architecture rewrites
-- Recovery guidance for history persistence failures now follows the existing structured error model
-- Workspace import failures now provide more actionable conflict/package guidance at the service boundary
-- MCP response UI vocabulary now aligns with `session` / `tool-call` category naming used by the current service/runtime path
-- Missing archive-proof artifacts for Phase 3 and Phase 4 have been backfilled from shipped evidence
-- `WS-01` is being closed by aligning v1 scope to the implemented collection-first asset model instead of inventing an unshipped folder architecture
+- Phase 6 closes milestone blockers with repo-aligned, minimal changes instead of broad architecture rewrites
+- `WS-01` is resolved by aligning v1 requirement language and evidence to the implemented collection-first asset model
+- workspace import now provides clearer success continuity messaging and already-covered failure guidance, giving `WS-03` milestone-grade closure evidence
+- recovery guidance now covers history persistence anomaly paths in addition to degraded startup recovery, closing the main remaining `TEST-02` gap
+- MCP response UI vocabulary aligns with `session` / `tool-call` naming used by the current runtime/service path
+- missing archive-proof artifacts for Phase 3 and Phase 4 have been backfilled from shipped evidence
+- focused automated tests cover the newly changed import-success and recovery-related user-facing closures
 
-## Remaining Gaps
+## Validation Evidence
 
-- `WS-03` still needs final milestone-grade closure evidence beyond the current guidance improvements
-- `TEST-02` still needs final end-to-end traceability/re-audit alignment, even though service-layer evidence is stronger now
-- Phase 6 still requires a final completion pass before milestone re-audit should be rerun
+- `pnpm exec vitest run src/features/app-shell/state/app-shell-services.test.ts src/components/response/ResponsePanel.test.ts src/features/app-shell/state/app-shell-dialogs.test.ts src/components/layout/AppSidebar.test.ts`
+- `cargo check --manifest-path src-tauri/Cargo.toml`
 
 ## Verdict
 
-## VERIFICATION PARTIAL
+## VERIFICATION PASS
 
-Phase 6 is on-track and its first execution slice is validated, but the phase should continue before being treated as fully complete.
+Phase 6 is complete and leaves the remaining milestone closure work concentrated in Phase 7 MCP scope.

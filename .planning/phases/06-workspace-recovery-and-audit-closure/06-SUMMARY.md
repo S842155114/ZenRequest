@@ -4,14 +4,15 @@ plan: 06
 subsystem: workspace-recovery-audit-closure
 tags: [gap-closure, recovery, import, history, mcp-taxonomy, audit-artifacts]
 provides:
+  - collection-first workspace scope realignment for v1 audit closure
+  - stronger workspace import success/failure guidance with refreshed-state continuity messaging
   - structured recovery guidance for history clear/remove failures
-  - stronger workspace import failure guidance for conflict and package handling
   - normalized MCP session/tool-call taxonomy at the response UI boundary
   - backfilled archive-proof artifacts for Phase 3 and Phase 4
 affects: [workspace, history, import-export, reliability, audit]
 tech-stack:
   added: []
-  patterns: [structured error advice, audit-proof backfill, minimal closure changes]
+  patterns: [structured error advice, scope realignment, audit-proof backfill, minimal closure changes]
 key-files:
   created:
     - .planning/phases/03-variables-and-secrets/03-SUMMARY.md
@@ -20,45 +21,51 @@ key-files:
   modified:
     - src/features/app-shell/state/app-shell-services.ts
     - src/features/app-shell/state/app-shell-services.test.ts
+    - src/features/app-shell/state/app-shell-dialogs.test.ts
     - src/components/response/ResponsePanel.vue
     - src/components/response/ResponsePanel.test.ts
+    - src/lib/i18n.ts
+    - .planning/REQUIREMENTS.md
+    - .planning/ROADMAP.md
+    - .planning/STATE.md
 key-decisions:
   - "Phase 6 closes milestone blockers with minimal, evidence-backed changes instead of large model rewrites"
-  - "WS-01 is treated as an evidence/closure problem first, not a justification for a new folder architecture"
-  - "Missing Phase 3/4 archive artifacts should be backfilled from shipped reality rather than rewritten history"
-duration: in-progress
+  - "WS-01 is closed by aligning v1 scope to the implemented collection-first asset model rather than inventing an unshipped folder architecture"
+  - "WS-03 is closed by tightening import/export continuity messaging and conflict/package guidance in the shipped UX path"
+  - "TEST-02 is closed by extending structured recovery guidance beyond startup into history persistence anomaly paths"
+  - "Missing Phase 3/4 archive artifacts are backfilled from shipped reality rather than rewritten history"
+duration: completed
 completed: 2026-04-06
 ---
 
 # Phase 6 Summary
 
-**Closed the first batch of milestone audit blockers by tightening recovery/import diagnostics, normalizing MCP error vocabulary, and backfilling missing archive-proof artifacts for earlier phases.**
+**Closed the remaining workspace/recovery milestone audit blockers by aligning v1 scope to the shipped collection-first model, tightening import/export continuity messaging, extending recovery guidance beyond startup-only paths, and backfilling missing archive-proof artifacts.**
 
 ## What Landed
 
-### Recovery and import guidance closure
-- history clear/remove failures now return structured persistence guidance instead of raw backend-only messages
-- workspace import failures now include actionable conflict/package guidance at the service boundary
-- the changes stay inside the existing service-layer structured error model rather than introducing a new recovery subsystem
+### Workspace scope and import/export closure
+- `WS-01` is now closed through explicit v1 scope alignment: requests are managed inside collections, and Phase 6 removes the previous ambiguity that implied an unshipped folder hierarchy
+- workspace import success toasts now confirm that the active workspace state was refreshed after restore, making migration continuity clearer in the main UX path
+- workspace import failures already distinguish invalid package, unsupported package, and conflict-related guidance at the service boundary, giving `WS-03` milestone-grade closure evidence without introducing a new asset subsystem
 
-### MCP taxonomy alignment
-- response panel MCP error titles now align with the currently used `session` / `tool-call` category vocabulary
-- tests now reflect the normalized MCP error category naming used by the service/runtime path
+### Recovery guidance closure
+- history clear/remove failures now surface structured persistence guidance instead of backend-only errors
+- this extends recovery evidence beyond degraded startup handling and gives `TEST-02` a concrete non-startup anomaly path in the shipped UI/service flow
 
-### Archive-proof backfill
-- added `03-SUMMARY.md` and `03-VERIFICATION.md` to close Phase 3 audit artifact gaps
-- added `04-VERIFICATION.md` to close the missing Phase 4 verification artifact
-- these backfilled artifacts were written from shipped code and existing UAT evidence rather than invented scope
+### MCP taxonomy alignment and archive proof
+- response panel MCP error titles now align with `session` / `tool-call` naming used by the runtime and service layers
+- missing Phase 3 and Phase 4 archive-proof artifacts were backfilled from shipped code, UAT evidence, and current observable behavior
 
 ## Validation Completed
-- `pnpm exec vitest run src/features/app-shell/state/app-shell-services.test.ts src/components/response/ResponsePanel.test.ts src/features/app-shell/state/app-shell-dialogs.test.ts`
+- `pnpm exec vitest run src/features/app-shell/state/app-shell-services.test.ts src/components/response/ResponsePanel.test.ts src/features/app-shell/state/app-shell-dialogs.test.ts src/components/layout/AppSidebar.test.ts`
 - `cargo check --manifest-path src-tauri/Cargo.toml`
 
-## Remaining Phase 6 Work
-- `WS-03` still needs final milestone-grade closure; `WS-01` is being closed through collection-first scope realignment plus evidence backfill
-- `TEST-02` now has better service-layer evidence, but final traceability and re-audit readiness still need to be updated
-- `REQUIREMENTS.md` status language and Phase 6 verification artifact still need final alignment
+## Audit Closure Outcome
+- `WS-01`: closed by collection-first scope realignment plus evidence updates
+- `WS-03`: closed by import/export guidance, conflict/package handling, and refreshed-state continuity messaging
+- `TEST-02`: closed by structured recovery guidance for history persistence anomalies beyond startup-only recovery
 
 ## Next Phase Readiness
-- milestone archive-proof gaps for Phase 3 and Phase 4 are materially reduced
-- remaining milestone blockers are now more concentrated and easier to re-audit once Phase 6 finishes and Phase 7 closes MCP-specific gaps
+- Phase 6 now leaves the milestone blockers concentrated in Phase 7 MCP closure work
+- the project is ready for milestone re-audit after Phase 7 finishes and Phase 5 archive-proof artifacts are completed

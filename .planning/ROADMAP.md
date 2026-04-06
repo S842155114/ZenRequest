@@ -92,17 +92,18 @@
 
 ### Phase 6: Workspace, Recovery And Audit Closure
 
-**Goal:** 补齐工作区资产层级、恢复闭环与缺失验证工件，让 v1 进入可归档状态。
+**Goal:** 补齐工作区资产、恢复闭环与缺失验证工件，让 v1 进入可重新审计状态。
 
 **Requirements:** `WS-01`, `WS-03`, `TEST-02`
 
 **Success Criteria:**
-1. collection / folder 结构具备可验证的稳定管理闭环，`WS-01` 不再停留在部分实现
+1. v1 工作区资产能力与 collection-first 实际实现保持一致，`WS-01` 不再停留在部分实现或模糊描述
 2. 导入导出/迁移冲突与数据库或历史异常恢复路径具备更完整的用户可见闭环
 3. Phase 3 和 Phase 4 缺失的 `SUMMARY.md` / `VERIFICATION.md` 归档工件补齐
 4. `REQUIREMENTS.md` 的 traceability 与实际交付状态重新对齐，为 milestone re-audit 做好准备
 
 **UI hint**: yes
+
 
 ### Phase 7: MCP Workbench And Audit Closure
 
