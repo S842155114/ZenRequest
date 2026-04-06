@@ -2,7 +2,7 @@
 
 **Created:** 2026-04-06
 **Project:** ZenRequest
-**Phases:** 5
+**Phases:** 7
 **v1 Requirements:** 19
 **Coverage:** 100%
 
@@ -89,16 +89,46 @@
 
 **UI hint**: yes
 
+
+### Phase 6: Workspace, Recovery And Audit Closure
+
+**Goal:** 补齐工作区资产层级、恢复闭环与缺失验证工件，让 v1 进入可归档状态。
+
+**Requirements:** `WS-01`, `WS-03`, `TEST-02`
+
+**Success Criteria:**
+1. collection / folder 结构具备可验证的稳定管理闭环，`WS-01` 不再停留在部分实现
+2. 导入导出/迁移冲突与数据库或历史异常恢复路径具备更完整的用户可见闭环
+3. Phase 3 和 Phase 4 缺失的 `SUMMARY.md` / `VERIFICATION.md` 归档工件补齐
+4. `REQUIREMENTS.md` 的 traceability 与实际交付状态重新对齐，为 milestone re-audit 做好准备
+
+**UI hint**: yes
+
+### Phase 7: MCP Workbench And Audit Closure
+
+**Goal:** 收敛 MCP tools discovery、错误 taxonomy 与缺失工件，让 MCP 工作台通过 milestone 归档审计。
+
+**Requirements:** `MCP-01`, `MCP-03`, `MCP-04`
+
+**Success Criteria:**
+1. MCP tools discovery 在非测试应用流中具备清晰、稳定的显式链路
+2. schema/raw 参数输入与 tools cache 生命周期在发现、调用、回放之间保持一致
+3. transport / session / tool-call taxonomy 在 runtime、service、UI 三层命名一致
+4. Phase 5 缺失的 `SUMMARY.md` / `VERIFICATION.md` 归档工件补齐，并支撑 milestone re-audit
+
+**UI hint**: yes
+
 ## Sequencing Rationale
 
 - 先做 Phase 1，因为“快、稳、可恢复”是产品核心价值的直接体现
 - Phase 2 和 Phase 3 分别收敛资产模型与变量/secret 边界，避免后续 MCP 与 AI 能力建立在脆弱基础上
 - Phase 4 在进入更复杂工作台前先补足断言、诊断和恢复能力
 - Phase 5 再集中打磨 MCP 工作台，避免 MCP 扩展与底层不稳定问题相互叠加
+- Phase 6 和 Phase 7 作为 milestone audit gap closure phases，分别收敛工作区/恢复闭环与 MCP/归档闭环
 
 ## Next Command
 
-推荐下一步：`$gsd-next`
+推荐下一步：`$gsd-plan-phase 6`
 
 ---
-*Last updated: 2026-04-06 after Phase 5 shipment*
+*Last updated: 2026-04-06 after milestone gap planning*

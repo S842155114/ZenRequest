@@ -5,7 +5,7 @@
 See: `.planning/PROJECT.md` (updated 2026-04-06)
 
 **Core value:** 让开发者以本地优先、快速、可控的方式完成高频 API 调试与工作流操作，而不被臃肿云平台和账号绑定打断。
-**Current focus:** Post-Phase 5 wrap-up and next milestone planning
+**Current focus:** Phase 6 planning — Workspace, Recovery And Audit Closure
 
 ## Current Artifacts
 
@@ -24,7 +24,9 @@ See: `.planning/PROJECT.md` (updated 2026-04-06)
 - Phase 4 PR created: #29
 - Phase 5 PR created: #30
 - Internal branch strategy has been documented for main-based delivery
-- Recommended next step: `$gsd-next`
+- Milestone audit created: `.planning/v1.0-MILESTONE-AUDIT.md`
+- Gap closure phases added: Phase 6 and Phase 7
+- Recommended next step: `$gsd-plan-phase 6`
 
 ## Branch Strategy
 
@@ -39,4 +41,4 @@ Recommended branch names:
 - `gsd/phase-XX-short-name`
 
 ---
-*Last updated: 2026-04-06 after Phase 5 shipment*
+*Last updated: 2026-04-06 after milestone gap planning*

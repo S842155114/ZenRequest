@@ -75,21 +75,21 @@
 | CORE-02 | Phase 1 | Pending |
 | CORE-03 | Phase 1 | Pending |
 | CORE-04 | Phase 1 | Pending |
-| WS-01 | Phase 2 | Pending |
+| WS-01 | Phase 6 | Pending |
 | WS-02 | Phase 2 | Pending |
-| WS-03 | Phase 2 | Pending |
+| WS-03 | Phase 6 | Pending |
 | WS-04 | Phase 2 | Pending |
 | VAR-01 | Phase 3 | Pending |
 | VAR-02 | Phase 3 | Pending |
 | AUTH-01 | Phase 3 | Pending |
 | AUTH-02 | Phase 3 | Pending |
 | TEST-01 | Phase 4 | Pending |
-| TEST-02 | Phase 4 | Pending |
+| TEST-02 | Phase 6 | Pending |
 | TEST-03 | Phase 4 | Pending |
-| MCP-01 | Phase 5 | Pending |
+| MCP-01 | Phase 7 | Pending |
 | MCP-02 | Phase 5 | Pending |
-| MCP-03 | Phase 5 | Pending |
-| MCP-04 | Phase 5 | Pending |
+| MCP-03 | Phase 7 | Pending |
+| MCP-04 | Phase 7 | Pending |
 
 **Coverage:**
 - v1 requirements: 19 total
@@ -98,4 +98,4 @@
 
 ---
 *Requirements defined: 2026-04-06*
-*Last updated: 2026-04-06 after initial definition*
+*Last updated: 2026-04-06 after milestone gap planning*
