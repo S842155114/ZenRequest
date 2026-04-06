@@ -98,7 +98,7 @@
 
 ## Next Command
 
-推荐下一步：`$gsd-discuss-phase 1`
+推荐下一步：`$gsd-plan-phase 4`
 
 ---
-*Last updated: 2026-04-06 after roadmap creation*
+*Last updated: 2026-04-06 after Phase 1-3 shipment*
