@@ -24,5 +24,18 @@ See: `.planning/PROJECT.md` (updated 2026-04-06)
 - Roadmap created with 5 phases and 100% v1 coverage
 - Recommended next step: `$gsd-discuss-phase 1`
 
+
+## Branch Strategy
+
+- `main` is the only long-lived branch
+- Feature, fix, and GSD phase work should branch from `main`
+- Pull requests should target `main`
+- Completed branches should be deleted locally and remotely after merge
+
+Recommended branch names:
+- `feat/short-name`
+- `fix/short-name`
+- `gsd/phase-XX-short-name`
+
 ---
 *Last updated: 2026-04-06 after project initialization*
