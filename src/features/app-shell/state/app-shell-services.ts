@@ -149,9 +149,10 @@ const normalizeMcpErrorCategory = (category?: string) => {
       return 'tool-call' as const
     case 'transport':
     case 'session':
-    case 'protocol':
     case 'tool-call':
       return category
+    case 'protocol':
+      return 'tool-call' as const
     default:
       return undefined
   }

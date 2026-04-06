@@ -29,6 +29,7 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:mcp', value: McpRequestDefinition): void
+  (e: 'discover-tools'): void
 }>()
 
 const defaultMcpDefinition = (): McpRequestDefinition => ({
@@ -100,9 +101,16 @@ const availableTools = computed<McpToolSchemaSnapshot[]>(() => {
 
 const selectedToolSchema = computed<McpToolSchemaSnapshot | undefined>(() => {
   if (props.mcp?.operation.type !== 'tools.call') return undefined
-  if (props.mcp.operation.input.schema) return props.mcp.operation.input.schema
-  return availableTools.value.find((tool) => tool.name === toolName.value)
+  return availableTools.value.find((tool) => tool.name === toolName.value) ?? props.mcp.operation.input.schema
 })
+
+const hasDiscoveredTools = computed(() => availableTools.value.length > 0)
+const discoveryActionLabel = computed(() => hasDiscoveredTools.value ? text.value.request.mcp.refreshTools : text.value.request.mcp.discoverTools)
+const showDiscoveryRecommendation = computed(() => currentOperation.value === 'tools.call' && !hasDiscoveredTools.value)
+
+const handleDiscoverTools = () => {
+  emit('discover-tools')
+}
 
 const currentToolArguments = computed<Record<string, unknown>>(() => (
   props.mcp?.operation.type === 'tools.call' ? props.mcp.operation.input.arguments : {}
@@ -342,6 +350,17 @@ const handleRawArgumentsChange = (value: string | number) => {
         v-if="currentOperation === 'tools.call'"
         class="rounded-lg border border-[color:var(--zr-border-soft)] bg-[color:var(--zr-control-bg)] px-3 py-2.5"
       >
+        <div class="mb-2 flex items-center justify-between gap-3">
+          <div class="text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">{{ text.request.mcp.tool }}</div>
+          <button
+            type="button"
+            data-testid="mcp-discover-tools-button"
+            class="inline-flex items-center rounded-md border border-[color:var(--zr-border)] px-2.5 py-1 text-[11px] font-medium text-[var(--zr-text-primary)] hover:bg-[color:var(--zr-editor-bg)]"
+            @click="handleDiscoverTools"
+          >
+            {{ discoveryActionLabel }}
+          </button>
+        </div>
         <div class="text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">{{ text.request.mcp.tool }}</div>
         <Select
           v-if="availableTools.length > 0"
@@ -366,6 +385,13 @@ const handleRawArgumentsChange = (value: string | number) => {
           @update:model-value="handleToolNameChange"
         />
         <div data-testid="mcp-tool-name" class="mt-2 text-xs text-[var(--zr-text-secondary)]">{{ toolName || text.request.mcp.toolNotSelected }}</div>
+        <div
+          v-if="showDiscoveryRecommendation"
+          data-testid="mcp-discovery-recommendation"
+          class="mt-2 text-xs text-[var(--zr-text-secondary)]"
+        >
+          {{ text.request.mcp.discoveryRecommended }}
+        </div>
       </div>
 
       <div

@@ -139,6 +139,7 @@ export interface RequestPanelHandlers {
   onUpdateEnvironmentVariables: (items: HeaderBindings['environments'][number]['variables']) => void
   onSend: (payload: SendRequestPayload) => Promise<void>
   onSaveRequest: () => void
+  onDiscoverMcpTools: () => void
   onImportWorkspace: () => void
   onImportOpenApi: () => void
   onImportCurl: () => void

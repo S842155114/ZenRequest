@@ -168,8 +168,6 @@ const mcpErrorNoticeTitle = computed(() => {
       return 'Transport error'
     case 'session':
       return 'Session error'
-    case 'protocol':
-      return 'Protocol error'
     case 'tool-call':
       return 'Tool call error'
     default:

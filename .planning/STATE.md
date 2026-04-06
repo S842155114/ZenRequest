@@ -5,7 +5,7 @@
 See: `.planning/PROJECT.md` (updated 2026-04-06)
 
 **Core value:** 让开发者以本地优先、快速、可控的方式完成高频 API 调试与工作流操作，而不被臃肿云平台和账号绑定打断。
-**Current focus:** Phase 7 planning / execution readiness after Phase 6 closure
+**Current focus:** Phase 7 execution completed and ready for verification/ship
 
 ## Current Artifacts
 
@@ -27,7 +27,8 @@ See: `.planning/PROJECT.md` (updated 2026-04-06)
 - Milestone audit created: `.planning/v1.0-MILESTONE-AUDIT.md`
 - Gap closure phases added: Phase 6 and Phase 7
 - Phase 6 completed with validated workspace/import/recovery closure evidence
-- Recommended next step: `$gsd-plan-phase 7` or continue `$gsd-execute-phase 7`
+- Phase 7 completed with explicit MCP discovery closure, schema lifecycle tightening, taxonomy normalization, and Phase 5 archive-proof backfill
+- Recommended next step: `$gsd-verify-work 7` or milestone re-audit / ship
 
 ## Branch Strategy
 
@@ -42,4 +43,4 @@ Recommended branch names:
 - `gsd/phase-XX-short-name`
 
 ---
-*Last updated: 2026-04-06 after Phase 6 execution*
+*Last updated: 2026-04-06 after Phase 7 execution*

@@ -248,14 +248,14 @@ describe('ResponsePanel i18n copy', () => {
         mcpArtifact: {
           transport: 'http',
           operation: 'tools.call',
-          errorCategory: 'protocol',
+          errorCategory: 'tool-call',
           protocolResponse: { error: { code: -32000, message: 'bad request' } },
         },
       },
     })
 
-    expect(wrapper.get('[data-testid="response-mcp-error-notice"]').text()).toContain('Protocol error')
-    expect(wrapper.get('[data-testid="response-mcp-error-notice"]').text()).toContain('Category: protocol')
+    expect(wrapper.get('[data-testid="response-mcp-error-notice"]').text()).toContain('Tool call error')
+    expect(wrapper.get('[data-testid="response-mcp-error-notice"]').text()).toContain('Category: tool-call')
     expect(wrapper.get('[data-testid="response-mcp-error-code"]').text()).toContain('-32000')
     expect(wrapper.get('[data-testid="response-mcp-error-message"]').text()).toContain('bad request')
   })

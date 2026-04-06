@@ -193,7 +193,7 @@ export interface McpExecutionArtifact {
   selectedTool?: McpToolSchemaSnapshot
   cachedTools?: McpToolSchemaSnapshot[]
   sessionId?: string
-  errorCategory?: 'transport' | 'session' | 'protocol' | 'tool-call' | 'initialize' | 'tool_execution'
+  errorCategory?: 'transport' | 'session' | 'tool-call' | 'initialize' | 'tool_execution'
 }
 
 export type HistoryRequestSnapshot = Omit<SendRequestPayload, 'body' | 'bodyType'> & {

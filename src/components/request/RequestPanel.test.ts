@@ -811,6 +811,58 @@ describe('RequestPanel i18n copy', () => {
     expect(wrapper.find('[data-testid="request-params-stub"]').exists()).toBe(false)
   })
 
+  it('forwards discover-tools from the mcp panel', async () => {
+    const wrapper = mount(RequestPanel, {
+      props: {
+        locale: 'en',
+        tabs: [
+          createTab({
+            id: 'tab-mcp-discover-forward',
+            name: 'MCP Discover',
+            requestKind: 'mcp',
+            mcp: {
+              connection: {
+                transport: 'http',
+                baseUrl: 'https://example.com/mcp',
+                headers: [],
+                auth: {
+                  type: 'none',
+                  bearerToken: '',
+                  username: '',
+                  password: '',
+                  apiKeyKey: 'X-API-Key',
+                  apiKeyValue: '',
+                  apiKeyPlacement: 'header',
+                },
+              },
+              operation: {
+                type: 'tools.call',
+                input: {
+                  toolName: 'search',
+                  arguments: {},
+                },
+              },
+            },
+          }),
+        ],
+        activeTabId: 'tab-mcp-discover-forward',
+        activeEnvironmentName: 'Local',
+        activeEnvironmentVariables: [],
+        resolvedActiveUrl: 'https://example.com/mcp',
+      },
+      global: {
+        stubs: {
+          RequestUrlBar: defineComponent({ template: '<div data-testid="request-url-bar-stub" />' }),
+          RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
+        },
+      },
+    })
+
+    await wrapper.get('[data-testid="mcp-discover-tools-button"]').trigger('click')
+
+    expect(wrapper.emitted('discover-mcp-tools')).toHaveLength(1)
+  })
+
   it('forwards mcp panel edits through update-active-tab', async () => {
     const wrapper = mount(RequestPanel, {
       props: {

@@ -62,4 +62,73 @@ describe('McpRequestPanel', () => {
     expect(wrapper.find('[data-testid="mcp-tool-name-input"]').exists()).toBe(false)
     expect(wrapper.get('[data-testid="mcp-schema-name"]').text()).toContain('search')
   })
+
+  it('shows explicit discover guidance and emits discover-tools when no tools are available', async () => {
+    const wrapper = mount(McpRequestPanel, {
+      props: {
+        locale: 'en',
+        requestName: 'MCP Search',
+        requestKey: 'tab-mcp',
+        mcp: baseMcp,
+      },
+    })
+
+    expect(wrapper.get('[data-testid="mcp-discover-tools-button"]').text()).toContain('Discover Tools')
+    expect(wrapper.get('[data-testid="mcp-discovery-recommendation"]').text()).toContain('Discover tools first')
+
+    await wrapper.get('[data-testid="mcp-discover-tools-button"]').trigger('click')
+
+    expect(wrapper.emitted('discover-tools')).toHaveLength(1)
+    expect(wrapper.find('[data-testid="mcp-tool-name-input"]').exists()).toBe(true)
+  })
+
+  it('prefers the latest discovered schema over a stale request-carried schema', () => {
+    const wrapper = mount(McpRequestPanel, {
+      props: {
+        locale: 'en',
+        requestName: 'MCP Search',
+        requestKey: 'tab-mcp',
+        mcp: {
+          ...baseMcp,
+          operation: {
+            type: 'tools.call',
+            input: {
+              toolName: 'search',
+              arguments: {},
+              schema: {
+                name: 'search',
+                title: 'Search (Stale)',
+                inputSchema: {
+                  type: 'object',
+                  properties: {
+                    stale: { type: 'string', title: 'Stale' },
+                  },
+                },
+              },
+            },
+          },
+        },
+        mcpArtifact: {
+          transport: 'http',
+          operation: 'tools.list',
+          cachedTools: [
+            {
+              name: 'search',
+              title: 'Search',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  query: { type: 'string', title: 'Query' },
+                },
+                required: ['query'],
+              },
+            },
+          ],
+        },
+      },
+    })
+
+    expect(wrapper.find('[data-testid="mcp-arg-input-query"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="mcp-arg-input-stale"]').exists()).toBe(false)
+  })
 })

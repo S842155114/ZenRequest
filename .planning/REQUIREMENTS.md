@@ -86,10 +86,10 @@
 | TEST-01 | Phase 4 | Completed |
 | TEST-02 | Phase 6 | Completed |
 | TEST-03 | Phase 4 | Completed |
-| MCP-01 | Phase 7 | Pending |
+| MCP-01 | Phase 7 | Completed |
 | MCP-02 | Phase 5 | Pending |
-| MCP-03 | Phase 7 | Pending |
-| MCP-04 | Phase 7 | Pending |
+| MCP-03 | Phase 7 | Completed |
+| MCP-04 | Phase 7 | Completed |
 
 **Coverage:**
 - v1 requirements: 19 total
