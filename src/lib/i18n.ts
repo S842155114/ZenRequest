@@ -229,6 +229,9 @@ const messages = {
         headers: 'Headers',
         tool: 'Tool',
         toolNotSelected: 'Not selected',
+        discoverTools: 'Discover Tools',
+        refreshTools: 'Refresh Tools',
+        discoveryRecommended: 'Discover tools first to load the latest tool definitions. You can still enter a tool name manually.',
         mode: 'Mode',
         arguments: 'Arguments',
         structuredForm: 'Structured form',
@@ -458,7 +461,7 @@ const messages = {
       }),
       workspaceImported: (name: string) => ({
         title: 'Workspace imported',
-        description: `"${name}" was loaded successfully.`,
+        description: `"${name}" was loaded successfully and the active workspace state was refreshed.`,
       }),
       curlImported: (name: string) => ({
         title: 'Curl imported',
@@ -470,7 +473,7 @@ const messages = {
       }),
       applicationImported: (count: number) => ({
         title: 'Application backup restored',
-        description: `${count} workspace(s) were restored successfully.`,
+        description: `${count} workspace(s) were restored successfully and the active workspace state was refreshed.`,
       }),
       collectionAlreadyExists: (name: string) => ({
         title: 'Collection already exists',
@@ -797,6 +800,9 @@ const messages = {
         headers: '请求头',
         tool: '工具',
         toolNotSelected: '未选择',
+        discoverTools: '发现工具',
+        refreshTools: '刷新工具',
+        discoveryRecommended: '建议先发现工具以加载最新工具定义。你仍然可以手动输入工具名。',
         mode: '模式',
         arguments: '参数',
         structuredForm: '结构化表单',
@@ -1026,7 +1032,7 @@ const messages = {
       }),
       workspaceImported: (name: string) => ({
         title: '工作区已导入',
-        description: `“${name}” 已成功载入。`,
+        description: `“${name}” 已成功载入，并已刷新当前工作区状态。`,
       }),
       curlImported: (name: string) => ({
         title: 'Curl 已导入',
@@ -1038,7 +1044,7 @@ const messages = {
       }),
       applicationImported: (count: number) => ({
         title: '应用备份已恢复',
-        description: `已成功恢复 ${count} 个工作区。`,
+        description: `已成功恢复 ${count} 个工作区，并已刷新当前工作区状态。`,
       }),
       collectionAlreadyExists: (name: string) => ({
         title: '集合已存在',

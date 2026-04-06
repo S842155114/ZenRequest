@@ -217,7 +217,7 @@ describe('ResponsePanel i18n copy', () => {
         mcpArtifact: {
           transport: 'http',
           operation: 'tools.call',
-          errorCategory: 'tool_execution',
+          errorCategory: 'tool-call',
           protocolRequest: { method: 'tools.call' },
           protocolResponse: { result: { content: [] } },
         },
@@ -227,7 +227,7 @@ describe('ResponsePanel i18n copy', () => {
     expect(wrapper.get('[data-testid="response-mcp-summary"]').text()).toContain('mcp')
     expect(wrapper.get('[data-testid="response-mcp-operation"]').text()).toContain('tools.call')
     expect(wrapper.get('[data-testid="response-mcp-transport"]').text()).toContain('http')
-    expect(wrapper.get('[data-testid="response-mcp-error-category"]').text()).toContain('tool_execution')
+    expect(wrapper.get('[data-testid="response-mcp-error-category"]').text()).toContain('tool-call')
     expect(wrapper.get('[data-testid="response-mcp-protocol-badge"]').text()).toContain('protocol captured')
     expect(wrapper.get('[data-testid="response-readout-request"]').text()).toContain('tools.call · http')
     expect(wrapper.get('[data-testid="response-readout-request"]').text()).not.toContain('POST')
@@ -248,14 +248,14 @@ describe('ResponsePanel i18n copy', () => {
         mcpArtifact: {
           transport: 'http',
           operation: 'tools.call',
-          errorCategory: 'protocol',
+          errorCategory: 'tool-call',
           protocolResponse: { error: { code: -32000, message: 'bad request' } },
         },
       },
     })
 
-    expect(wrapper.get('[data-testid="response-mcp-error-notice"]').text()).toContain('Protocol error')
-    expect(wrapper.get('[data-testid="response-mcp-error-notice"]').text()).toContain('Category: protocol')
+    expect(wrapper.get('[data-testid="response-mcp-error-notice"]').text()).toContain('Tool call error')
+    expect(wrapper.get('[data-testid="response-mcp-error-notice"]').text()).toContain('Category: tool-call')
     expect(wrapper.get('[data-testid="response-mcp-error-code"]').text()).toContain('-32000')
     expect(wrapper.get('[data-testid="response-mcp-error-message"]').text()).toContain('bad request')
   })

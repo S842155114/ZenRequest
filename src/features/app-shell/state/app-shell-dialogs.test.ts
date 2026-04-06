@@ -99,3 +99,58 @@ describe('app-shell dialogs', () => {
   })
 
 })
+
+it('shows the refreshed-workspace success copy after workspace import succeeds', async () => {
+  const state = reactive(createInitialAppShellState())
+  state.workspace.items = [{ id: 'workspace-1', name: 'Primary Workspace' }]
+  state.workspace.activeId = 'workspace-1'
+
+  const store = createAppShellStore(state)
+  const showToast = vi.fn()
+  const importWorkspace = vi.fn(async () => ({
+    ok: true,
+    data: {
+      scope: 'workspace',
+      importedWorkspaceCount: 1,
+      workspaceName: 'Imported Workspace',
+    },
+  }))
+
+  const dialogs = createAppShellDialogs({
+    text: computed(() => getMessages('en')),
+    store,
+    services: { importWorkspace } as unknown as AppShellServices,
+    workspaceImportInput: ref(null),
+    openApiImportInput: ref(null),
+    canImportOpenApi: () => false,
+    closeTabImmediately: vi.fn(),
+    triggerJsonDownload: vi.fn(),
+    showToast,
+    showErrorToast: vi.fn(),
+    buildOpenApiDialogDetails: vi.fn(() => ''),
+  })
+
+  dialogs.openDialog({
+    kind: 'importWorkspace',
+    title: 'Import Workspace',
+    description: 'Import a workspace package.',
+    confirmText: 'Import',
+    selectLabel: 'Strategy',
+    selectValue: 'rename',
+    selectOptions: [{ label: 'Rename', value: 'rename' }],
+  })
+
+  ;(dialogs as unknown as { __test?: unknown })
+  await dialogs.handleWorkspaceImportChange({
+    target: {
+      files: [new File(['{"scope":"workspace"}'], 'import.json', { type: 'application/json' })],
+      value: 'import.json',
+    },
+  } as unknown as Event)
+  await dialogs.handleDialogSubmit({ nameValue: '', detailsValue: '', tagsValue: '', selectValue: 'rename' })
+
+  expect(showToast).toHaveBeenCalledWith(expect.objectContaining({
+    tone: 'success',
+    description: '"Imported Workspace" was loaded successfully and the active workspace state was refreshed.',
+  }))
+})

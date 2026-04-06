@@ -319,6 +319,70 @@ export const createAppShellViewModel = (deps: AppShellViewModelDeps): AppShellVi
     await deps.services.sendRequest({ payload })
   }
 
+  const handleDiscoverMcpTools = async () => {
+    const tab = deps.activeTab.value
+    if (!tab || tab.requestKind !== 'mcp' || !tab.mcp) return
+
+    const payload: SendRequestPayload = {
+      tabId: tab.id,
+      requestKind: 'mcp',
+      mcp: tab.mcp,
+      requestId: tab.requestId,
+      name: tab.name,
+      description: tab.description,
+      tags: [...tab.tags],
+      collectionName: tab.collectionName,
+      method: tab.method,
+      url: tab.mcp.connection.baseUrl,
+      params: [],
+      headers: [],
+      body: '',
+      bodyType: 'json',
+      auth: tab.auth,
+      tests: [...tab.tests],
+      mock: tab.mock,
+      executionOptions: tab.executionOptions,
+    }
+
+    const result = await deps.services.discoverMcpTools({ payload })
+    if (!result.ok || !result.data) {
+      deps.showErrorToast(deps.text.value.toasts.requestFailed, result.message)
+      return
+    }
+
+    deps.store.mutations.updateTab(tab.id, (current) => ({
+      ...current,
+      response: {
+        ...current.response,
+        requestKind: 'mcp',
+        mcpArtifact: {
+          ...current.response.mcpArtifact,
+          transport: current.mcp?.connection.transport ?? 'http',
+          operation: 'tools.list',
+          cachedTools: result.data,
+        },
+      },
+      mcp: current.mcp?.operation.type === 'tools.call'
+        ? {
+            ...current.mcp,
+            operation: {
+              ...current.mcp.operation,
+              input: {
+                ...current.mcp.operation.input,
+                schema: result.data.find((tool) => tool.name === current.mcp?.operation.input.toolName) ?? current.mcp.operation.input.schema,
+              },
+            },
+          }
+        : current.mcp,
+    }))
+
+    deps.showToast({
+      title: deps.text.value.request.mcp.refreshTools,
+      description: `${result.data.length} tool(s) available for the current MCP endpoint.`,
+      tone: 'success',
+    })
+  }
+
   const handleWorkspaceChange = async (workspaceId: string) => {
     if (!workspaceId || workspaceId === deps.activeWorkspaceId.value) return
 
@@ -443,6 +507,7 @@ export const createAppShellViewModel = (deps: AppShellViewModelDeps): AppShellVi
     onUpdateEnvironmentVariables: handleUpdateEnvironmentVariables,
     onSend: handleSend,
     onSaveRequest: () => deps.dialogs.handleSaveRequest(),
+    onDiscoverMcpTools: handleDiscoverMcpTools,
     onImportWorkspace: deps.dialogs.handleImportWorkspaceClick,
     onImportOpenApi: deps.dialogs.handleImportOpenApiClick,
     onImportCurl: deps.dialogs.handleImportCurlClick,

@@ -14,7 +14,7 @@
 
 ### Workspace And Assets
 
-- [ ] **WS-01**: 开发者可以保存请求到 collection，并在 folder / collection 结构中管理常用请求资产
+- [ ] **WS-01**: 开发者可以保存请求到 collection，并在 collection 结构中管理常用请求资产
 - [ ] **WS-02**: 开发者可以查看、筛选并重新发送历史请求记录
 - [ ] **WS-03**: 开发者可以导出与导入本地工作区或关键请求资产，用于备份和迁移
 - [ ] **WS-04**: 开发者可以从 cURL 导入请求草稿并继续编辑
@@ -75,21 +75,21 @@
 | CORE-02 | Phase 1 | Pending |
 | CORE-03 | Phase 1 | Pending |
 | CORE-04 | Phase 1 | Pending |
-| WS-01 | Phase 2 | Pending |
+| WS-01 | Phase 6 | Completed |
 | WS-02 | Phase 2 | Pending |
-| WS-03 | Phase 2 | Pending |
+| WS-03 | Phase 6 | Completed |
 | WS-04 | Phase 2 | Pending |
-| VAR-01 | Phase 3 | Pending |
-| VAR-02 | Phase 3 | Pending |
-| AUTH-01 | Phase 3 | Pending |
-| AUTH-02 | Phase 3 | Pending |
-| TEST-01 | Phase 4 | Pending |
-| TEST-02 | Phase 4 | Pending |
-| TEST-03 | Phase 4 | Pending |
-| MCP-01 | Phase 5 | Pending |
+| VAR-01 | Phase 3 | Completed |
+| VAR-02 | Phase 3 | Completed |
+| AUTH-01 | Phase 3 | Completed |
+| AUTH-02 | Phase 3 | Completed |
+| TEST-01 | Phase 4 | Completed |
+| TEST-02 | Phase 6 | Completed |
+| TEST-03 | Phase 4 | Completed |
+| MCP-01 | Phase 7 | Completed |
 | MCP-02 | Phase 5 | Pending |
-| MCP-03 | Phase 5 | Pending |
-| MCP-04 | Phase 5 | Pending |
+| MCP-03 | Phase 7 | Completed |
+| MCP-04 | Phase 7 | Completed |
 
 **Coverage:**
 - v1 requirements: 19 total
@@ -98,4 +98,4 @@
 
 ---
 *Requirements defined: 2026-04-06*
-*Last updated: 2026-04-06 after initial definition*
+*Last updated: 2026-04-06 after Phase 6 completion*

@@ -1524,7 +1524,7 @@ describe('app-shell services', () => {
     expect(result).toMatchObject({
       ok: false,
       code: 'workspace.import_invalid_package',
-      message: 'failed to parse workspace import package',
+      message: 'failed to parse workspace import package Check the package contents, selected conflict strategy, and local workspace state before retrying.',
     })
   })
 
@@ -1550,7 +1550,7 @@ describe('app-shell services', () => {
     expect(result).toMatchObject({
       ok: false,
       code: 'workspace.import_unsupported_package',
-      message: 'unsupported workspace export format: 2',
+      message: 'unsupported workspace export format: 2 Check the package contents, selected conflict strategy, and local workspace state before retrying.',
     })
   })
 
@@ -1668,4 +1668,79 @@ describe('app-shell services', () => {
     expect(store.selectors.getActiveTab()?.response.size).toBe('32.0 KB')
     expect(state.request.historyItems[0]?.id).toBe('history-large-1')
   })
+})
+
+it('maps history removal failures to structured persistence advice', async () => {
+  const state = reactive(createInitialAppShellState())
+  state.workspace.items = [{ id: 'workspace-1', name: 'Primary Workspace' }]
+  state.workspace.activeId = 'workspace-1'
+
+  const store = createAppShellStore(state)
+  const runtime = {
+    removeHistoryItem: vi.fn(async () => ({
+      ok: false,
+      error: { code: 'HISTORY_ROW_CORRUPTED', message: 'Failed to remove history item' },
+    })),
+  } as const
+
+  const services = createAppShellServices({ runtime: runtime as never, store })
+  const result = await services.removeHistoryItem({ id: 'history-1' })
+
+  expect(result).toMatchObject({
+    ok: false,
+    code: 'history.remove_failed',
+  })
+  expect(result.message).toContain('Failed to remove history item')
+  expect(result.message).toContain('Check local data health')
+})
+
+it('maps history clear failures to structured persistence advice', async () => {
+  const state = reactive(createInitialAppShellState())
+  state.workspace.items = [{ id: 'workspace-1', name: 'Primary Workspace' }]
+  state.workspace.activeId = 'workspace-1'
+
+  const store = createAppShellStore(state)
+  const runtime = {
+    clearHistory: vi.fn(async () => ({
+      ok: false,
+      error: { code: 'SQLITE_HISTORY_LOCKED', message: 'Failed to clear history' },
+    })),
+  } as const
+
+  const services = createAppShellServices({ runtime: runtime as never, store })
+  const result = await services.clearHistory()
+
+  expect(result).toMatchObject({
+    ok: false,
+    code: 'history.clear_failed',
+  })
+  expect(result.message).toContain('Failed to clear history')
+  expect(result.message).toContain('Check local data health')
+})
+
+it('adds actionable import guidance when workspace import fails', async () => {
+  const state = reactive(createInitialAppShellState())
+  state.workspace.items = [{ id: 'workspace-1', name: 'Primary Workspace' }]
+  state.workspace.activeId = 'workspace-1'
+
+  const store = createAppShellStore(state)
+  const runtime = {
+    importWorkspace: vi.fn(async () => ({
+      ok: false,
+      error: {
+        code: 'IMPORT_CONFLICT_FAILED',
+        message: 'workspace import conflicted with existing resources',
+      },
+    })),
+  } as const
+
+  const services = createAppShellServices({ runtime: runtime as never, store })
+  const result = await services.importWorkspace({ packageJson: '{}', strategy: 'rename' })
+
+  expect(result).toMatchObject({
+    ok: false,
+    code: 'workspace.import_failed',
+  })
+  expect(result.message).toContain('workspace import conflicted with existing resources')
+  expect(result.message).toContain('selected conflict strategy')
 })
