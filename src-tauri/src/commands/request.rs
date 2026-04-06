@@ -384,6 +384,83 @@ mod tests {
     }
 
     // [Gate A: Runtime Authority] — assertion evaluation is authoritative in the Rust runtime
+
+    #[test]
+    fn runtime_pipeline_rejects_redacted_bearer_tokens() {
+        let mut payload = SendRequestPayloadDto {
+            workspace_id: "workspace-1".to_string(),
+            request_kind: None,
+            mcp: None,
+            active_environment_id: Some("env-local".to_string()),
+            tab_id: "tab-1".to_string(),
+            request_id: Some("request-1".to_string()),
+            name: "Orders".to_string(),
+            description: String::new(),
+            tags: Vec::new(),
+            collection_name: "Demo".to_string(),
+            method: "GET".to_string(),
+            url: "https://api.example.com/orders".to_string(),
+            params: Vec::new(),
+            headers: Vec::new(),
+            body: RequestBodyDto::Raw {
+                value: String::new(),
+                content_type: None,
+            },
+            auth: AuthConfigDto::default(),
+            tests: Vec::new(),
+            mock: None,
+            execution_options: crate::models::RequestExecutionOptionsDto::default(),
+        };
+        payload.auth.r#type = "bearer".to_string();
+        payload.auth.bearer_token = "[REDACTED]".to_string();
+
+        let error = crate::core::request_runtime::compile_request(&payload, &[])
+            .expect_err("redacted bearer token should be rejected");
+        assert_eq!(error.code, "REDACTED_SECRET");
+    }
+
+    #[test]
+    fn runtime_pipeline_rejects_redacted_api_key_values_from_environment() {
+        let mut payload = SendRequestPayloadDto {
+            workspace_id: "workspace-1".to_string(),
+            request_kind: None,
+            mcp: None,
+            active_environment_id: Some("env-local".to_string()),
+            tab_id: "tab-1".to_string(),
+            request_id: Some("request-1".to_string()),
+            name: "Orders".to_string(),
+            description: String::new(),
+            tags: Vec::new(),
+            collection_name: "Demo".to_string(),
+            method: "GET".to_string(),
+            url: "https://api.example.com/orders".to_string(),
+            params: Vec::new(),
+            headers: Vec::new(),
+            body: RequestBodyDto::Raw {
+                value: String::new(),
+                content_type: None,
+            },
+            auth: AuthConfigDto::default(),
+            tests: Vec::new(),
+            mock: None,
+            execution_options: crate::models::RequestExecutionOptionsDto::default(),
+        };
+        payload.auth.r#type = "apiKey".to_string();
+        payload.auth.api_key_value = "{{token}}".to_string();
+
+        let error = crate::core::request_runtime::compile_request(
+            &payload,
+            &[KeyValueItemDto {
+                key: "token".to_string(),
+                value: "[REDACTED]".to_string(),
+                description: String::new(),
+                enabled: true,
+            }],
+        )
+        .expect_err("redacted api key should be rejected");
+        assert_eq!(error.code, "REDACTED_SECRET");
+    }
+
     #[test]
     fn runtime_pipeline_evaluates_assertions_authoritatively() {
         let results = crate::core::request_runtime::evaluate_assertions(

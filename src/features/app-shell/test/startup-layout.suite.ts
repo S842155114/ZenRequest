@@ -396,6 +396,7 @@ describe('App workbench shell - startup and layout', () => {
       `curl -X POST https://example.com/orders -H "Content-Type: application/json" -d '{"ok":true}'`,
     )
     expect(getActiveRequestPanelTab(wrapper)?.name).toBe('Imported Curl Request')
+    expect(getActiveRequestPanelTab(wrapper)?.requestKind).toBe('http')
     expect(getActiveRequestPanelTab(wrapper)?.origin?.kind).toBe('scratch')
     expect(getActiveRequestPanelTab(wrapper)?.persistenceState).toBe('unsaved')
   })

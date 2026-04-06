@@ -4,12 +4,14 @@ use std::path::Path;
 
 use crate::errors::AppError;
 use crate::models::{
-    AppBootstrapPayload, AppSettings, ApplicationExportPackageDto, CreateWorkspacePayloadDto,
-    DeleteWorkspacePayloadDto, EnvironmentDto, ExportPackageScopeDto, HistoryStoredPayloadDto,
-    ImportConflictStrategy, LegacyWorkspaceSnapshotDto, RequestCollectionDto,
+    AppBootstrapPayload, AppSettings, ApplicationExportPackageDto, AuthConfigDto,
+    CreateWorkspacePayloadDto, DeleteWorkspacePayloadDto, EnvironmentDto,
+    ExportPackageScopeDto, HistoryStoredPayloadDto, ImportConflictStrategy,
+    KeyValueItemDto, LegacyWorkspaceSnapshotDto, RequestCollectionDto,
     RequestExecutionOptionsDto, RequestPresetDto, RequestTabStateDto, SaveWorkspacePayloadDto,
     SendRequestPayloadDto, SetActiveWorkspacePayloadDto, WorkspaceExportDataDto,
-    WorkspaceExportPackageDto, WorkspaceSessionDto, WorkspaceSummaryDto,
+    WorkspaceExportPackageDto, WorkspaceHistoryExportItemDto, WorkspaceSessionDto,
+    WorkspaceSummaryDto,
 };
 use crate::storage::connection::{
     db_error, deserialize_json, generate_id, now_epoch_ms, open_connection, serialize_json,
@@ -24,7 +26,99 @@ use crate::storage::repositories::settings_repo::{
     load_settings_with_connection, save_settings_with_connection,
 };
 
+
 const ACTIVE_WORKSPACE_KEY: &str = "active_workspace_id";
+const REDACTED_SECRET_VALUE: &str = "[REDACTED]";
+
+fn should_redact_secret_key(key: &str) -> bool {
+    let lower = key.trim().to_ascii_lowercase();
+    lower.contains("token")
+        || lower.contains("secret")
+        || lower.contains("password")
+        || lower.contains("api_key")
+        || lower.contains("apikey")
+        || lower == "authorization"
+}
+
+fn redact_key_value_item(item: &KeyValueItemDto) -> KeyValueItemDto {
+    let mut next = item.clone();
+    if should_redact_secret_key(&next.key) && !next.value.trim().is_empty() {
+        next.value = REDACTED_SECRET_VALUE.to_string();
+    }
+    next
+}
+
+fn redact_auth(auth: &AuthConfigDto) -> AuthConfigDto {
+    let mut next = auth.clone();
+    if !next.bearer_token.trim().is_empty() {
+        next.bearer_token = REDACTED_SECRET_VALUE.to_string();
+    }
+    if !next.username.trim().is_empty() && should_redact_secret_key("username") {
+        next.username = REDACTED_SECRET_VALUE.to_string();
+    }
+    if !next.password.trim().is_empty() {
+        next.password = REDACTED_SECRET_VALUE.to_string();
+    }
+    if !next.api_key_value.trim().is_empty() {
+        next.api_key_value = REDACTED_SECRET_VALUE.to_string();
+    }
+    next
+}
+
+fn redact_request_preset(request: &RequestPresetDto) -> RequestPresetDto {
+    let mut next = request.clone();
+    next.headers = request.headers.iter().map(redact_key_value_item).collect();
+    next.auth = redact_auth(&request.auth);
+    next
+}
+
+fn redact_request_snapshot(snapshot: &SendRequestPayloadDto) -> SendRequestPayloadDto {
+    let mut next = snapshot.clone();
+    next.headers = snapshot.headers.iter().map(redact_key_value_item).collect();
+    next.auth = redact_auth(&snapshot.auth);
+    next
+}
+
+fn redact_request_tab(tab: &RequestTabStateDto) -> RequestTabStateDto {
+    let mut next = tab.clone();
+    next.headers = tab.headers.iter().map(redact_key_value_item).collect();
+    next.auth = redact_auth(&tab.auth);
+    next
+}
+
+fn redact_environment(environment: &EnvironmentDto) -> EnvironmentDto {
+    let mut next = environment.clone();
+    next.variables = environment.variables.iter().map(redact_key_value_item).collect();
+    next
+}
+
+fn redact_history_item(item: &WorkspaceHistoryExportItemDto) -> WorkspaceHistoryExportItemDto {
+    let mut next = item.clone();
+    next.request_snapshot = redact_request_snapshot(&item.request_snapshot);
+    next
+}
+
+fn redact_workspace_export_data(data: WorkspaceExportDataDto) -> WorkspaceExportDataDto {
+    WorkspaceExportDataDto {
+        workspace: data.workspace,
+        session: data.session.map(|session| WorkspaceSessionDto {
+            active_tab_id: session.active_tab_id,
+            active_environment_id: session.active_environment_id,
+            open_tabs: session.open_tabs.iter().map(redact_request_tab).collect(),
+        }),
+        collections: data
+            .collections
+            .iter()
+            .map(|collection| {
+                let mut next = collection.clone();
+                next.requests = collection.requests.iter().map(redact_request_preset).collect();
+                next
+            })
+            .collect(),
+        environments: data.environments.iter().map(redact_environment).collect(),
+        history: data.history.iter().map(redact_history_item).collect(),
+    }
+}
 
 pub fn set_active_workspace(
     db_path: &Path,
@@ -537,13 +631,13 @@ fn build_workspace_export_data_with_connection(
     let environments = load_environments_with_connection(connection, workspace_id)?;
     let history = load_history_export_with_connection(connection, workspace_id)?;
 
-    Ok(WorkspaceExportDataDto {
+    Ok(redact_workspace_export_data(WorkspaceExportDataDto {
         workspace,
         session,
         collections,
         environments,
         history,
-    })
+    }))
 }
 
 fn import_workspace_data_with_connection(
@@ -1089,6 +1183,7 @@ mod tests {
     use crate::storage::repositories::history_repo::{
         insert_history_item, load_history_export_with_connection,
     };
+    use crate::storage::repositories::request_repo::save_request;
     use crate::storage::repositories::settings_repo::save_settings;
     use std::fs;
     use std::path::PathBuf;
@@ -1265,6 +1360,53 @@ mod tests {
             Some("http://127.0.0.1:8080")
         );
         assert!(!tab.execution_options.verify_ssl);
+
+        let _ = fs::remove_file(db_path);
+    }
+
+
+    #[test]
+    fn workspace_export_redacts_request_auth_and_environment_secrets() {
+        let db_path = temp_db_path("workspace-redaction");
+        initialize_database(&db_path).expect("database initialized");
+
+        let bootstrap = ensure_bootstrap_data(&db_path, None).expect("bootstrap payload");
+        let workspace_id = bootstrap
+            .active_workspace_id
+            .clone()
+            .expect("active workspace id");
+        let collection_id = bootstrap.collections[0].id.clone();
+
+        let mut secret_request = bootstrap.collections[0].requests[0].clone();
+        secret_request.id = String::new();
+        secret_request.name = "Secret Request".to_string();
+        secret_request.auth.r#type = "bearer".to_string();
+        secret_request.auth.bearer_token = "secret-token".to_string();
+
+        let saved_request = save_request(
+            &db_path,
+            &crate::models::SaveRequestPayloadDto {
+                workspace_id: workspace_id.clone(),
+                collection_id,
+                request: secret_request,
+            },
+        )
+        .expect("request saved");
+
+        let export = export_workspace_package(&db_path, &workspace_id).expect("workspace exported");
+        let request = export
+            .collections
+            .iter()
+            .flat_map(|collection| collection.requests.iter())
+            .find(|request| request.id == saved_request.id)
+            .expect("saved request present in export");
+        let environment = &export.environments[0];
+
+        assert_eq!(request.auth.bearer_token, "[REDACTED]");
+        assert!(environment
+            .variables
+            .iter()
+            .any(|item| item.key == "token" && item.value == "[REDACTED]"));
 
         let _ = fs::remove_file(db_path);
     }

@@ -1454,6 +1454,9 @@ pub fn parse_curl_command(command: &str) -> Result<ImportPlan, AppError> {
             }
             "-L" | "--location" | "-k" | "--insecure" | "-s" | "--silent" | "--compressed"
             | "-i" | "--include" => {}
+            "-o" | "--output" | "-w" | "--write-out" => {
+                consume_next(&mut index, &tokens, token)?;
+            }
             _ if token.starts_with("--request=") => {
                 method = token.split_once('=').map(|(_, value)| value.to_uppercase());
             }
@@ -1613,7 +1616,7 @@ pub fn import_curl_to_draft(command: &str) -> Result<RequestTabStateDto, AppErro
 
     Ok(RequestTabStateDto {
         id: format!("tab-import-{}", Uuid::new_v4()),
-        request_kind: None,
+        request_kind: Some("http".to_string()),
         mcp: None,
         request_id: None,
         origin: Some(RequestTabOriginDto {
@@ -1721,6 +1724,18 @@ mod tests {
     }
 
     #[test]
+    fn ignores_output_only_curl_flags_when_deriving_request_url() {
+        let plan = parse_curl_command(
+            r#"curl -s -o /dev/null -w "%{http_code}\n" -L https://www.baidu.com"#,
+        )
+        .expect("curl plan with output flags");
+
+        assert_eq!(plan.requests.len(), 1);
+        assert_eq!(plan.requests[0].url, "https://www.baidu.com");
+        assert_eq!(plan.requests[0].method, "GET");
+    }
+
+    #[test]
     fn maps_curl_imports_into_editable_request_drafts() {
         let draft = import_curl_to_draft(
             r#"curl https://example.com/upload -F "file=@demo.txt;type=text/plain""#,
@@ -1731,6 +1746,7 @@ mod tests {
             draft.origin.as_ref().map(|origin| origin.kind.as_str()),
             Some("scratch")
         );
+        assert_eq!(draft.request_kind.as_deref(), Some("http"));
         assert_eq!(draft.persistence_state.as_deref(), Some("unsaved"));
         assert_eq!(draft.body_type, "formdata");
         assert_eq!(draft.form_data_fields.len(), 1);

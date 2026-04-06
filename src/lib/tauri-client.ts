@@ -280,16 +280,22 @@ const buildNotImplementedError = (command: string): AppError => ({
 
 const normalizeError = (error: unknown): AppError => {
   if (typeof error === 'string') {
-    return { code: 'TAURI_INVOKE_ERROR', message: error }
+    return {
+      code: 'TAURI_INVOKE_ERROR',
+      message: error.trim() || 'Unexpected desktop invoke failure',
+    }
   }
 
   if (error instanceof Error) {
-    return { code: 'TAURI_INVOKE_ERROR', message: error.message }
+    return {
+      code: 'TAURI_INVOKE_ERROR',
+      message: error.message.trim() || 'Unexpected desktop invoke failure',
+    }
   }
 
   return {
     code: 'TAURI_INVOKE_ERROR',
-    message: 'Unknown invoke error',
+    message: 'Unexpected desktop invoke failure',
     details: JSON.stringify(error),
   }
 }

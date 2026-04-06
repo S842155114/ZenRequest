@@ -22,7 +22,7 @@ import type {
 } from '@/lib/tauri-client'
 import type { StartupState } from '../types'
 import { createWorkbenchActivityProjection } from '../domain/request-activity'
-import { resolveActiveRequestUrl } from '../domain/url-resolution'
+import { resolveActiveRequestUrl, resolveHttpRequestDraft } from '../domain/url-resolution'
 import {
   HISTORY_LIMIT,
   cloneAuth,
@@ -130,6 +130,8 @@ export interface AppShellStore {
     prependHistoryItem: (item: HistoryItem, limit?: number) => void
     removeHistoryItem: (id: string) => void
     clearHistory: () => void
+    detachTabsForDeletedHistoryItem: (id: string) => void
+    detachTabsForClearedHistory: () => void
     applySendPending: (payload: SendRequestPayload) => void
     applySendSuccess: (input: SendSuccessInput) => void
     applySendFailure: (input: { payload: SendRequestPayload; message: string }) => void
@@ -199,7 +201,13 @@ export const createAppShellStore = (state: AppShellState): AppShellStore => {
       const activeTab = selectors.getActiveTab()
       const activeEnvironment = selectors.getActiveEnvironment()
       if (!activeTab || !activeEnvironment) return ''
-      return resolveActiveRequestUrl(activeTab.url, activeEnvironment.variables)
+      return resolveHttpRequestDraft({
+        url: activeTab.url,
+        params: activeTab.params,
+        headers: activeTab.headers,
+        auth: activeTab.auth,
+        variables: activeEnvironment.variables,
+      }).url
     },
     canDeleteWorkspace: () => state.workspace.items.length > 1,
     canImportOpenApi: () => {
@@ -412,6 +420,36 @@ export const createAppShellStore = (state: AppShellState): AppShellStore => {
     },
     clearHistory: () => {
       state.request.historyItems = []
+    },
+    detachTabsForDeletedHistoryItem: (id) => {
+      state.request.openTabs = state.request.openTabs.map((tab) => (
+        tab.origin?.kind === 'replay' && tab.origin.historyItemId === id
+          ? {
+              ...tab,
+              origin: {
+                kind: 'detached',
+                requestId: tab.origin.requestId,
+              },
+              persistenceState: 'unbound',
+              isDirty: true,
+            }
+          : tab
+      ))
+    },
+    detachTabsForClearedHistory: () => {
+      state.request.openTabs = state.request.openTabs.map((tab) => (
+        tab.origin?.kind === 'replay'
+          ? {
+              ...tab,
+              origin: {
+                kind: 'detached',
+                requestId: tab.origin.requestId,
+              },
+              persistenceState: 'unbound',
+              isDirty: true,
+            }
+          : tab
+      ))
     },
     applySendPending: (payload) => {
       mutations.updateTab(payload.tabId, (tab) => ({

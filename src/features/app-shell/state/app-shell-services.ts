@@ -18,6 +18,7 @@ import type {
   WorkspaceSnapshot,
 } from '@/types/request'
 import { cloneCollection, cloneEnvironment, cloneItems, cloneTab, createPresetFromTab } from '@/lib/request-workspace'
+import { resolveHttpRequestDraft } from '@/features/app-shell/domain/url-resolution'
 import type { AppShellStore } from './app-shell-store'
 
 export type ServiceResult<T = void> =
@@ -63,6 +64,17 @@ export interface AppShellServices {
 
 const success = <T>(code: string, data?: T): ServiceResult<T> => ({ ok: true, code, data })
 const failure = <T>(code: string, message?: string): ServiceResult<T> => ({ ok: false, code, message })
+
+const mapWorkspaceImportFailureCode = (runtimeCode?: string) => {
+  switch (runtimeCode) {
+    case 'INVALID_IMPORT_PACKAGE':
+      return 'workspace.import_invalid_package'
+    case 'UNSUPPORTED_IMPORT_PACKAGE':
+      return 'workspace.import_unsupported_package'
+    default:
+      return 'workspace.import_failed'
+  }
+}
 
 export const createAppShellServices = (deps: AppShellServiceDeps): AppShellServices => {
   const withWorkbenchBusy = async <T>(operation: () => Promise<ServiceResult<T>>) => {
@@ -358,6 +370,7 @@ export const createAppShellServices = (deps: AppShellServiceDeps): AppShellServi
       }
 
       deps.store.mutations.clearHistory()
+      deps.store.mutations.detachTabsForClearedHistory()
       return success('history.cleared')
     },
     removeHistoryItem: async ({ id }) => {
@@ -372,6 +385,7 @@ export const createAppShellServices = (deps: AppShellServiceDeps): AppShellServi
       }
 
       deps.store.mutations.removeHistoryItem(id)
+      deps.store.mutations.detachTabsForDeletedHistoryItem(id)
       return success('history.removed', { id })
     },
     exportWorkspace: async ({ scope }) => {
@@ -395,7 +409,7 @@ export const createAppShellServices = (deps: AppShellServiceDeps): AppShellServi
     importWorkspace: async ({ packageJson, strategy }) => withWorkbenchBusy(async () => {
       const result = await deps.runtime.importWorkspace(packageJson, strategy)
       if (!result.ok || !result.data) {
-        return failure('workspace.import_failed', result.error?.message)
+        return failure(mapWorkspaceImportFailureCode(result.error?.code), result.error?.message)
       }
 
       const refresh = await refreshRuntimeState(null)
@@ -479,12 +493,46 @@ export const createAppShellServices = (deps: AppShellServiceDeps): AppShellServi
         return failure('request.send_failed', 'Missing active workspace or environment')
       }
 
+      const activeEnvironment = deps.store.state.environment.items.find((environment) => environment.id === activeEnvironmentId)
+      const resolvedPayload = payload.requestKind !== 'mcp' && activeEnvironment
+        ? (() => {
+            const resolved = resolveHttpRequestDraft({
+              url: payload.url,
+              params: payload.params,
+              headers: payload.headers,
+              auth: payload.auth,
+              variables: activeEnvironment.variables,
+            })
+
+            if (resolved.blockingIssues.length) {
+              const keys = resolved.blockingIssues.map((issue) => issue.key).join(', ')
+              deps.store.mutations.applySendFailure({
+                payload,
+                message: `Missing required variables: ${keys}`,
+              })
+              return failure('request.send_failed', `Missing required variables: ${keys}`)
+            }
+
+            return {
+              ...payload,
+              url: resolved.url,
+              params: resolved.params,
+              headers: resolved.headers,
+              auth: resolved.auth,
+            }
+          })()
+        : payload
+
+      if (!('tabId' in resolvedPayload)) {
+        return resolvedPayload
+      }
+
       deps.store.mutations.applySendPending(payload)
 
       try {
         const response = payload.requestKind === 'mcp'
           ? await deps.runtime.sendMcpRequest(workspaceId, activeEnvironmentId, payload)
-          : await deps.runtime.sendRequest(workspaceId, activeEnvironmentId, payload)
+          : await deps.runtime.sendRequest(workspaceId, activeEnvironmentId, resolvedPayload)
 
         if (!response.ok || !response.data) {
           const message = response.error?.message || (payload.requestKind === 'mcp'
