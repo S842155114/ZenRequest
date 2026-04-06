@@ -7,11 +7,135 @@ import { createAppShellServices } from './app-shell-services'
 import { createAppShellStore, createInitialAppShellState } from './app-shell-store'
 
 describe('app-shell services', () => {
-  it('propagates runtime failures for mcp sends', async () => {
+  it('blocks http sends when required variables are unresolved', async () => {
+    const state = reactive(createInitialAppShellState())
+    state.workspace.items = [{ id: 'workspace-1', name: 'Primary Workspace' }]
+    state.workspace.activeId = 'workspace-1'
+    state.environment.items = [{ id: 'env-local', name: 'Local', variables: [
+      { key: 'baseUrl', value: 'https://example.com', enabled: true },
+    ] }]
+    state.environment.activeId = 'env-local'
+
+    const tab = createRequestTabFromPreset(defaultRequestPreset)
+    tab.id = 'tab-http-missing-vars'
+    tab.url = '{{baseUrl}}/orders/{{missingId}}'
+    tab.auth = {
+      type: 'bearer',
+      bearerToken: '{{token}}',
+      username: '',
+      password: '',
+      apiKeyKey: 'X-API-Key',
+      apiKeyValue: '',
+      apiKeyPlacement: 'header',
+    }
+    state.request.openTabs = [tab]
+    state.request.activeTabId = tab.id
+
+    const store = createAppShellStore(state)
+    const runtime = {
+      sendRequest: vi.fn(async () => ({ ok: true, data: {} })),
+      sendMcpRequest: vi.fn(async () => ({ ok: true, data: {} })),
+    } as const
+
+    const services = createAppShellServices({ runtime: runtime as never, store })
+
+    const payload: SendRequestPayload = {
+      tabId: tab.id,
+      requestId: tab.requestId,
+      name: tab.name,
+      description: tab.description,
+      tags: tab.tags,
+      collectionName: tab.collectionName,
+      method: tab.method,
+      url: tab.url,
+      params: [],
+      headers: [],
+      body: tab.body,
+      bodyType: tab.bodyType,
+      auth: tab.auth,
+      tests: [],
+      executionOptions: tab.executionOptions,
+    }
+
+    const result = await services.sendRequest({ payload })
+
+    expect(result).toMatchObject({
+      ok: false,
+      code: 'request.send_failed',
+      message: 'Missing required variables: missingId, token',
+    })
+    expect(runtime.sendRequest).not.toHaveBeenCalled()
+    expect(state.request.openTabs[0]?.executionState).toBe('transport-error')
+    expect(state.request.openTabs[0]?.response.responseBody).toContain('Missing required variables')
+  })
+
+
+  it('blocks replayed redacted bearer secrets before runtime send', async () => {
     const state = reactive(createInitialAppShellState())
     state.workspace.items = [{ id: 'workspace-1', name: 'Primary Workspace' }]
     state.workspace.activeId = 'workspace-1'
     state.environment.items = [{ id: 'env-local', name: 'Local', variables: [] }]
+    state.environment.activeId = 'env-local'
+
+    const tab = createRequestTabFromPreset(defaultRequestPreset)
+    tab.id = 'tab-http-redacted-secret'
+    tab.url = 'https://example.com/orders'
+    tab.auth = {
+      type: 'bearer',
+      bearerToken: '[REDACTED]',
+      username: '',
+      password: '',
+      apiKeyKey: 'X-API-Key',
+      apiKeyValue: '',
+      apiKeyPlacement: 'header',
+    }
+    state.request.openTabs = [tab]
+    state.request.activeTabId = tab.id
+
+    const store = createAppShellStore(state)
+    const runtime = {
+      sendRequest: vi.fn(async () => ({ ok: true, data: {} })),
+      sendMcpRequest: vi.fn(async () => ({ ok: true, data: {} })),
+    } as const
+
+    const services = createAppShellServices({ runtime: runtime as never, store })
+
+    const result = await services.sendRequest({
+      payload: {
+        tabId: tab.id,
+        requestKind: 'http',
+        requestId: tab.requestId,
+        name: tab.name,
+        description: tab.description,
+        tags: tab.tags,
+        collectionName: tab.collectionName,
+        method: tab.method,
+        url: tab.url,
+        params: [],
+        headers: [],
+        body: tab.body,
+        bodyType: tab.bodyType,
+        auth: tab.auth,
+        tests: [],
+        executionOptions: tab.executionOptions,
+      },
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      code: 'request.send_failed',
+      message: 'Missing required variables: bearerToken',
+    })
+    expect(runtime.sendRequest).not.toHaveBeenCalled()
+  })
+
+  it('propagates runtime failures for mcp sends', async () => {
+    const state = reactive(createInitialAppShellState())
+    state.workspace.items = [{ id: 'workspace-1', name: 'Primary Workspace' }]
+    state.workspace.activeId = 'workspace-1'
+    state.environment.items = [{ id: 'env-local', name: 'Local', variables: [
+      { key: 'baseUrl', value: 'https://example.com', enabled: true },
+    ] }]
     state.environment.activeId = 'env-local'
 
     const tab = createRequestTabFromPreset(defaultRequestPreset)
@@ -98,7 +222,9 @@ describe('app-shell services', () => {
     const state = reactive(createInitialAppShellState())
     state.workspace.items = [{ id: 'workspace-1', name: 'Primary Workspace' }]
     state.workspace.activeId = 'workspace-1'
-    state.environment.items = [{ id: 'env-local', name: 'Local', variables: [] }]
+    state.environment.items = [{ id: 'env-local', name: 'Local', variables: [
+      { key: 'baseUrl', value: 'https://example.com', enabled: true },
+    ] }]
     state.environment.activeId = 'env-local'
 
     const tab = createRequestTabFromPreset(defaultRequestPreset)
@@ -514,11 +640,98 @@ describe('app-shell services', () => {
     })
   })
 
+
+  it('sends resolved http payload values to runtime', async () => {
+    const state = reactive(createInitialAppShellState())
+    state.workspace.items = [{ id: 'workspace-1', name: 'Primary Workspace' }]
+    state.workspace.activeId = 'workspace-1'
+    state.environment.items = [{ id: 'env-local', name: 'Local', variables: [
+      { key: 'baseUrl', value: 'https://example.com', enabled: true },
+      { key: 'requestId', value: '42', enabled: true },
+      { key: 'token', value: 'secret-token', enabled: true },
+    ] }]
+    state.environment.activeId = 'env-local'
+
+    const store = createAppShellStore(state)
+    const runtime = {
+      sendRequest: vi.fn(async () => ({
+        ok: true,
+        data: {
+          requestMethod: 'GET',
+          requestUrl: 'https://example.com/orders/42',
+          status: 200,
+          statusText: 'OK',
+          elapsedMs: 12,
+          sizeBytes: 16,
+          contentType: 'application/json',
+          responseBody: '{"ok":true}',
+          headers: [],
+          truncated: false,
+          executionSource: 'live',
+          historyItem: {
+            id: 'history-1',
+            name: 'Orders',
+            method: 'GET',
+            time: '10:00:00',
+            status: 200,
+            url: 'https://example.com/orders/42',
+          },
+        },
+      })),
+      sendMcpRequest: vi.fn(async () => ({ ok: true, data: {} })),
+    } as const
+
+    const services = createAppShellServices({ runtime: runtime as never, store })
+    const tab = store.selectors.getActiveTab()!
+
+    const result = await services.sendRequest({
+      payload: {
+        tabId: tab.id,
+        requestKind: 'http',
+        requestId: tab.requestId,
+        name: tab.name,
+        description: tab.description,
+        tags: tab.tags,
+        collectionName: tab.collectionName,
+        method: tab.method,
+        url: '{{baseUrl}}/orders/{{requestId}}',
+        params: [{ key: 'page', value: '{{requestId}}', enabled: true }],
+        headers: [{ key: 'Authorization', value: 'Bearer {{token}}', enabled: true }],
+        body: tab.body,
+        bodyType: tab.bodyType,
+        auth: {
+          ...tab.auth,
+          type: 'bearer',
+          bearerToken: '{{token}}',
+        },
+        tests: tab.tests,
+        executionOptions: tab.executionOptions,
+      },
+    })
+
+    expect(result).toMatchObject({ ok: true, code: 'request.sent' })
+    expect(runtime.sendRequest).toHaveBeenCalledWith(
+      'workspace-1',
+      'env-local',
+      expect.objectContaining({
+        url: 'https://example.com/orders/42',
+        params: [{ key: 'page', value: '42', enabled: true }],
+        headers: [{ key: 'Authorization', value: 'Bearer secret-token', enabled: true }],
+        auth: expect.objectContaining({
+          type: 'bearer',
+          bearerToken: 'secret-token',
+        }),
+      }),
+    )
+  })
+
   it('fails when a successful http response omits history snapshot data', async () => {
     const state = reactive(createInitialAppShellState())
     state.workspace.items = [{ id: 'workspace-1', name: 'Primary Workspace' }]
     state.workspace.activeId = 'workspace-1'
-    state.environment.items = [{ id: 'env-local', name: 'Local', variables: [] }]
+    state.environment.items = [{ id: 'env-local', name: 'Local', variables: [
+      { key: 'baseUrl', value: 'https://example.com', enabled: true },
+    ] }]
     state.environment.activeId = 'env-local'
 
     const store = createAppShellStore(state)
@@ -577,7 +790,9 @@ describe('app-shell services', () => {
     const state = reactive(createInitialAppShellState())
     state.workspace.items = [{ id: 'workspace-1', name: 'Primary Workspace' }]
     state.workspace.activeId = 'workspace-1'
-    state.environment.items = [{ id: 'env-local', name: 'Local', variables: [] }]
+    state.environment.items = [{ id: 'env-local', name: 'Local', variables: [
+      { key: 'baseUrl', value: 'https://example.com', enabled: true },
+    ] }]
     state.environment.activeId = 'env-local'
 
     const store = createAppShellStore(state)
