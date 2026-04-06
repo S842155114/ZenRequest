@@ -77,6 +77,15 @@ const mapWorkspaceImportFailureCode = (runtimeCode?: string) => {
   }
 }
 
+const formatWorkspaceImportFailureMessage = (error?: AppError, fallback = 'Workspace import failed') => {
+  const family = classifyErrorFamily(error?.code)
+  const baseMessage = error?.message?.trim() || fallback
+  const advice = family === 'import'
+    ? 'Check the package contents, selected conflict strategy, and local workspace state before retrying.'
+    : buildRecoveryAdvice(family)
+  return `${baseMessage} ${advice}`
+}
+
 const classifyErrorFamily = (runtimeCode?: string) => {
   const normalized = runtimeCode?.trim().toUpperCase() ?? ''
   if (!normalized) return 'request'
@@ -129,6 +138,22 @@ const buildMcpErrorAdvice = (layer: ReturnType<typeof classifyMcpErrorLayer>) =>
       return 'Check the selected tool, arguments, and server tool response before retrying.'
     default:
       return 'Check MCP transport connectivity, target URL, and server availability, then retry.'
+  }
+}
+
+const normalizeMcpErrorCategory = (category?: string) => {
+  switch (category) {
+    case 'initialize':
+      return 'session' as const
+    case 'tool_execution':
+      return 'tool-call' as const
+    case 'transport':
+    case 'session':
+    case 'protocol':
+    case 'tool-call':
+      return category
+    default:
+      return undefined
   }
 }
 
@@ -463,7 +488,8 @@ export const createAppShellServices = (deps: AppShellServiceDeps): AppShellServi
 
       const result = await deps.runtime.clearHistory(workspaceId)
       if (!result.ok) {
-        return failure('history.clear_failed', result.error?.message)
+        const structured = formatStructuredErrorMessage(result.error, 'Failed to clear history')
+        return failure('history.clear_failed', structured.message)
       }
 
       deps.store.mutations.clearHistory()
@@ -478,7 +504,8 @@ export const createAppShellServices = (deps: AppShellServiceDeps): AppShellServi
 
       const result = await deps.runtime.removeHistoryItem(workspaceId, id)
       if (!result.ok) {
-        return failure('history.remove_failed', result.error?.message)
+        const structured = formatStructuredErrorMessage(result.error, 'Failed to remove history item')
+        return failure('history.remove_failed', structured.message)
       }
 
       deps.store.mutations.removeHistoryItem(id)
@@ -506,7 +533,7 @@ export const createAppShellServices = (deps: AppShellServiceDeps): AppShellServi
     importWorkspace: async ({ packageJson, strategy }) => withWorkbenchBusy(async () => {
       const result = await deps.runtime.importWorkspace(packageJson, strategy)
       if (!result.ok || !result.data) {
-        return failure(mapWorkspaceImportFailureCode(result.error?.code), result.error?.message)
+        return failure(mapWorkspaceImportFailureCode(result.error?.code), formatWorkspaceImportFailureMessage(result.error))
       }
 
       const refresh = await refreshRuntimeState(null)
@@ -660,6 +687,22 @@ export const createAppShellServices = (deps: AppShellServiceDeps): AppShellServi
           payload,
           response: response.data,
         })
+
+        if (payload.requestKind === 'mcp') {
+          const activeTab = deps.store.selectors.getTabById(payload.tabId)
+          const normalized = normalizeMcpErrorCategory(activeTab?.response.mcpArtifact?.errorCategory)
+          if (normalized && activeTab) {
+            deps.store.mutations.updateTab(payload.tabId, (tab) => ({
+              ...tab,
+              response: {
+                ...tab.response,
+                mcpArtifact: tab.response.mcpArtifact
+                  ? { ...tab.response.mcpArtifact, errorCategory: normalized }
+                  : tab.response.mcpArtifact,
+              },
+            }))
+          }
+        }
 
         return success('request.sent', {
           tabId: payload.tabId,

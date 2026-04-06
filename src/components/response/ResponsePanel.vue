@@ -166,12 +166,12 @@ const mcpErrorNoticeTitle = computed(() => {
   switch (mcpErrorCategoryLabel.value) {
     case 'transport':
       return 'Transport error'
-    case 'initialize':
-      return 'Initialize error'
+    case 'session':
+      return 'Session error'
     case 'protocol':
       return 'Protocol error'
-    case 'tool_execution':
-      return 'Tool execution error'
+    case 'tool-call':
+      return 'Tool call error'
     default:
       return 'MCP error'
   }

@@ -55,7 +55,7 @@ completed: 2026-04-06
 - `cargo check --manifest-path src-tauri/Cargo.toml`
 
 ## Remaining Phase 6 Work
-- `WS-01` / `WS-03` still need final milestone-grade closure or explicit evidence realignment
+- `WS-03` still needs final milestone-grade closure; `WS-01` is being closed through collection-first scope realignment plus evidence backfill
 - `TEST-02` now has better service-layer evidence, but final traceability and re-audit readiness still need to be updated
 - `REQUIREMENTS.md` status language and Phase 6 verification artifact still need final alignment
 

@@ -36,7 +36,7 @@
 - `cargo check --manifest-path src-tauri/Cargo.toml` passes after cURL draft normalization
 
 ## Remaining Phase 2 Work
-- collection / folder asset model hardening is not yet fully executed
+- collection-first asset model is now the intended v1 scope; folder hierarchy work was intentionally deferred beyond v1
 - import/export conflict semantics are now guarded at the boundary, but broader end-to-end conflict outcome UX may still need coverage
 - broader frontend regression pass is complete and green
 
