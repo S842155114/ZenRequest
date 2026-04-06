@@ -278,6 +278,49 @@ describe('AppSidebar', () => {
     expect(wrapper.findAllComponents(BadgeStub)).toHaveLength(3)
   })
 
+  it('filters history rows by name, method, and url without mutating the source list', async () => {
+    const items = [
+      createHistoryItem({
+        id: 'history-orders-get',
+        name: 'List Orders',
+        method: 'GET',
+        url: 'https://example.com/orders',
+      }),
+      createHistoryItem({
+        id: 'history-login-post',
+        name: 'Create Session',
+        method: 'POST',
+        url: 'https://example.com/auth/login',
+      }),
+    ]
+
+    const wrapper = mountSidebar({
+      historyItems: items,
+      searchQuery: 'login',
+    })
+
+    await wrapper.get('[data-testid="sidebar-history-tab"]').trigger('click')
+
+    expect(wrapper.text()).toContain('Create Session')
+    expect(wrapper.text()).not.toContain('List Orders')
+
+    await wrapper.setProps({ searchQuery: 'get' })
+    await flushPromises()
+    await nextTick()
+
+    expect(wrapper.text()).toContain('List Orders')
+    expect(wrapper.text()).not.toContain('Create Session')
+
+    await wrapper.setProps({ searchQuery: 'auth/login' })
+    await flushPromises()
+    await nextTick()
+
+    expect(wrapper.text()).toContain('Create Session')
+    expect(items).toHaveLength(2)
+    expect(items.map((item) => item.id)).toEqual(['history-orders-get', 'history-login-post'])
+  })
+
+
   it('shows explicit mock provenance for mock-sourced history rows', async () => {
     const wrapper = mountSidebar({
       historyItems: [

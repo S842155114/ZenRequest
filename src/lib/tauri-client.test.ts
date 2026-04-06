@@ -225,6 +225,25 @@ describe('detectImportPackageMeta', () => {
   })
 })
 
+describe('runtimeClient import conflict forwarding', () => {
+  it('forwards the requested conflict strategy to the active runtime adapter', async () => {
+    const importWorkspace = vi.fn<RuntimeAdapter['importWorkspace']>(async (_packageJson, _strategy = 'rename') =>
+      ok({
+        scope: 'workspace',
+        workspace: { id: 'workspace-1', name: 'Imported Workspace' },
+        importedWorkspaceCount: 1,
+        activeWorkspaceId: 'workspace-1',
+      }))
+
+    setRuntimeAdapter(createAdapter({ importWorkspace }))
+
+    await runtimeClient.importWorkspace('{"scope":"workspace"}', 'overwrite')
+
+    expect(importWorkspace).toHaveBeenCalledWith('{"scope":"workspace"}', 'overwrite')
+  })
+})
+
+
 describe('runtimeClient export scope forwarding', () => {
   it('forwards the requested export scope to the active runtime adapter', async () => {
     const exportWorkspace = vi.fn<RuntimeAdapter['exportWorkspace']>(async (_workspaceId, scope = 'workspace') =>
@@ -241,6 +260,32 @@ describe('runtimeClient export scope forwarding', () => {
     expect(exportWorkspace).toHaveBeenCalledWith('workspace-1', 'application')
   })
 })
+
+describe('runtimeClient invoke error normalization', () => {
+  it('normalizes unknown invoke errors to a user-facing fallback message', async () => {
+    const importWorkspace = vi.fn<RuntimeAdapter['importWorkspace']>(async () => ({
+      ok: false,
+      error: {
+        code: 'TAURI_INVOKE_ERROR',
+        message: 'Unexpected desktop invoke failure',
+        details: JSON.stringify({ reason: 'opaque' }),
+      },
+    }))
+
+    setRuntimeAdapter(createAdapter({ importWorkspace }))
+
+    const result = await runtimeClient.importWorkspace('{}', 'rename')
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: 'TAURI_INVOKE_ERROR',
+        message: 'Unexpected desktop invoke failure',
+      },
+    })
+  })
+})
+
 
 describe('runtimeClient save text file forwarding', () => {
   it('forwards the file name and contents to the active runtime adapter', async () => {

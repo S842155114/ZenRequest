@@ -130,6 +130,8 @@ export interface AppShellStore {
     prependHistoryItem: (item: HistoryItem, limit?: number) => void
     removeHistoryItem: (id: string) => void
     clearHistory: () => void
+    detachTabsForDeletedHistoryItem: (id: string) => void
+    detachTabsForClearedHistory: () => void
     applySendPending: (payload: SendRequestPayload) => void
     applySendSuccess: (input: SendSuccessInput) => void
     applySendFailure: (input: { payload: SendRequestPayload; message: string }) => void
@@ -412,6 +414,36 @@ export const createAppShellStore = (state: AppShellState): AppShellStore => {
     },
     clearHistory: () => {
       state.request.historyItems = []
+    },
+    detachTabsForDeletedHistoryItem: (id) => {
+      state.request.openTabs = state.request.openTabs.map((tab) => (
+        tab.origin?.kind === 'replay' && tab.origin.historyItemId === id
+          ? {
+              ...tab,
+              origin: {
+                kind: 'detached',
+                requestId: tab.origin.requestId,
+              },
+              persistenceState: 'unbound',
+              isDirty: true,
+            }
+          : tab
+      ))
+    },
+    detachTabsForClearedHistory: () => {
+      state.request.openTabs = state.request.openTabs.map((tab) => (
+        tab.origin?.kind === 'replay'
+          ? {
+              ...tab,
+              origin: {
+                kind: 'detached',
+                requestId: tab.origin.requestId,
+              },
+              persistenceState: 'unbound',
+              isDirty: true,
+            }
+          : tab
+      ))
     },
     applySendPending: (payload) => {
       mutations.updateTab(payload.tabId, (tab) => ({

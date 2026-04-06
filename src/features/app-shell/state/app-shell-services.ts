@@ -64,6 +64,17 @@ export interface AppShellServices {
 const success = <T>(code: string, data?: T): ServiceResult<T> => ({ ok: true, code, data })
 const failure = <T>(code: string, message?: string): ServiceResult<T> => ({ ok: false, code, message })
 
+const mapWorkspaceImportFailureCode = (runtimeCode?: string) => {
+  switch (runtimeCode) {
+    case 'INVALID_IMPORT_PACKAGE':
+      return 'workspace.import_invalid_package'
+    case 'UNSUPPORTED_IMPORT_PACKAGE':
+      return 'workspace.import_unsupported_package'
+    default:
+      return 'workspace.import_failed'
+  }
+}
+
 export const createAppShellServices = (deps: AppShellServiceDeps): AppShellServices => {
   const withWorkbenchBusy = async <T>(operation: () => Promise<ServiceResult<T>>) => {
     deps.store.mutations.setWorkbenchBusy(true)
@@ -358,6 +369,7 @@ export const createAppShellServices = (deps: AppShellServiceDeps): AppShellServi
       }
 
       deps.store.mutations.clearHistory()
+      deps.store.mutations.detachTabsForClearedHistory()
       return success('history.cleared')
     },
     removeHistoryItem: async ({ id }) => {
@@ -372,6 +384,7 @@ export const createAppShellServices = (deps: AppShellServiceDeps): AppShellServi
       }
 
       deps.store.mutations.removeHistoryItem(id)
+      deps.store.mutations.detachTabsForDeletedHistoryItem(id)
       return success('history.removed', { id })
     },
     exportWorkspace: async ({ scope }) => {
@@ -395,7 +408,7 @@ export const createAppShellServices = (deps: AppShellServiceDeps): AppShellServi
     importWorkspace: async ({ packageJson, strategy }) => withWorkbenchBusy(async () => {
       const result = await deps.runtime.importWorkspace(packageJson, strategy)
       if (!result.ok || !result.data) {
-        return failure('workspace.import_failed', result.error?.message)
+        return failure(mapWorkspaceImportFailureCode(result.error?.code), result.error?.message)
       }
 
       const refresh = await refreshRuntimeState(null)

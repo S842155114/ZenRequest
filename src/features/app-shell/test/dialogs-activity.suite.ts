@@ -504,7 +504,6 @@ describe('App workbench shell - dialogs and activity', () => {
     expect(saveRequest).toHaveBeenCalledTimes(1)
     expect(getRequestPanelTabs(wrapper).map((tab) => tab.id)).toEqual(['tab-clean'])
   })
-
   it('marks open tabs as detached drafts when their backing saved request is deleted', async () => {
     window.innerWidth = 1440
 
