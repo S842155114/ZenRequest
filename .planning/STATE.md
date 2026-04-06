@@ -5,30 +5,29 @@
 See: `.planning/PROJECT.md` (updated 2026-04-06)
 
 **Core value:** 让开发者以本地优先、快速、可控的方式完成高频 API 调试与工作流操作，而不被臃肿云平台和账号绑定打断。
-**Current focus:** Phase 7 execution completed and ready for verification/ship
+**Current focus:** v1.0 milestone audit passed and ready for archival
 
 ## Current Artifacts
 
 - Project: `.planning/PROJECT.md`
 - Config: `.planning/config.json`
-- Research summary: `.planning/research/SUMMARY.md`
 - Requirements: `.planning/REQUIREMENTS.md`
 - Roadmap: `.planning/ROADMAP.md`
 - Codebase map: `.planning/codebase/`
+- Milestone audit: `.planning/v1.0-MILESTONE-AUDIT.md`
 
 ## Workflow State
 
 - Project initialized as brownfield workspace
 - Research, requirements, roadmap, and codebase mapping completed
-- Phase 1, Phase 2, Phase 3, Phase 4, and Phase 5 have been implemented and shipped
-- Phase 4 PR created: #29
-- Phase 5 PR created: #30
+- Phase 1 through Phase 7 have been implemented, verified, and merged
+- Phase 4 PR created: `#29`
+- Phase 5 PR created: `#30`
+- Phase 7 PR created and merged: `#31`
 - Internal branch strategy has been documented for main-based delivery
-- Milestone audit created: `.planning/v1.0-MILESTONE-AUDIT.md`
-- Gap closure phases added: Phase 6 and Phase 7
-- Phase 6 completed with validated workspace/import/recovery closure evidence
-- Phase 7 completed with explicit MCP discovery closure, schema lifecycle tightening, taxonomy normalization, and Phase 5 archive-proof backfill
-- Recommended next step: `$gsd-verify-work 7` or milestone re-audit / ship
+- Milestone gap-closure phases (Phase 6 and Phase 7) are complete
+- v1.0 milestone re-audit now passes with requirements and archive-proof evidence aligned
+- Recommended next step: `$gsd-complete-milestone 1.0`
 
 ## Branch Strategy
 
@@ -43,4 +42,4 @@ Recommended branch names:
 - `gsd/phase-XX-short-name`
 
 ---
-*Last updated: 2026-04-06 after Phase 7 execution*
+*Last updated: 2026-04-06 after Phase 7 merge and v1.0 re-audit*
