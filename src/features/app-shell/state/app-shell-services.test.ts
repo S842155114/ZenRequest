@@ -285,7 +285,7 @@ describe('app-shell services', () => {
       code: 'request.send_failed',
     })
     expect(result.message).toContain('send_mcp_request is not implemented yet')
-    expect(result.message).toContain('Check the request configuration and network target')
+    expect(result.message).toContain('Check the selected tool, arguments, and server tool response')
     expect(runtime.sendRequest).not.toHaveBeenCalled()
     expect(runtime.sendMcpRequest).toHaveBeenCalledWith('workspace-1', 'env-local', payload)
     expect(state.request.openTabs[0]).toMatchObject({
@@ -294,6 +294,337 @@ describe('app-shell services', () => {
     })
     expect(state.request.openTabs[0]?.response.responseBody).toContain('NOT_IMPLEMENTED')
     expect(state.request.openTabs[0]?.response.responseBody).toContain('send_mcp_request is not implemented yet')
+  })
+
+  it('classifies mcp transport failures with transport guidance', async () => {
+    const state = reactive(createInitialAppShellState())
+    state.workspace.items = [{ id: 'workspace-1', name: 'Primary Workspace' }]
+    state.workspace.activeId = 'workspace-1'
+    state.environment.items = [{ id: 'env-local', name: 'Local', variables: [] }]
+    state.environment.activeId = 'env-local'
+
+    const tab = createRequestTabFromPreset(defaultRequestPreset)
+    tab.id = 'tab-mcp-transport'
+    tab.requestKind = 'mcp'
+    tab.mcp = {
+      connection: {
+        transport: 'http',
+        baseUrl: 'https://example.com/mcp',
+        headers: [],
+        auth: {
+          type: 'none',
+          bearerToken: '',
+          username: '',
+          password: '',
+          apiKeyKey: 'X-API-Key',
+          apiKeyValue: '',
+          apiKeyPlacement: 'header',
+        },
+      },
+      operation: {
+        type: 'initialize',
+        input: { clientName: 'ZenRequest', clientVersion: '0.1.0' },
+      },
+    }
+    state.request.openTabs = [tab]
+    state.request.activeTabId = tab.id
+
+    const store = createAppShellStore(state)
+    const runtime = {
+      sendRequest: vi.fn(async () => ({ ok: true, data: {} })),
+      sendMcpRequest: vi.fn(async () => ({
+        ok: false,
+        error: { code: 'MCP_REQUEST_FAILED', message: 'connect ECONNREFUSED' },
+      })),
+    } as const
+
+    const services = createAppShellServices({ runtime: runtime as never, store })
+    const result = await services.sendRequest({
+      payload: {
+        tabId: tab.id,
+        requestKind: 'mcp',
+        mcp: tab.mcp,
+        requestId: tab.requestId,
+        name: tab.name,
+        description: tab.description,
+        tags: tab.tags,
+        collectionName: tab.collectionName,
+        method: tab.method,
+        url: tab.mcp.connection.baseUrl,
+        params: [],
+        headers: [],
+        body: '',
+        bodyType: 'json',
+        auth: tab.auth,
+        tests: [],
+        executionOptions: tab.executionOptions,
+      },
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.message).toContain('Check MCP transport connectivity')
+    expect(state.request.openTabs[0]?.response.responseBody).toContain('"layer": "transport"')
+  })
+
+  it('classifies protocol-level mcp failures as session errors when server reports initialize/session issues', async () => {
+    const state = reactive(createInitialAppShellState())
+    state.workspace.items = [{ id: 'workspace-1', name: 'Primary Workspace' }]
+    state.workspace.activeId = 'workspace-1'
+    state.environment.items = [{ id: 'env-local', name: 'Local', variables: [] }]
+    state.environment.activeId = 'env-local'
+
+    const tab = createRequestTabFromPreset(defaultRequestPreset)
+    tab.id = 'tab-mcp-session'
+    tab.requestKind = 'mcp'
+    tab.mcp = {
+      connection: {
+        transport: 'http',
+        baseUrl: 'https://example.com/mcp',
+        headers: [],
+        auth: {
+          type: 'none',
+          bearerToken: '',
+          username: '',
+          password: '',
+          apiKeyKey: 'X-API-Key',
+          apiKeyValue: '',
+          apiKeyPlacement: 'header',
+        },
+        sessionId: 'session-1',
+      },
+      operation: {
+        type: 'tools.call',
+        input: { toolName: 'search', arguments: { q: 'zen' } },
+      },
+    }
+    state.request.openTabs = [tab]
+    state.request.activeTabId = tab.id
+
+    const store = createAppShellStore(state)
+    const runtime = {
+      sendRequest: vi.fn(async () => ({ ok: true, data: {} })),
+      sendMcpRequest: vi.fn(async () => ({
+        ok: false,
+        error: { code: 'MCP_SESSION_INVALID', message: 'Server session is not initialized' },
+      })),
+    } as const
+
+    const services = createAppShellServices({ runtime: runtime as never, store })
+    const result = await services.sendRequest({
+      payload: {
+        tabId: tab.id,
+        requestKind: 'mcp',
+        mcp: tab.mcp,
+        requestId: tab.requestId,
+        name: tab.name,
+        description: tab.description,
+        tags: tab.tags,
+        collectionName: tab.collectionName,
+        method: tab.method,
+        url: tab.mcp.connection.baseUrl,
+        params: [],
+        headers: [],
+        body: '',
+        bodyType: 'json',
+        auth: tab.auth,
+        tests: [],
+        executionOptions: tab.executionOptions,
+      },
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.message).toContain('Re-run initialize')
+    expect(state.request.openTabs[0]?.response.responseBody).toContain('"layer": "session"')
+  })
+
+  it('preserves sse-style initialize responses as parsed mcp protocol payloads', async () => {
+    const state = reactive(createInitialAppShellState())
+    state.workspace.items = [{ id: 'workspace-1', name: 'Primary Workspace' }]
+    state.workspace.activeId = 'workspace-1'
+    state.environment.items = [{ id: 'env-local', name: 'Local', variables: [] }]
+    state.environment.activeId = 'env-local'
+
+    const tab = createRequestTabFromPreset(defaultRequestPreset)
+    tab.id = 'tab-mcp-init'
+    tab.requestKind = 'mcp'
+    tab.mcp = {
+      connection: {
+        transport: 'http',
+        baseUrl: 'https://example.com/mcp',
+        headers: [],
+        auth: {
+          type: 'none',
+          bearerToken: '',
+          username: '',
+          password: '',
+          apiKeyKey: 'X-API-Key',
+          apiKeyValue: '',
+          apiKeyPlacement: 'header',
+        },
+      },
+      operation: {
+        type: 'initialize',
+        input: { clientName: 'ZenRequest', clientVersion: '0.1.0' },
+      },
+    }
+    state.request.openTabs = [tab]
+    state.request.activeTabId = tab.id
+
+    const store = createAppShellStore(state)
+    const runtime = {
+      sendRequest: vi.fn(async () => ({ ok: true, data: {} })),
+      sendMcpRequest: vi.fn(async () => ({
+        ok: true,
+        data: {
+          requestMethod: 'POST',
+          requestUrl: 'https://example.com/mcp',
+          status: 200,
+          statusText: 'OK',
+          elapsedMs: 8,
+          sizeBytes: 120,
+          contentType: 'text/event-stream',
+          responseBody: 'event: message\ndata: {"jsonrpc":"2.0","id":"test:init","result":{"protocolVersion":"2024-11-05"}}',
+          headers: [{ key: 'mcp-session-id', value: 'session-1' }],
+          truncated: false,
+          executionSource: 'live',
+          mcpArtifact: {
+            transport: 'http',
+            operation: 'initialize',
+            sessionId: 'session-1',
+            protocolRequest: { method: 'initialize' },
+            protocolResponse: {
+              jsonrpc: '2.0',
+              id: 'test:init',
+              result: { protocolVersion: '2024-11-05' },
+            },
+          },
+        },
+      })),
+    } as const
+
+    const services = createAppShellServices({ runtime: runtime as never, store })
+    const result = await services.sendRequest({
+      payload: {
+        tabId: tab.id,
+        requestKind: 'mcp',
+        mcp: tab.mcp,
+        requestId: tab.requestId,
+        name: tab.name,
+        description: tab.description,
+        tags: tab.tags,
+        collectionName: tab.collectionName,
+        method: tab.method,
+        url: tab.mcp.connection.baseUrl,
+        params: [],
+        headers: [],
+        body: '',
+        bodyType: 'json',
+        auth: tab.auth,
+        tests: [],
+        executionOptions: tab.executionOptions,
+      },
+    })
+
+    expect(result.ok).toBe(true)
+    expect(state.request.openTabs[0]?.mcp?.connection.sessionId).toBe('session-1')
+    expect(state.request.openTabs[0]?.response.mcpArtifact?.sessionId).toBe('session-1')
+    expect(state.request.openTabs[0]?.response.mcpArtifact?.protocolResponse).toEqual({
+      jsonrpc: '2.0',
+      id: 'test:init',
+      result: { protocolVersion: '2024-11-05' },
+    })
+  })
+
+  it('keeps initialize session context for follow-up tools.list style requests', async () => {
+    const state = reactive(createInitialAppShellState())
+    state.workspace.items = [{ id: 'workspace-1', name: 'Primary Workspace' }]
+    state.workspace.activeId = 'workspace-1'
+    state.environment.items = [{ id: 'env-local', name: 'Local', variables: [] }]
+    state.environment.activeId = 'env-local'
+
+    const tab = createRequestTabFromPreset(defaultRequestPreset)
+    tab.id = 'tab-mcp-tools-list'
+    tab.requestKind = 'mcp'
+    tab.mcp = {
+      connection: {
+        transport: 'http',
+        baseUrl: 'https://example.com/mcp',
+        headers: [],
+        auth: {
+          type: 'none',
+          bearerToken: '',
+          username: '',
+          password: '',
+          apiKeyKey: 'X-API-Key',
+          apiKeyValue: '',
+          apiKeyPlacement: 'header',
+        },
+        sessionId: 'session-1',
+      },
+      operation: {
+        type: 'tools.list',
+        input: { cursor: '' },
+      },
+    }
+    state.request.openTabs = [tab]
+    state.request.activeTabId = tab.id
+
+    const store = createAppShellStore(state)
+    const runtime = {
+      sendRequest: vi.fn(async () => ({ ok: true, data: {} })),
+      sendMcpRequest: vi.fn(async (_workspaceId, _envId, payload) => ({
+        ok: true,
+        data: {
+          requestMethod: 'POST',
+          requestUrl: 'https://example.com/mcp',
+          status: 200,
+          statusText: 'OK',
+          elapsedMs: 9,
+          sizeBytes: 64,
+          contentType: 'application/json',
+          responseBody: '{"result":{"tools":[]}}',
+          headers: [],
+          truncated: false,
+          executionSource: 'live',
+          mcpArtifact: {
+            transport: 'http',
+            operation: 'tools.list',
+            sessionId: payload.mcp.connection.sessionId,
+            protocolResponse: { result: { tools: [] } },
+          },
+        },
+      })),
+    } as const
+
+    const services = createAppShellServices({ runtime: runtime as never, store })
+    const result = await services.sendRequest({
+      payload: {
+        tabId: tab.id,
+        requestKind: 'mcp',
+        mcp: tab.mcp,
+        requestId: tab.requestId,
+        name: tab.name,
+        description: tab.description,
+        tags: tab.tags,
+        collectionName: tab.collectionName,
+        method: tab.method,
+        url: tab.mcp.connection.baseUrl,
+        params: [],
+        headers: [],
+        body: '',
+        bodyType: 'json',
+        auth: tab.auth,
+        tests: [],
+        executionOptions: tab.executionOptions,
+      },
+    })
+
+    expect(result.ok).toBe(true)
+    expect(runtime.sendMcpRequest).toHaveBeenCalledWith('workspace-1', 'env-local', expect.objectContaining({
+      mcp: expect.objectContaining({
+        connection: expect.objectContaining({ sessionId: 'session-1' }),
+      }),
+    }))
   })
 
   it('preserves runtime-provided mcp history items after a successful send', async () => {
@@ -425,9 +756,11 @@ describe('app-shell services', () => {
         operation: 'tools.call',
         transport: 'http',
         errorCategory: 'protocol',
+        toolName: 'search',
       },
     })
     expect(state.request.historyItems[0]?.requestSnapshot?.requestKind).toBe('mcp')
+    expect(state.request.historyItems[0]?.mcpArtifact?.operation).toBe('tools.call')
   })
 
   it('preserves cached mcp tools after a tools.call response omits the tool list', async () => {

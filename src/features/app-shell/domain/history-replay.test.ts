@@ -121,4 +121,107 @@ describe('history-replay domain', () => {
     expect(tab.origin?.historyItemId).toBe('history-orders-2')
     expect(tab.persistenceState).toBe('unsaved')
   })
+
+  it('preserves mcp protocol context when replaying mcp history', () => {
+    const item: HistoryItem = {
+      id: 'history-mcp-1',
+      requestId: 'request-mcp-1',
+      name: 'MCP Search',
+      method: 'POST',
+      time: '12 ms',
+      status: 200,
+      url: 'https://example.com/mcp',
+      responsePreview: '{"result":true}',
+      requestSnapshot: {
+        tabId: 'tab-mcp-1',
+        requestId: 'request-mcp-1',
+        requestKind: 'mcp',
+        mcp: {
+          connection: {
+            transport: 'http',
+            baseUrl: 'https://example.com/mcp',
+            headers: [],
+            auth: {
+              type: 'none',
+              bearerToken: '',
+              username: '',
+              password: '',
+              apiKeyKey: 'X-API-Key',
+              apiKeyValue: '',
+              apiKeyPlacement: 'header',
+            },
+            sessionId: 'session-1',
+          },
+          operation: {
+            type: 'tools.call',
+            input: {
+              toolName: 'search',
+              arguments: { q: 'zen' },
+            },
+          },
+        },
+        name: 'MCP Search',
+        description: 'Replay me',
+        tags: ['mcp'],
+        collectionName: 'Scratch Pad',
+        method: 'POST',
+        url: 'https://example.com/mcp',
+        params: [],
+        headers: [],
+        body: '',
+        bodyType: 'json',
+        auth: {
+          type: 'none',
+          bearerToken: '',
+          username: '',
+          password: '',
+          apiKeyKey: 'X-API-Key',
+          apiKeyValue: '',
+          apiKeyPlacement: 'header',
+        },
+        tests: [],
+      },
+      mcpArtifact: {
+        transport: 'http',
+        operation: 'tools.call',
+        protocolRequest: { method: 'tools/call' },
+        protocolResponse: { result: { content: [] } },
+        selectedTool: {
+          name: 'search',
+          inputSchema: {
+            type: 'object',
+            properties: { q: { type: 'string' } },
+          },
+        },
+        cachedTools: [
+          {
+            name: 'search',
+            inputSchema: {
+              type: 'object',
+              properties: { q: { type: 'string' } },
+            },
+          },
+        ],
+      },
+      mcpSummary: {
+        operation: 'tools.call',
+        transport: 'http',
+        toolName: 'search',
+        sessionId: 'session-1',
+      },
+    }
+
+    const tab = buildHistoryReplayDraft({
+      item,
+      collections: [],
+      recoveredDescription: 'Recovered MCP',
+      historyTag: 'history',
+    })
+
+    expect(tab.requestKind).toBe('mcp')
+    expect(tab.mcp?.operation.type).toBe('tools.call')
+    expect(tab.mcp?.connection.sessionId).toBe('session-1')
+    expect(tab.response.mcpArtifact?.selectedTool?.name).toBe('search')
+    expect(tab.response.mcpArtifact?.cachedTools?.[0]?.name).toBe('search')
+  })
 })

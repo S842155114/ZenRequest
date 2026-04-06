@@ -134,7 +134,7 @@ export interface AppShellStore {
     detachTabsForClearedHistory: () => void
     applySendPending: (payload: SendRequestPayload) => void
     applySendSuccess: (input: SendSuccessInput) => void
-    applySendFailure: (input: { payload: SendRequestPayload; message: string }) => void
+    applySendFailure: (input: { payload: SendRequestPayload; message: string; responseBody?: string }) => void
   }
 }
 
@@ -505,6 +505,15 @@ export const createAppShellStore = (state: AppShellState): AppShellStore => {
 
         return {
         ...tab,
+        mcp: input.payload.requestKind === 'mcp' && tab.mcp
+          ? {
+            ...tab.mcp,
+            connection: {
+              ...tab.mcp.connection,
+              sessionId: nextMcpArtifact?.sessionId ?? tab.mcp.connection.sessionId,
+            },
+          }
+          : tab.mcp,
         isSending: false,
         executionState: resolveResponseStateFromStatus(status),
         response: {
@@ -528,7 +537,21 @@ export const createAppShellStore = (state: AppShellState): AppShellStore => {
       })
 
       if (input.response.historyItem) {
-        mutations.prependHistoryItem(input.response.historyItem)
+        mutations.prependHistoryItem({
+          ...input.response.historyItem,
+          mcpArtifact: input.response.historyItem.mcpArtifact ?? mcpArtifact,
+          mcpSummary: input.response.historyItem.mcpSummary
+            ? {
+              ...input.response.historyItem.mcpSummary,
+              toolName: input.response.historyItem.mcpSummary.toolName
+                ?? (input.payload.mcp?.operation.type === 'tools.call'
+                  ? input.payload.mcp.operation.input.toolName
+                  : undefined),
+              sessionId: input.response.historyItem.mcpSummary.sessionId
+                ?? input.payload.mcp?.connection.sessionId,
+            }
+            : undefined,
+        })
       } else if (input.payload.requestKind !== 'mcp') {
         mutations.prependHistoryItem(createHistoryEntry({
           requestId: input.payload.requestId,
@@ -549,6 +572,7 @@ export const createAppShellStore = (state: AppShellState): AppShellStore => {
         mutations.prependHistoryItem(createHistoryEntry({
           requestId: input.payload.requestId,
           requestSnapshot: input.payload,
+          mcpArtifact,
           name: input.payload.name,
           method: input.response.requestMethod || input.payload.method,
           url: input.response.requestUrl || input.payload.url,
@@ -557,6 +581,10 @@ export const createAppShellStore = (state: AppShellState): AppShellStore => {
             operation: mcpArtifact.operation,
             transport: mcpArtifact.transport,
             errorCategory: mcpArtifact.errorCategory,
+            toolName: input.payload.mcp?.operation.type === 'tools.call'
+              ? input.payload.mcp.operation.input.toolName
+              : undefined,
+            sessionId: input.payload.mcp?.connection.sessionId,
           },
         }))
       }

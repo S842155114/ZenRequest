@@ -141,6 +141,7 @@ const cloneMcpExecutionArtifact = (artifact?: McpExecutionArtifact): McpExecutio
   artifact
     ? {
       ...artifact,
+      sessionId: artifact.sessionId,
       protocolRequest: artifact.protocolRequest ? clonePlainData(artifact.protocolRequest) : undefined,
       protocolResponse: artifact.protocolResponse ? clonePlainData(artifact.protocolResponse) : undefined,
       selectedTool: artifact.selectedTool
@@ -515,6 +516,7 @@ export const createHistoryEntry = (payload: {
   requestId?: string
   requestSnapshot?: HistoryItem['requestSnapshot']
   executionSource?: HistoryItem['executionSource']
+  mcpArtifact?: HistoryItem['mcpArtifact']
   name: string
   method: string
   url: string
@@ -530,6 +532,7 @@ export const createHistoryEntry = (payload: {
   url: payload.url,
   requestSnapshot: payload.requestSnapshot ? clonePlainData(payload.requestSnapshot) : undefined,
   executionSource: payload.executionSource ?? 'live',
+  mcpArtifact: payload.mcpArtifact ? cloneMcpExecutionArtifact(payload.mcpArtifact) : undefined,
   mcpSummary: payload.mcpSummary ? { ...payload.mcpSummary } : undefined,
 })
 
@@ -644,6 +647,7 @@ export const createResponseStateFromHistoryItem = (
   requestUrl: string,
 ): ResponseState => defaultResponseState({
   requestKind: item.requestSnapshot?.requestKind ?? 'http',
+  mcpArtifact: cloneMcpExecutionArtifact(item.mcpArtifact),
   responseBody: item.responsePreview || defaultResponseState().responseBody,
   status: item.status,
   statusText: item.statusText || 'OK',

@@ -88,6 +88,14 @@ fn build_headers(payload: &SendMcpRequestPayloadDto) -> Result<HeaderMap, AppErr
         headers.insert(name, value);
     }
 
+    if let Some(session_id) = &payload.mcp.connection.session_id {
+        if !session_id.trim().is_empty() {
+            let value = HeaderValue::from_str(session_id.trim())
+                .map_err(|_| error("INVALID_MCP_SESSION", "invalid mcp session id"))?;
+            headers.insert(HeaderName::from_static("mcp-session-id"), value);
+        }
+    }
+
     match payload.mcp.connection.auth.r#type.as_str() {
         "bearer" if !payload.mcp.connection.auth.bearer_token.trim().is_empty() => {
             let value = format!("Bearer {}", payload.mcp.connection.auth.bearer_token.trim());
@@ -110,6 +118,56 @@ fn build_headers(payload: &SendMcpRequestPayloadDto) -> Result<HeaderMap, AppErr
     }
 
     Ok(headers)
+}
+
+fn extract_sse_payload(response_text: &str) -> Option<Value> {
+    let data_lines = response_text
+        .lines()
+        .filter_map(|line| line.strip_prefix("data:"))
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>();
+
+    if data_lines.is_empty() {
+        return None;
+    }
+
+    let joined = data_lines.join("\n");
+    serde_json::from_str::<Value>(&joined).ok()
+}
+
+fn classify_protocol_error(status_code: u16, protocol_response: &Value) -> Option<String> {
+    if status_code >= 400 {
+        let message = protocol_response
+            .get("error")
+            .and_then(|error| error.get("message"))
+            .and_then(|value| value.as_str())
+            .unwrap_or("")
+            .to_lowercase();
+
+        if message.contains("not initialized") || message.contains("initialize") || message.contains("session") {
+            return Some("session".to_string());
+        }
+
+        return Some("transport".to_string());
+    }
+
+    if protocol_response.get("error").is_some() {
+        let message = protocol_response
+            .get("error")
+            .and_then(|error| error.get("message"))
+            .and_then(|value| value.as_str())
+            .unwrap_or("")
+            .to_lowercase();
+
+        if message.contains("not initialized") || message.contains("initialize") || message.contains("session") {
+            return Some("session".to_string());
+        }
+
+        return Some("tool-call".to_string());
+    }
+
+    None
 }
 
 pub async fn execute_mcp_request(payload: &SendMcpRequestPayloadDto) -> Result<SendMcpRequestResultDto, AppError> {
@@ -149,6 +207,11 @@ pub async fn execute_mcp_request(payload: &SendMcpRequestPayloadDto) -> Result<S
         .and_then(|value| value.to_str().ok())
         .unwrap_or("application/json")
         .to_string();
+    let session_id = response
+        .headers()
+        .get("mcp-session-id")
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.to_string());
     let headers = response
         .headers()
         .iter()
@@ -162,7 +225,12 @@ pub async fn execute_mcp_request(payload: &SendMcpRequestPayloadDto) -> Result<S
         .await
         .map_err(|err| error("MCP_READ_BODY_FAILED", err.to_string()))?;
     let size_bytes = response_text.as_bytes().len();
-    let protocol_response = serde_json::from_str::<Value>(&response_text).unwrap_or_else(|_| Value::String(response_text.clone()));
+    let protocol_response = if content_type.contains("text/event-stream") {
+        extract_sse_payload(&response_text).unwrap_or_else(|| Value::String(response_text.clone()))
+    } else {
+        serde_json::from_str::<Value>(&response_text).unwrap_or_else(|_| Value::String(response_text.clone()))
+    };
+    let error_category = classify_protocol_error(status_code, &protocol_response);
 
     Ok(SendMcpRequestResultDto {
         request_method: "POST".to_string(),
@@ -185,11 +253,8 @@ pub async fn execute_mcp_request(payload: &SendMcpRequestPayloadDto) -> Result<S
                 McpOperationInputDto::ToolsCall { input } => input.schema.clone(),
                 _ => None,
             },
-            error_category: if status_code >= 400 {
-                Some("transport".to_string())
-            } else {
-                None
-            },
+            session_id,
+            error_category,
         }),
         history_item: None,
     })
