@@ -129,6 +129,82 @@ describe('app-shell services', () => {
     expect(runtime.sendRequest).not.toHaveBeenCalled()
   })
 
+
+  it('maps runtime request failures to structured advice', async () => {
+    const state = reactive(createInitialAppShellState())
+    state.workspace.items = [{ id: 'workspace-1', name: 'Primary Workspace' }]
+    state.workspace.activeId = 'workspace-1'
+    state.environment.items = [{ id: 'env-local', name: 'Local', variables: [
+      { key: 'baseUrl', value: 'https://example.com', enabled: true },
+    ] }]
+    state.environment.activeId = 'env-local'
+
+    const tab = createRequestTabFromPreset(defaultRequestPreset)
+    tab.id = 'tab-http-runtime-error'
+    tab.url = 'https://example.com/orders'
+    state.request.openTabs = [tab]
+    state.request.activeTabId = tab.id
+
+    const store = createAppShellStore(state)
+    const runtime = {
+      sendRequest: vi.fn(async () => ({
+        ok: false,
+        error: { code: 'DB_WRITE_FAILED', message: 'Failed to persist request history' },
+      })),
+      sendMcpRequest: vi.fn(async () => ({ ok: true, data: {} })),
+    } as const
+
+    const services = createAppShellServices({ runtime: runtime as never, store })
+    const result = await services.sendRequest({
+      payload: {
+        tabId: tab.id,
+        requestKind: 'http',
+        requestId: tab.requestId,
+        name: tab.name,
+        description: tab.description,
+        tags: tab.tags,
+        collectionName: tab.collectionName,
+        method: tab.method,
+        url: tab.url,
+        params: [],
+        headers: [],
+        body: tab.body,
+        bodyType: tab.bodyType,
+        auth: tab.auth,
+        tests: tab.tests,
+        executionOptions: tab.executionOptions,
+      },
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.message).toContain('Failed to persist request history')
+    expect(result.message).toContain('Check local data health')
+    expect(state.request.openTabs[0]?.response.responseBody).toContain('DB_WRITE_FAILED')
+    expect(state.request.openTabs[0]?.response.responseBody).toContain('Check local data health')
+  })
+
+  it('maps bootstrap failures to degraded startup advice', async () => {
+    const state = reactive(createInitialAppShellState())
+    const store = createAppShellStore(state)
+    const runtime = {
+      bootstrapApp: vi.fn(async () => ({
+        ok: false,
+        error: { code: 'SNAPSHOT_RESTORE_FAILED', message: 'Snapshot could not be restored' },
+      })),
+    } as const
+
+    const services = createAppShellServices({ runtime: runtime as never, store })
+    const result = await services.bootstrapApp()
+
+    expect(result).toMatchObject({
+      ok: false,
+      code: 'runtime.bootstrap_failed',
+    })
+    expect(state.runtime.startupState).toBe('degraded')
+    expect(state.runtime.startupErrorMessage).toContain('Snapshot could not be restored')
+    expect(state.runtime.startupErrorMessage).toContain('Retry startup')
+  })
+
   it('propagates runtime failures for mcp sends', async () => {
     const state = reactive(createInitialAppShellState())
     state.workspace.items = [{ id: 'workspace-1', name: 'Primary Workspace' }]
@@ -207,14 +283,16 @@ describe('app-shell services', () => {
     expect(result).toMatchObject({
       ok: false,
       code: 'request.send_failed',
-      message: 'send_mcp_request is not implemented yet',
     })
+    expect(result.message).toContain('send_mcp_request is not implemented yet')
+    expect(result.message).toContain('Check the request configuration and network target')
     expect(runtime.sendRequest).not.toHaveBeenCalled()
     expect(runtime.sendMcpRequest).toHaveBeenCalledWith('workspace-1', 'env-local', payload)
     expect(state.request.openTabs[0]).toMatchObject({
       isSending: false,
       executionState: 'transport-error',
     })
+    expect(state.request.openTabs[0]?.response.responseBody).toContain('NOT_IMPLEMENTED')
     expect(state.request.openTabs[0]?.response.responseBody).toContain('send_mcp_request is not implemented yet')
   })
 
@@ -782,8 +860,9 @@ describe('app-shell services', () => {
     expect(result).toMatchObject({
       ok: false,
       code: 'request.send_failed',
-      message: 'HTTP request completed without a history snapshot',
     })
+    expect(result.message).toContain('HTTP request completed without a history snapshot')
+    expect(result.message).toContain('Check local data health')
   })
 
   it('prepends newest history item first across repeated successful sends', async () => {

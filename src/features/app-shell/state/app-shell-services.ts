@@ -1,6 +1,7 @@
 import { runtimeClient } from '@/lib/tauri-client'
 import type {
   AppBootstrapPayload as RuntimeBootstrapPayload,
+  AppError,
   ExportPackageScope,
   ImportConflictStrategy,
   OpenApiImportAnalysis,
@@ -76,6 +77,46 @@ const mapWorkspaceImportFailureCode = (runtimeCode?: string) => {
   }
 }
 
+const classifyErrorFamily = (runtimeCode?: string) => {
+  const normalized = runtimeCode?.trim().toUpperCase() ?? ''
+  if (!normalized) return 'request'
+  if (normalized.includes('IMPORT')) return 'import'
+  if (normalized.includes('EXPORT')) return 'import'
+  if (normalized.includes('BOOTSTRAP') || normalized.includes('STARTUP') || normalized.includes('SNAPSHOT') || normalized.includes('RESTORE')) return 'recovery'
+  if (normalized.includes('DB') || normalized.includes('SQLITE') || normalized.includes('STORAGE') || normalized.includes('HISTORY') || normalized.includes('PERSIST')) return 'persistence'
+  return 'request'
+}
+
+const buildRecoveryAdvice = (family: ReturnType<typeof classifyErrorFamily>) => {
+  switch (family) {
+    case 'import':
+      return 'Check the import file format or conflict strategy, then retry.'
+    case 'persistence':
+      return 'Check local data health or retry the action after reopening the workspace.'
+    case 'recovery':
+      return 'Retry startup. If it persists, rebuild the workspace from a known-good export.'
+    default:
+      return 'Check the request configuration and network target, then retry.'
+  }
+}
+
+const formatStructuredErrorMessage = (error?: AppError, fallback = 'Unexpected failure') => {
+  const family = classifyErrorFamily(error?.code)
+  const baseMessage = error?.message?.trim() || fallback
+  const advice = buildRecoveryAdvice(family)
+  return {
+    family,
+    code: error?.code ?? 'UNKNOWN_ERROR',
+    message: `${baseMessage} ${advice}`,
+    responseBody: JSON.stringify({
+      error: family,
+      code: error?.code ?? 'UNKNOWN_ERROR',
+      message: baseMessage,
+      advice,
+    }, null, 2),
+  }
+}
+
 export const createAppShellServices = (deps: AppShellServiceDeps): AppShellServices => {
   const withWorkbenchBusy = async <T>(operation: () => Promise<ServiceResult<T>>) => {
     deps.store.mutations.setWorkbenchBusy(true)
@@ -94,8 +135,9 @@ export const createAppShellServices = (deps: AppShellServiceDeps): AppShellServi
 
     const bootstrapResult = await deps.runtime.bootstrapApp(snapshot)
     if (!bootstrapResult.ok || !bootstrapResult.data) {
-      deps.store.mutations.setStartupState('degraded', bootstrapResult.error?.message ?? 'Failed to restore workspace state')
-      return failure('runtime.bootstrap_failed', bootstrapResult.error?.message)
+      const structured = formatStructuredErrorMessage(bootstrapResult.error, 'Failed to restore workspace state')
+      deps.store.mutations.setStartupState('degraded', structured.message)
+      return failure('runtime.bootstrap_failed', structured.message)
     }
 
     deps.store.mutations.applyBootstrapPayload(bootstrapResult.data)
@@ -535,18 +577,30 @@ export const createAppShellServices = (deps: AppShellServiceDeps): AppShellServi
           : await deps.runtime.sendRequest(workspaceId, activeEnvironmentId, resolvedPayload)
 
         if (!response.ok || !response.data) {
-          const message = response.error?.message || (payload.requestKind === 'mcp'
-            ? 'send_mcp_request failed'
-            : 'send_request failed')
-          throw new Error(message)
+          const structured = formatStructuredErrorMessage(
+            response.error,
+            payload.requestKind === 'mcp' ? 'send_mcp_request failed' : 'send_request failed',
+          )
+          deps.store.mutations.applySendFailure({
+            payload,
+            message: structured.message,
+            responseBody: structured.responseBody,
+          })
+          return failure('request.send_failed', structured.message)
         }
 
         if (payload.requestKind !== 'mcp' && !response.data.historyItem && !('executionArtifact' in response.data && response.data.executionArtifact)) {
-          throw new Error(payload.requestKind === 'mcp'
-            ? 'MCP request completed without a history snapshot'
-            : 'HTTP request completed without a history snapshot')
+          const structured = formatStructuredErrorMessage({
+            code: 'PERSISTENCE_HISTORY_MISSING',
+            message: 'HTTP request completed without a history snapshot',
+          }, 'HTTP request completed without a history snapshot')
+          deps.store.mutations.applySendFailure({
+            payload,
+            message: structured.message,
+            responseBody: structured.responseBody,
+          })
+          return failure('request.send_failed', structured.message)
         }
-
 
         deps.store.mutations.applySendSuccess({
           payload,
@@ -558,12 +612,16 @@ export const createAppShellServices = (deps: AppShellServiceDeps): AppShellServi
           response: response.data,
         })
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
+        const structured = formatStructuredErrorMessage(
+          error instanceof Error ? { code: 'TAURI_INVOKE_ERROR', message: error.message } : undefined,
+          error instanceof Error ? error.message : String(error),
+        )
         deps.store.mutations.applySendFailure({
           payload,
-          message,
+          message: structured.message,
+          responseBody: structured.responseBody,
         })
-        return failure('request.send_failed', message)
+        return failure('request.send_failed', structured.message)
       }
     },
   }

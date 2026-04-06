@@ -562,16 +562,17 @@ export const createAppShellStore = (state: AppShellState): AppShellStore => {
       }
     },
     applySendFailure: (input) => {
+      const responseBody = input.responseBody ?? JSON.stringify({ error: 'Request failed', message: input.message }, null, 2)
       mutations.updateTab(input.payload.tabId, (tab) => ({
         ...tab,
         isSending: false,
         executionState: 'transport-error',
         response: {
-          responseBody: JSON.stringify({ error: 'Request failed', message: input.message }, null, 2),
+          responseBody,
           status: 0,
           statusText: 'ERROR',
           time: '0 ms',
-          size: formatBytes(new TextEncoder().encode(input.message).length),
+          size: formatBytes(new TextEncoder().encode(responseBody).length),
           headers: [],
           contentType: 'application/json',
           requestMethod: input.payload.method,
