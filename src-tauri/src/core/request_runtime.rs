@@ -88,6 +88,33 @@ fn resolve_auth(auth: &AuthConfigDto, variables: &HashMap<String, String>) -> Au
     }
 }
 
+
+fn is_redacted_secret_value(value: &str) -> bool {
+    value.trim() == "[REDACTED]"
+}
+
+fn validate_compiled_auth(auth: &AuthConfigDto) -> Result<(), AppError> {
+    match auth.r#type.as_str() {
+        "bearer" if is_redacted_secret_value(&auth.bearer_token) => Err(error(
+            "REDACTED_SECRET",
+            "bearer token is redacted and must be replaced before sending",
+        )),
+        "basic"
+            if is_redacted_secret_value(&auth.username)
+                || is_redacted_secret_value(&auth.password) => Err(error(
+            "REDACTED_SECRET",
+            "basic auth credentials are redacted and must be replaced before sending",
+        )),
+        "apiKey"
+            if is_redacted_secret_value(&auth.api_key_key)
+                || is_redacted_secret_value(&auth.api_key_value) => Err(error(
+            "REDACTED_SECRET",
+            "API key credentials are redacted and must be replaced before sending",
+        )),
+        _ => Ok(()),
+    }
+}
+
 fn resolve_tests(
     tests: &[RequestTestDefinitionDto],
     variables: &HashMap<String, String>,
@@ -161,6 +188,8 @@ pub fn compile_request(
     let variables = resolve_variables_map(environment_variables);
     let url = resolve_template(&payload.url, &variables);
     let protocol_key = resolve_protocol_key(&url)?;
+    let auth = resolve_auth(&payload.auth, &variables);
+    validate_compiled_auth(&auth)?;
 
     Ok(CompiledRequestDto {
         protocol_key,
@@ -169,7 +198,7 @@ pub fn compile_request(
         params: resolve_items(&payload.params, &variables),
         headers: resolve_items(&payload.headers, &variables),
         body: resolve_body(&payload.body, &variables),
-        auth: resolve_auth(&payload.auth, &variables),
+        auth,
         tests: resolve_tests(&payload.tests, &variables),
         execution_options: payload.execution_options.clone(),
     })

@@ -22,7 +22,7 @@ import type {
 } from '@/lib/tauri-client'
 import type { StartupState } from '../types'
 import { createWorkbenchActivityProjection } from '../domain/request-activity'
-import { resolveActiveRequestUrl } from '../domain/url-resolution'
+import { resolveActiveRequestUrl, resolveHttpRequestDraft } from '../domain/url-resolution'
 import {
   HISTORY_LIMIT,
   cloneAuth,
@@ -201,7 +201,13 @@ export const createAppShellStore = (state: AppShellState): AppShellStore => {
       const activeTab = selectors.getActiveTab()
       const activeEnvironment = selectors.getActiveEnvironment()
       if (!activeTab || !activeEnvironment) return ''
-      return resolveActiveRequestUrl(activeTab.url, activeEnvironment.variables)
+      return resolveHttpRequestDraft({
+        url: activeTab.url,
+        params: activeTab.params,
+        headers: activeTab.headers,
+        auth: activeTab.auth,
+        variables: activeEnvironment.variables,
+      }).url
     },
     canDeleteWorkspace: () => state.workspace.items.length > 1,
     canImportOpenApi: () => {

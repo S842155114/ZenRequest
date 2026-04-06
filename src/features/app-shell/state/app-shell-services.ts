@@ -18,6 +18,7 @@ import type {
   WorkspaceSnapshot,
 } from '@/types/request'
 import { cloneCollection, cloneEnvironment, cloneItems, cloneTab, createPresetFromTab } from '@/lib/request-workspace'
+import { resolveHttpRequestDraft } from '@/features/app-shell/domain/url-resolution'
 import type { AppShellStore } from './app-shell-store'
 
 export type ServiceResult<T = void> =
@@ -492,12 +493,46 @@ export const createAppShellServices = (deps: AppShellServiceDeps): AppShellServi
         return failure('request.send_failed', 'Missing active workspace or environment')
       }
 
+      const activeEnvironment = deps.store.state.environment.items.find((environment) => environment.id === activeEnvironmentId)
+      const resolvedPayload = payload.requestKind !== 'mcp' && activeEnvironment
+        ? (() => {
+            const resolved = resolveHttpRequestDraft({
+              url: payload.url,
+              params: payload.params,
+              headers: payload.headers,
+              auth: payload.auth,
+              variables: activeEnvironment.variables,
+            })
+
+            if (resolved.blockingIssues.length) {
+              const keys = resolved.blockingIssues.map((issue) => issue.key).join(', ')
+              deps.store.mutations.applySendFailure({
+                payload,
+                message: `Missing required variables: ${keys}`,
+              })
+              return failure('request.send_failed', `Missing required variables: ${keys}`)
+            }
+
+            return {
+              ...payload,
+              url: resolved.url,
+              params: resolved.params,
+              headers: resolved.headers,
+              auth: resolved.auth,
+            }
+          })()
+        : payload
+
+      if (!('tabId' in resolvedPayload)) {
+        return resolvedPayload
+      }
+
       deps.store.mutations.applySendPending(payload)
 
       try {
         const response = payload.requestKind === 'mcp'
           ? await deps.runtime.sendMcpRequest(workspaceId, activeEnvironmentId, payload)
-          : await deps.runtime.sendRequest(workspaceId, activeEnvironmentId, payload)
+          : await deps.runtime.sendRequest(workspaceId, activeEnvironmentId, resolvedPayload)
 
         if (!response.ok || !response.data) {
           const message = response.error?.message || (payload.requestKind === 'mcp'
