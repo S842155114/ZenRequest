@@ -521,6 +521,13 @@ export const createHistoryEntry = (payload: {
   method: string
   url: string
   status: number
+  statusText?: string
+  elapsedMs?: number
+  sizeBytes?: number
+  contentType?: string
+  truncated?: boolean
+  responseHeaders?: HistoryItem['responseHeaders']
+  responsePreview?: string
   mcpSummary?: HistoryItem['mcpSummary']
 }): HistoryItem => ({
   id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -529,6 +536,13 @@ export const createHistoryEntry = (payload: {
   method: payload.method,
   time: new Date().toLocaleTimeString('zh-CN', { hour12: false }),
   status: payload.status,
+  statusText: payload.statusText,
+  elapsedMs: payload.elapsedMs,
+  sizeBytes: payload.sizeBytes,
+  contentType: payload.contentType,
+  truncated: payload.truncated,
+  responseHeaders: payload.responseHeaders ? clonePlainData(payload.responseHeaders) : undefined,
+  responsePreview: payload.responsePreview,
   url: payload.url,
   requestSnapshot: payload.requestSnapshot ? clonePlainData(payload.requestSnapshot) : undefined,
   executionSource: payload.executionSource ?? 'live',

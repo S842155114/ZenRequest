@@ -13,7 +13,7 @@ import type {
   WorkspaceSummary,
 } from '@/types/request'
 
-export type StartupState = 'loading' | 'failed' | 'ready'
+export type StartupState = 'loading' | 'failed' | 'degraded' | 'ready'
 
 export type DialogKind =
   | 'createWorkspace'

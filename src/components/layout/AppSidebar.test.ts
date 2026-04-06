@@ -346,7 +346,7 @@ describe('AppSidebar', () => {
           mcpSummary: {
             operation: 'tools.call',
             transport: 'http',
-            errorCategory: 'protocol',
+            errorCategory: 'tool-call',
           },
         }),
       ],
@@ -356,7 +356,7 @@ describe('AppSidebar', () => {
 
     expect(wrapper.get('[data-testid="history-mcp-summary-history-mcp"]').text()).toContain('tools.call')
     expect(wrapper.get('[data-testid="history-mcp-summary-history-mcp"]').text()).toContain('http')
-    expect(wrapper.get('[data-testid="history-mcp-summary-history-mcp"]').text()).toContain('protocol')
+    expect(wrapper.get('[data-testid="history-mcp-summary-history-mcp"]').text()).toContain('tool-call')
   })
 
   it('shows collection context during search and marks the active request row', () => {

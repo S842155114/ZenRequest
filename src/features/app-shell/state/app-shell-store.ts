@@ -560,7 +560,6 @@ export const createAppShellStore = (state: AppShellState): AppShellStore => {
           method: input.response.requestMethod || input.payload.method,
           url: input.response.requestUrl || input.payload.url,
           status,
-          statusText: normalizedResponse?.statusText || input.response.statusText,
           elapsedMs: normalizedResponse?.elapsedMs ?? input.response.elapsedMs,
           sizeBytes: normalizedResponse?.sizeBytes ?? input.response.sizeBytes,
           contentType: normalizedResponse?.contentType ?? input.response.contentType,

@@ -264,7 +264,7 @@ describe('App workbench shell - history recovery', () => {
         mcpArtifact: {
           transport: 'http',
           operation: 'tools.call',
-          errorCategory: 'protocol',
+          errorCategory: 'tool-call',
         },
       }),
     }))
@@ -279,7 +279,7 @@ describe('App workbench shell - history recovery', () => {
     expect(historyItems[0]?.mcpSummary).toEqual({
       operation: 'tools.call',
       transport: 'http',
-      errorCategory: 'protocol',
+        errorCategory: 'tool-call',
     })
     expect(historyItems[0]?.requestSnapshot?.requestKind).toBe('mcp')
 

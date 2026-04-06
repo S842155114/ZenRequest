@@ -346,35 +346,44 @@ export const createAppShellViewModel = (deps: AppShellViewModelDeps): AppShellVi
 
     const result = await deps.services.discoverMcpTools({ payload })
     if (!result.ok || !result.data) {
-      deps.showErrorToast(deps.text.value.toasts.requestFailed, result.message)
+      deps.showErrorToast({
+        title: deps.text.value.busy.requestSendingTitle,
+        description: deps.text.value.busy.requestSendingDescription,
+      }, result.message)
       return
     }
 
-    deps.store.mutations.updateTab(tab.id, (current) => ({
-      ...current,
-      response: {
-        ...current.response,
-        requestKind: 'mcp',
-        mcpArtifact: {
-          ...current.response.mcpArtifact,
-          transport: current.mcp?.connection.transport ?? 'http',
-          operation: 'tools.list',
-          cachedTools: result.data,
-        },
-      },
-      mcp: current.mcp?.operation.type === 'tools.call'
-        ? {
-            ...current.mcp,
-            operation: {
-              ...current.mcp.operation,
-              input: {
-                ...current.mcp.operation.input,
-                schema: result.data.find((tool) => tool.name === current.mcp?.operation.input.toolName) ?? current.mcp.operation.input.schema,
-              },
+    deps.store.mutations.updateTab(tab.id, (current) => {
+      let nextMcp = current.mcp
+      if (current.mcp?.operation.type === 'tools.call') {
+        const currentToolName = current.mcp.operation.input.toolName
+        nextMcp = {
+          ...current.mcp,
+          operation: {
+            ...current.mcp.operation,
+            input: {
+              ...current.mcp.operation.input,
+              schema: result.data!.find((tool) => tool.name === currentToolName) ?? current.mcp.operation.input.schema,
             },
-          }
-        : current.mcp,
-    }))
+          },
+        }
+      }
+
+      return {
+        ...current,
+        response: {
+          ...current.response,
+          requestKind: 'mcp',
+          mcpArtifact: {
+            ...current.response.mcpArtifact,
+            transport: current.mcp?.connection.transport ?? 'http',
+            operation: 'tools.list',
+            cachedTools: result.data,
+          },
+        },
+        mcp: nextMcp,
+      }
+    })
 
     deps.showToast({
       title: deps.text.value.request.mcp.refreshTools,

@@ -611,7 +611,7 @@ export const createAppShellServices = (deps: AppShellServiceDeps): AppShellServi
       deps.store.mutations.appendAndActivateTab(importedTab)
       return success('curl.imported', importedTab)
     },
-    sendRequest: async ({ payload }) => {
+    sendRequest: async ({ payload }): Promise<ServiceResult<{ tabId: string; response: SendRequestResult }>> => {
       const workspaceId = getActiveWorkspaceId()
       const activeEnvironmentId = deps.store.state.environment.activeId
       if (!workspaceId || !activeEnvironmentId) {
@@ -649,7 +649,7 @@ export const createAppShellServices = (deps: AppShellServiceDeps): AppShellServi
         : payload
 
       if (!('tabId' in resolvedPayload)) {
-        return resolvedPayload
+        return failure('request.send_failed', resolvedPayload.message)
       }
 
       deps.store.mutations.applySendPending(payload)
