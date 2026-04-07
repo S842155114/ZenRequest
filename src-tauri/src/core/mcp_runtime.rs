@@ -5,7 +5,7 @@ use serde_json::{json, Value};
 
 use crate::errors::AppError;
 use crate::models::{
-    McpExecutionArtifactDto, McpOperationInputDto, McpResourceContentSnapshotDto,
+    McpExecutionArtifactDto, McpOperationInputDto, McpPromptArgumentSnapshotDto, McpPromptSnapshotDto, McpResourceContentSnapshotDto,
     McpResourceSnapshotDto, ResponseHeaderItemDto, SendMcpRequestPayloadDto, SendMcpRequestResultDto,
 };
 
@@ -24,6 +24,8 @@ fn operation_name(operation: &McpOperationInputDto) -> &'static str {
         McpOperationInputDto::ToolsCall { .. } => "tools.call",
         McpOperationInputDto::ResourcesList { .. } => "resources.list",
         McpOperationInputDto::ResourcesRead { .. } => "resources.read",
+        McpOperationInputDto::PromptsList { .. } => "prompts.list",
+        McpOperationInputDto::PromptsGet { .. } => "prompts.get",
     }
 }
 
@@ -95,6 +97,34 @@ fn build_protocol_request(payload: &SendMcpRequestPayloadDto) -> Result<Value, A
                 "method": "resources/read",
                 "params": {
                     "uri": input.uri,
+                }
+            }))
+        }
+        McpOperationInputDto::PromptsList { input } => {
+            let mut params = serde_json::Map::new();
+            if let Some(cursor) = &input.cursor {
+                if !cursor.trim().is_empty() {
+                    params.insert("cursor".to_string(), Value::String(cursor.clone()));
+                }
+            }
+            Ok(json!({
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "method": "prompts/list",
+                "params": Value::Object(params),
+            }))
+        }
+        McpOperationInputDto::PromptsGet { input } => {
+            if input.prompt_name.trim().is_empty() {
+                return Err(error("MCP_PROMPT_NAME_REQUIRED", "prompt get requires a promptName"));
+            }
+            Ok(json!({
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "method": "prompts/get",
+                "params": {
+                    "name": input.prompt_name,
+                    "arguments": input.arguments.clone(),
                 }
             }))
         }
@@ -183,6 +213,41 @@ fn extract_cached_resources(protocol_response: &Value) -> Option<Vec<McpResource
             title: object.get("title").and_then(|value| value.as_str()).map(|value| value.to_string()),
             description: object.get("description").and_then(|value| value.as_str()).map(|value| value.to_string()),
             mime_type: object.get("mimeType").and_then(|value| value.as_str()).map(|value| value.to_string()),
+        })
+    }).collect())
+}
+
+fn extract_cached_prompts(protocol_response: &Value) -> Option<Vec<McpPromptSnapshotDto>> {
+    let result = protocol_response.get("result")?.as_object()?;
+    let prompts = result.get("prompts")?.as_array()?;
+
+    Some(prompts.iter().filter_map(|prompt| {
+        let object = prompt.as_object()?;
+        let name = object.get("name")?.as_str()?.trim().to_string();
+        if name.is_empty() {
+            return None;
+        }
+        let arguments = object
+            .get("arguments")
+            .and_then(|value| value.as_array())
+            .map(|items| items.iter().filter_map(|item| {
+                let argument = item.as_object()?;
+                let arg_name = argument.get("name")?.as_str()?.trim().to_string();
+                if arg_name.is_empty() {
+                    return None;
+                }
+                Some(McpPromptArgumentSnapshotDto {
+                    name: arg_name,
+                    title: argument.get("title").and_then(|value| value.as_str()).map(|value| value.to_string()),
+                    description: argument.get("description").and_then(|value| value.as_str()).map(|value| value.to_string()),
+                    required: argument.get("required").and_then(|value| value.as_bool()),
+                })
+            }).collect::<Vec<_>>());
+        Some(McpPromptSnapshotDto {
+            name,
+            title: object.get("title").and_then(|value| value.as_str()).map(|value| value.to_string()),
+            description: object.get("description").and_then(|value| value.as_str()).map(|value| value.to_string()),
+            arguments,
         })
     }).collect())
 }
@@ -336,6 +401,16 @@ pub async fn execute_mcp_request(payload: &SendMcpRequestPayloadDto) -> Result<S
             },
             cached_resources: extract_cached_resources(&protocol_response),
             resource_contents: extract_resource_contents(&protocol_response),
+            selected_prompt: match &payload.mcp.operation {
+                McpOperationInputDto::PromptsGet { input } => input.prompt.clone().or_else(|| Some(McpPromptSnapshotDto {
+                    name: input.prompt_name.clone(),
+                    title: None,
+                    description: None,
+                    arguments: None,
+                })),
+                _ => None,
+            },
+            cached_prompts: extract_cached_prompts(&protocol_response),
             session_id,
             error_category,
         }),

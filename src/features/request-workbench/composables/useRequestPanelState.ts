@@ -238,11 +238,11 @@ export const useRequestPanelState = (
 
     if (isMcpRequest) {
       const baseUrl = activeTab.value.mcp?.connection.baseUrl?.trim() ?? ''
+      const operation = activeTab.value.mcp?.operation
       if (!baseUrl) {
-        blockers.push(text.value.request.emptyUrlBlocker)
+        blockers.push(text.value.request.mcp.endpointNotConfigured)
       }
 
-      const operation = activeTab.value.mcp?.operation
       if (operation?.type === 'initialize') {
         if (!operation.input.clientName.trim()) {
           blockers.push(text.value.request.mcp.blockerClientName)
@@ -273,6 +273,10 @@ export const useRequestPanelState = (
 
       if (operation?.type === 'resources.read' && !operation.input.uri.trim()) {
         blockers.push(text.value.request.mcp.blockerResourceUri)
+      }
+
+      if (operation?.type === 'prompts.get' && !operation.input.promptName.trim()) {
+        blockers.push(text.value.request.mcp.blockerPromptName)
       }
     } else if (!url.value.trim()) {
       blockers.push(text.value.request.emptyUrlBlocker)

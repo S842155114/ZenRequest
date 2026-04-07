@@ -44,6 +44,7 @@ See: `.planning/PROJECT.md` (updated 2026-04-06)
 
 - `main` is the only long-lived branch
 - Feature, fix, and GSD phase work should branch from `main`
+- Before starting any new phase execution, create and switch to a dedicated phase branch first; do not execute phase work directly on `main`
 - Pull requests should target `main`
 - Completed branches should be deleted locally and remotely after merge
 

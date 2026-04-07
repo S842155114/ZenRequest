@@ -356,17 +356,17 @@ const downloadCurrentContent = async () => {
     :data-response-state="activeState"
     class="zr-panel zr-response-shell zr-response-diagnostic flex h-full min-h-0 flex-col overflow-hidden rounded-[0.7rem]"
   >
-    <div class="zr-response-header border-b border-[color:var(--zr-border)] bg-[var(--zr-response-accent)] p-3">
+    <div class="zr-response-header border-b border-[color:var(--zr-border)] bg-[var(--zr-response-accent)] px-3 py-2.5">
       <div class="flex flex-wrap items-center justify-between gap-2.5">
         <div class="flex items-center gap-2">
-          <span class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">
+          <span class="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--zr-text-muted)]">
             <component :is="stateMeta.icon" :class="['h-4 w-4', stateMeta.iconClass]" />
             {{ text.response.title }}
           </span>
           <Badge
             data-testid="response-state-badge"
             variant="outline"
-            :class="['rounded-full px-2.5 py-0.5 text-[9px] font-semibold tracking-[0.14em]', stateMeta.badgeClass]"
+            :class="['rounded-full px-2.5 py-0.5 text-[10px] font-semibold tracking-[0.12em]', stateMeta.badgeClass]"
           >
             {{ stateBadgeLabel }}
           </Badge>
@@ -388,13 +388,13 @@ const downloadCurrentContent = async () => {
           </Badge>
         </div>
         <button
-          class="zr-tool-button inline-flex h-7 w-7 items-center justify-center rounded-md"
+          class="zr-tool-button inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--zr-text-muted)] transition-colors hover:text-[var(--zr-text-primary)]"
           @click="emit('toggle-collapsed')"
         >
           <component :is="props.collapsed ? ChevronDown : ChevronUp" class="h-4 w-4" />
         </button>
       </div>
-      <div class="zr-response-meta-strip mt-2 flex flex-wrap items-center gap-2 text-xs">
+      <div class="zr-response-meta-strip mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
         <span
           data-testid="response-readout-request"
           class="zr-response-readout inline-flex max-w-[360px] items-center gap-1.5 rounded-full px-2 py-0.5"
@@ -422,9 +422,9 @@ const downloadCurrentContent = async () => {
     <div
       v-if="isMcpResponse"
       data-testid="response-mcp-summary"
-      class="border-b border-[color:var(--zr-border-soft)] bg-[var(--zr-elevated)] px-3 py-2"
+      class="border-b border-[color:var(--zr-border-soft)] bg-[var(--zr-elevated)] px-3 py-1.5"
     >
-      <div class="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">
+      <div class="flex flex-wrap items-center gap-1.5 text-[11px] uppercase tracking-[0.16em] text-[var(--zr-text-muted)]">
         <span>mcp</span>
         <Badge data-testid="response-mcp-operation" variant="outline" class="rounded-full px-2 py-0.5 text-[9px] font-semibold tracking-[0.14em]">
           {{ mcpOperationLabel }}
@@ -449,13 +449,13 @@ const downloadCurrentContent = async () => {
     <template v-if="!props.collapsed">
       <div
         data-testid="response-panel-tabs"
-        class="zr-response-tab-strip flex items-center gap-1 border-b border-[color:var(--zr-border-soft)] bg-[var(--zr-elevated)] px-3 py-2"
+        class="zr-response-tab-strip flex items-center gap-1 border-b border-[color:var(--zr-border-soft)] bg-[var(--zr-elevated)] px-3 py-1.5"
         @keydown="handleTabsKeydown"
       >
-        <Button v-if="visibleResponseTabs.includes('body')" variant="ghost" size="sm" :class="['h-8 rounded-lg px-3 text-[10px]', activeTab === 'body' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="activeTab = 'body'">{{ isMcpResponse ? 'result' : text.response.body }}</Button>
-        <Button v-if="visibleResponseTabs.includes('headers')" variant="ghost" size="sm" :class="['h-8 rounded-lg px-3 text-[10px]', activeTab === 'headers' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="activeTab = 'headers'">{{ isMcpResponse ? 'transport headers' : text.response.headers }}</Button>
-        <Button v-if="visibleResponseTabs.includes('cookies')" variant="ghost" size="sm" :class="['h-8 rounded-lg px-3 text-[10px]', activeTab === 'cookies' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="activeTab = 'cookies'">{{ text.response.cookies }}</Button>
-        <Button v-if="visibleResponseTabs.includes('tests')" variant="ghost" size="sm" :class="['h-8 rounded-lg px-3 text-[10px]', activeTab === 'tests' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="activeTab = 'tests'">{{ text.response.tests }}</Button>
+        <Button v-if="visibleResponseTabs.includes('body')" variant="ghost" size="sm" :class="['h-8 rounded-lg px-3 text-[11px] font-medium', activeTab === 'body' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="activeTab = 'body'">{{ isMcpResponse ? 'result' : text.response.body }}</Button>
+        <Button v-if="visibleResponseTabs.includes('headers')" variant="ghost" size="sm" :class="['h-8 rounded-lg px-3 text-[11px] font-medium', activeTab === 'headers' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="activeTab = 'headers'">{{ isMcpResponse ? 'transport headers' : text.response.headers }}</Button>
+        <Button v-if="visibleResponseTabs.includes('cookies')" variant="ghost" size="sm" :class="['h-8 rounded-lg px-3 text-[11px] font-medium', activeTab === 'cookies' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="activeTab = 'cookies'">{{ text.response.cookies }}</Button>
+        <Button v-if="visibleResponseTabs.includes('tests')" variant="ghost" size="sm" :class="['h-8 rounded-lg px-3 text-[11px] font-medium', activeTab === 'tests' ? 'zr-tab-button-active' : 'zr-tab-button']" @click="activeTab = 'tests'">{{ text.response.tests }}</Button>
         <div class="flex-1"></div>
         <Button
           v-if="showCreateMockAction"

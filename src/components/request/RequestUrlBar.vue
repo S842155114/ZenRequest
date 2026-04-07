@@ -39,12 +39,16 @@ const props = withDefaults(defineProps<{
   environmentName: string
   resolvedUrl: string
   showOpenApiImport?: boolean
+  showModeSwitch?: boolean
+  requestKind?: 'http' | 'mcp'
 }>(), {
   requestName: '',
   originKind: 'scratch',
   persistenceState: 'unsaved',
   executionState: 'idle',
   showOpenApiImport: false,
+  showModeSwitch: false,
+  requestKind: 'http',
   readiness: () => ({
     blockers: [],
     advisories: [],
@@ -60,6 +64,7 @@ const emit = defineEmits<{
   (e: 'import-openapi'): void
   (e: 'import-curl'): void
   (e: 'export-workspace'): void
+  (e: 'update:request-kind', value: 'http' | 'mcp'): void
 }>()
 
 const methodColors: Record<string, string> = {
@@ -147,130 +152,121 @@ const executionBadgeClass = computed(() => {
     data-testid="request-url-shell"
     class="zr-request-command-bar border-b border-[color:var(--zr-border)] bg-[var(--zr-editor-accent)]"
   >
-    <div class="zr-request-command-header flex items-start justify-between gap-3 px-3 pt-3.5">
-      <div class="min-w-0">
-        <div class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">
-          <Globe class="h-3 w-3 text-[#ff8b5f]" />
-          <span>{{ text.request.requestBuilder }}</span>
+    <div class="zr-request-command-header px-3 pt-3">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">
+            <Globe class="h-3 w-3 text-[#ff8b5f]" />
+            <span>{{ text.request.requestBuilder }}</span>
+          </div>
+          <div class="mt-1 truncate text-[15px] font-semibold leading-5 text-[var(--zr-text-primary)]">
+            {{ displayRequestName }}
+          </div>
         </div>
-        <div class="mt-1.5 truncate text-[15px] font-semibold leading-5 text-[var(--zr-text-primary)]">
-          {{ displayRequestName }}
-        </div>
-        <div data-testid="request-command-context" class="mt-2 flex flex-wrap items-center gap-1.5">
-          <span
-            data-testid="request-identity-origin"
-            :class="[
-              'zr-status-pill rounded-full px-2.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em]',
-              originBadgeClass,
-            ]"
+        <div class="flex items-center gap-2">
+          <div
+            v-if="showModeSwitch"
+            data-testid="request-kind-toggle"
+            class="inline-flex shrink-0 items-center gap-1 rounded-xl border border-[color:color-mix(in srgb, var(--zr-accent) 22%, var(--zr-border-soft))] bg-[color:color-mix(in srgb, var(--zr-accent-soft) 22%, var(--zr-control-bg))] p-1 shadow-none"
           >
-            {{ originLabel }}
-          </span>
-          <span
-            data-testid="request-identity-persistence"
-            :class="[
-              'zr-status-pill rounded-full px-2.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em]',
-              persistenceBadgeClass,
-            ]"
-          >
-            {{ persistenceLabel }}
-          </span>
-          <span
-            data-testid="request-identity-execution"
-            :class="[
-              'zr-status-pill rounded-full px-2.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em]',
-              executionBadgeClass,
-            ]"
-          >
-            {{ executionLabel }}
-          </span>
+              <button
+                data-testid="request-kind-http"
+                :class="requestKind === 'http'
+                  ? 'rounded-lg bg-[var(--zr-accent)] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--zr-accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--zr-panel)]'
+                  : 'rounded-lg px-3 py-1.5 text-xs font-semibold text-[var(--zr-text-primary)] transition-colors hover:bg-[var(--zr-soft-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--zr-accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--zr-panel)]'"
+                @click="emit('update:request-kind', 'http')"
+              >
+                {{ text.request.modeHttp }}
+              </button>
+              <button
+                data-testid="request-kind-mcp"
+                :class="requestKind === 'mcp'
+                  ? 'rounded-lg bg-[var(--zr-accent)] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--zr-accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--zr-panel)]'
+                  : 'rounded-lg px-3 py-1.5 text-xs font-semibold text-[var(--zr-text-primary)] transition-colors hover:bg-[var(--zr-soft-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--zr-accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--zr-panel)]'"
+                @click="emit('update:request-kind', 'mcp')"
+              >
+                {{ text.request.modeMcp }}
+              </button>
+            </div>
+          <DropdownMenu>
+          <DropdownMenuTrigger as-child>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              data-testid="request-command-overflow-trigger"
+              class="zr-secondary-action h-8 w-8 shrink-0 rounded-lg border border-[color:var(--zr-border-soft)] bg-[color:var(--zr-control-bg)] text-[var(--zr-text-muted)] shadow-none transition-colors hover:text-[var(--zr-text-primary)]"
+              :aria-label="text.request.requestActions"
+            >
+              <Ellipsis class="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" class="zr-dropdown min-w-[180px]">
+            <DropdownMenuItem
+              data-testid="request-command-overflow-import"
+              @select="emit('import-workspace')"
+            >
+              <Upload class="mr-2 h-3.5 w-3.5" />
+              {{ text.common.importJson }}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              v-if="props.showOpenApiImport"
+              data-testid="request-command-overflow-import-openapi"
+              @select="emit('import-openapi')"
+            >
+              <Globe class="mr-2 h-3.5 w-3.5" />
+              {{ text.common.importOpenApi }}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              data-testid="request-command-overflow-import-curl"
+              @select="emit('import-curl')"
+            >
+              <Terminal class="mr-2 h-3.5 w-3.5" />
+              {{ text.common.importCurl }}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              data-testid="request-command-overflow-export"
+              @select="emit('export-workspace')"
+            >
+              <Download class="mr-2 h-3.5 w-3.5" />
+              {{ text.common.exportJson }}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         </div>
       </div>
-      <DropdownMenu>
-        <DropdownMenuTrigger as-child>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            data-testid="request-command-overflow-trigger"
-            class="zr-secondary-action h-8 w-8 shrink-0 rounded-lg border border-[color:var(--zr-border-soft)] bg-[color:var(--zr-control-bg)]"
-            :aria-label="text.request.requestActions"
-          >
-            <Ellipsis class="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" class="zr-dropdown min-w-[180px]">
-          <DropdownMenuItem
-            data-testid="request-command-overflow-import"
-            @select="emit('import-workspace')"
-          >
-            <Upload class="mr-2 h-3.5 w-3.5" />
-            {{ text.common.importJson }}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            v-if="props.showOpenApiImport"
-            data-testid="request-command-overflow-import-openapi"
-            @select="emit('import-openapi')"
-          >
-            <Globe class="mr-2 h-3.5 w-3.5" />
-            {{ text.common.importOpenApi }}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            data-testid="request-command-overflow-import-curl"
-            @select="emit('import-curl')"
-          >
-            <Terminal class="mr-2 h-3.5 w-3.5" />
-            {{ text.common.importCurl }}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            data-testid="request-command-overflow-export"
-            @select="emit('export-workspace')"
-          >
-            <Download class="mr-2 h-3.5 w-3.5" />
-            {{ text.common.exportJson }}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
 
-    <div
-      v-if="props.readiness.blockers.length || props.readiness.advisories.length"
-      class="px-3 pt-2.5"
-    >
-      <div
-        v-if="props.readiness.blockers.length"
-        data-testid="request-readiness-blockers"
-        class="flex flex-wrap items-center gap-1.5"
-      >
-        <span class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rose-700 dark:text-rose-300">
-          {{ text.request.blockers }}
+      <div data-testid="request-command-context" class="mt-2 flex flex-wrap items-center gap-1.5">
+        <span
+          data-testid="request-identity-origin"
+          :class="[
+            'zr-status-pill rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]',
+            originBadgeClass,
+          ]"
+        >
+          {{ originLabel }}
         </span>
         <span
-          v-for="blocker in props.readiness.blockers"
-          :key="blocker"
-          class="rounded-full border border-rose-500/25 bg-rose-500/10 px-2 py-0.5 text-[10px] font-medium text-rose-700 dark:text-rose-300"
+          data-testid="request-identity-persistence"
+          :class="[
+            'zr-status-pill rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]',
+            persistenceBadgeClass,
+          ]"
         >
-          {{ blocker }}
-        </span>
-      </div>
-      <div
-        v-if="props.readiness.advisories.length"
-        data-testid="request-readiness-advisories"
-        class="mt-1.5 flex flex-wrap items-center gap-1.5"
-      >
-        <span class="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">
-          {{ text.request.advisories }}
+          {{ persistenceLabel }}
         </span>
         <span
-          v-for="advisory in props.readiness.advisories"
-          :key="advisory"
-          class="rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300"
+          data-testid="request-identity-execution"
+          :class="[
+            'zr-status-pill rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]',
+            executionBadgeClass,
+          ]"
         >
-          {{ advisory }}
+          {{ executionLabel }}
         </span>
       </div>
     </div>
 
-    <div class="flex flex-col gap-2 p-3 pt-2.5 xl:flex-row">
+    <div class="grid gap-2 px-3 pb-2.5 pt-2 xl:grid-cols-[110px_minmax(0,1fr)_auto] xl:items-center">
       <Select :model-value="method" @update:model-value="handleMethodChange">
         <SelectTrigger
           :class="[
@@ -289,7 +285,7 @@ const executionBadgeClass = computed(() => {
         </SelectContent>
       </Select>
 
-      <div class="relative flex-1">
+      <div class="relative min-w-0">
         <Input
           :model-value="url"
           @update:model-value="handleUrlChange"
@@ -299,14 +295,14 @@ const executionBadgeClass = computed(() => {
         />
       </div>
 
-      <div data-testid="request-command-actions" class="flex items-center gap-2">
+      <div data-testid="request-command-actions" class="flex items-center justify-end gap-2">
         <Button
           data-testid="request-command-send"
           @click="emit('send')"
           :disabled="isLoading || hasBlockingIssues"
           class="zr-primary-action h-9 rounded-md px-4 text-[13px] font-semibold disabled:opacity-50"
         >
-          <svg v-if="isLoading" class="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <svg v-if="isLoading" class="-ml-1 mr-2 h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
@@ -326,7 +322,7 @@ const executionBadgeClass = computed(() => {
       </div>
     </div>
 
-    <div class="zr-request-command-meta flex flex-wrap items-center gap-1.5 border-t border-[color:var(--zr-border-soft)] px-3 py-1.5 text-[10px] text-[var(--zr-text-muted)]">
+    <div class="zr-request-command-meta flex flex-wrap items-center gap-1.5 border-t border-[color:var(--zr-border-soft)] px-3 py-1.5 text-xs text-[var(--zr-text-muted)]">
       <span class="zr-chip rounded-full px-2 py-0.5">{{ text.request.collection }}: {{ displayCollectionName }}</span>
       <span
         data-testid="request-command-meta-environment"
@@ -335,6 +331,28 @@ const executionBadgeClass = computed(() => {
         {{ text.request.environment }}: {{ environmentName }}
       </span>
       <span class="zr-chip max-w-full truncate rounded-full px-2 py-0.5 font-mono">{{ text.request.resolved }}: {{ resolvedUrl }}</span>
+      <template v-if="props.readiness.blockers.length">
+        <span class="ml-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-rose-700 dark:text-rose-300">{{ text.request.blockers }}</span>
+        <span
+          v-for="blocker in props.readiness.blockers"
+          :key="blocker"
+          data-testid="request-readiness-blockers"
+          class="rounded-full border border-rose-500/25 bg-rose-500/10 px-2 py-0.5 text-[11px] font-medium text-rose-700 dark:text-rose-300"
+        >
+          {{ blocker }}
+        </span>
+      </template>
+      <template v-if="props.readiness.advisories.length">
+        <span class="ml-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-700 dark:text-amber-300">{{ text.request.advisories }}</span>
+        <span
+          v-for="advisory in props.readiness.advisories"
+          :key="advisory"
+          data-testid="request-readiness-advisories"
+          class="rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300"
+        >
+          {{ advisory }}
+        </span>
+      </template>
     </div>
   </div>
 </template>

@@ -21,7 +21,7 @@ export type RequestTabPersistenceState = 'saved' | 'unsaved' | 'unbound'
 export type RequestTabExecutionState = ResponseLifecycleState
 export type RequestKind = 'http' | 'mcp'
 export type McpTransportKind = 'http' | 'stdio'
-export type McpOperationType = 'initialize' | 'tools.list' | 'tools.call' | 'resources.list' | 'resources.read'
+export type McpOperationType = 'initialize' | 'tools.list' | 'tools.call' | 'resources.list' | 'resources.read' | 'prompts.list' | 'prompts.get'
 
 export interface WorkbenchActivitySignal {
   active: boolean
@@ -180,6 +180,20 @@ export interface McpResourceSnapshot {
   mimeType?: string
 }
 
+export interface McpPromptArgumentSnapshot {
+  name: string
+  title?: string
+  description?: string
+  required?: boolean
+}
+
+export interface McpPromptSnapshot {
+  name: string
+  title?: string
+  description?: string
+  arguments?: McpPromptArgumentSnapshot[]
+}
+
 export interface McpToolsListInput {
   cursor?: string
 }
@@ -191,6 +205,16 @@ export interface McpResourcesListInput {
 export interface McpResourceReadInput {
   uri: string
   resource?: McpResourceSnapshot
+}
+
+export interface McpPromptsListInput {
+  cursor?: string
+}
+
+export interface McpPromptGetInput {
+  promptName: string
+  arguments: Record<string, unknown>
+  prompt?: McpPromptSnapshot
 }
 
 export interface McpToolCallInput {
@@ -205,6 +229,8 @@ export type McpOperationInput =
   | { type: 'tools.call'; input: McpToolCallInput }
   | { type: 'resources.list'; input: McpResourcesListInput }
   | { type: 'resources.read'; input: McpResourceReadInput }
+  | { type: 'prompts.list'; input: McpPromptsListInput }
+  | { type: 'prompts.get'; input: McpPromptGetInput }
 
 export interface McpRequestDefinition {
   connection: McpConnectionConfig
@@ -221,6 +247,8 @@ export interface McpExecutionArtifact {
   selectedResource?: McpResourceSnapshot
   cachedResources?: McpResourceSnapshot[]
   resourceContents?: McpResourceContentSnapshot[]
+  selectedPrompt?: McpPromptSnapshot
+  cachedPrompts?: McpPromptSnapshot[]
   sessionId?: string
   errorCategory?: 'transport' | 'session' | 'tool-call' | 'initialize' | 'tool_execution'
 }

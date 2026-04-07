@@ -336,6 +336,50 @@ pub struct McpToolCallInputDto {
     pub schema: Option<McpToolSchemaSnapshotDto>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPromptArgumentSnapshotDto {
+    #[serde(default)]
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub required: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPromptSnapshotDto {
+    #[serde(default)]
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub arguments: Option<Vec<McpPromptArgumentSnapshotDto>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPromptsListInputDto {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPromptGetInputDto {
+    #[serde(default)]
+    pub prompt_name: String,
+    #[serde(default)]
+    pub arguments: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt: Option<McpPromptSnapshotDto>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum McpOperationInputDto {
@@ -349,6 +393,10 @@ pub enum McpOperationInputDto {
     ResourcesList { input: McpResourcesListInputDto },
     #[serde(rename = "resources.read", alias = "resourcesRead")]
     ResourcesRead { input: McpResourceReadInputDto },
+    #[serde(rename = "prompts.list", alias = "promptsList")]
+    PromptsList { input: McpPromptsListInputDto },
+    #[serde(rename = "prompts.get", alias = "promptsGet")]
+    PromptsGet { input: McpPromptGetInputDto },
 }
 
 impl Default for McpOperationInputDto {
@@ -478,6 +526,10 @@ pub struct McpExecutionArtifactDto {
     pub cached_resources: Option<Vec<McpResourceSnapshotDto>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resource_contents: Option<Vec<McpResourceContentSnapshotDto>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selected_prompt: Option<McpPromptSnapshotDto>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cached_prompts: Option<Vec<McpPromptSnapshotDto>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

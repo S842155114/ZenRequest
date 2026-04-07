@@ -154,7 +154,6 @@ describe('RequestPanel i18n copy', () => {
       },
       global: {
         stubs: {
-          RequestUrlBar: defineComponent({ template: '<div data-testid="request-url-bar-stub" />' }),
           RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
         },
       },
@@ -162,7 +161,7 @@ describe('RequestPanel i18n copy', () => {
 
     expect(wrapper.get('[data-testid="request-panel-busy-overlay"]').text()).toContain('Sending request')
     expect(wrapper.get('[data-testid="request-panel-busy-surface"]').attributes('aria-busy')).toBe('true')
-    expect(wrapper.find('[data-testid="request-url-bar-stub"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="request-url-shell"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="request-params-stub"]').exists()).toBe(true)
   })
 
@@ -184,7 +183,6 @@ describe('RequestPanel i18n copy', () => {
       },
       global: {
         stubs: {
-          RequestUrlBar: defineComponent({ template: '<div data-testid="request-url-bar-stub" />' }),
           RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
         },
       },
@@ -197,7 +195,7 @@ describe('RequestPanel i18n copy', () => {
     expect(wrapper.find('[data-testid="request-panel-tabs"]').exists()).toBe(true)
     expect(firstTab.classes()).toContain('zr-request-tab-active')
     expect(secondTab.classes()).toContain('zr-request-tab-idle')
-    expect(busySurface.find('[data-testid="request-url-bar-stub"]').exists()).toBe(true)
+    expect(busySurface.find('[data-testid="request-url-shell"]').exists()).toBe(true)
     expect(busySurface.find('[data-testid="request-params-stub"]').exists()).toBe(true)
     expect(busySurface.find('[data-testid="request-panel-tabs"]').exists()).toBe(false)
   })
@@ -214,7 +212,6 @@ describe('RequestPanel i18n copy', () => {
       },
       global: {
         stubs: {
-          RequestUrlBar: defineComponent({ template: '<div data-testid="request-url-bar-stub" />' }),
           RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
         },
       },
@@ -226,7 +223,7 @@ describe('RequestPanel i18n copy', () => {
     expect(wrapper.get('[data-testid="request-compose-body-host"]').classes()).toEqual(
       expect.arrayContaining(['flex', 'min-h-0', 'flex-1', 'overflow-hidden']),
     )
-    expect(wrapper.find('[data-testid="request-url-bar-stub"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="request-url-shell"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="request-params-stub"]').exists()).toBe(true)
   })
 
@@ -242,7 +239,6 @@ describe('RequestPanel i18n copy', () => {
       },
       global: {
         stubs: {
-          RequestUrlBar: defineComponent({ template: '<div data-testid="request-url-bar-stub" />' }),
           RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
         },
       },
@@ -710,21 +706,19 @@ describe('RequestPanel i18n copy', () => {
       },
       global: {
         stubs: {
-          RequestUrlBar: defineComponent({ template: '<div data-testid="request-url-bar-stub" />' }),
           RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
         },
       },
     })
 
-    const composeSwitch = wrapper.get('[data-testid="request-compose-mode-switch"]')
+    const toggle = wrapper.get('[data-testid=\"request-kind-toggle\"]')
 
-    expect(composeSwitch.text()).toContain('Mode')
-    expect(composeSwitch.text()).toContain('Choose how this request is composed and executed.')
-    expect(composeSwitch.get('[data-testid="request-kind-http"]').text()).toContain('HTTP')
-    expect(composeSwitch.get('[data-testid="request-kind-mcp"]').text()).toContain('MCP')
-    expect(wrapper.get('[data-testid="request-panel-header"]').text()).not.toContain('Mode')
+    expect(wrapper.find('[data-testid=\"request-compose-mode-switch\"]').exists()).toBe(false)
+    expect(toggle.text()).toContain('HTTP')
+    expect(toggle.text()).toContain('MCP')
+    expect(wrapper.get('[data-testid=\"request-panel-header\"]').text()).not.toContain('Mode')
 
-    await composeSwitch.get('[data-testid="request-kind-mcp"]').trigger('click')
+    await toggle.get('[data-testid=\"request-kind-mcp\"]').trigger('click')
     await nextTick()
 
     const emitted = wrapper.emitted('update-active-tab') ?? []
@@ -794,6 +788,8 @@ describe('RequestPanel i18n copy', () => {
     })
 
     expect(wrapper.findComponent(McpRequestPanel).exists()).toBe(true)
+    expect(wrapper.find('[data-testid="request-compose-mode-switch"]').exists()).toBe(false)
+    expect(wrapper.findAll('[data-testid="request-kind-toggle"]').length).toBe(1)
     expect(wrapper.get('[data-testid="mcp-request-panel"]').text()).toContain('MCP Workbench')
     expect(wrapper.get('[data-testid="mcp-request-scroll-area"]').classes()).toEqual(
       expect.arrayContaining(['min-h-0', 'flex-1', 'overflow-y-auto']),
@@ -803,9 +799,7 @@ describe('RequestPanel i18n copy', () => {
     expect(wrapper.get('[data-testid="mcp-transport-hint"]').text()).toContain('stdio is planned')
     expect(wrapper.get('[data-testid="mcp-endpoint-value"]').text()).toContain('https://example.com/mcp')
     expect(wrapper.get('[data-testid="mcp-tool-name"]').text()).toContain('search')
-    expect(wrapper.get('[data-testid="mcp-command-transport"]').text()).toContain('http')
-    expect(wrapper.get('[data-testid="mcp-command-operation"]').text()).toContain('tools.call')
-    expect(wrapper.get('[data-testid="mcp-command-endpoint"]').text()).toContain('https://example.com/mcp')
+    expect(wrapper.find('[data-testid="mcp-command-bar"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="request-url-bar-stub"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="request-compose-body-host"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="request-params-stub"]').exists()).toBe(false)
@@ -861,6 +855,59 @@ describe('RequestPanel i18n copy', () => {
     await wrapper.get('[data-testid="mcp-discover-tools-button"]').trigger('click')
 
     expect(wrapper.emitted('discover-mcp-tools')).toHaveLength(1)
+  })
+
+
+  it('forwards discover-prompts from the mcp panel', async () => {
+    const wrapper = mount(RequestPanel, {
+      props: {
+        locale: 'en',
+        tabs: [
+          createTab({
+            id: 'tab-mcp-discover-prompts',
+            name: 'MCP Prompt Discover',
+            requestKind: 'mcp',
+            mcp: {
+              connection: {
+                transport: 'http',
+                baseUrl: 'https://example.com/mcp',
+                headers: [],
+                auth: {
+                  type: 'none',
+                  bearerToken: '',
+                  username: '',
+                  password: '',
+                  apiKeyKey: 'X-API-Key',
+                  apiKeyValue: '',
+                  apiKeyPlacement: 'header',
+                },
+              },
+              operation: {
+                type: 'prompts.get',
+                input: {
+                  promptName: 'summarize',
+                  arguments: {},
+                },
+              },
+            },
+          }),
+        ],
+        activeTabId: 'tab-mcp-discover-prompts',
+        activeEnvironmentName: 'Local',
+        activeEnvironmentVariables: [],
+        resolvedActiveUrl: 'https://example.com/mcp',
+      },
+      global: {
+        stubs: {
+          RequestUrlBar: defineComponent({ template: '<div data-testid="request-url-bar-stub" />' }),
+          RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
+        },
+      },
+    })
+
+    await wrapper.get('[data-testid="mcp-discover-prompts-button"]').trigger('click')
+
+    expect(wrapper.emitted('discover-mcp-prompts')).toHaveLength(1)
   })
 
   it('forwards mcp panel edits through update-active-tab', async () => {
@@ -1051,13 +1098,17 @@ describe('RequestPanel i18n copy', () => {
       },
       global: {
         stubs: {
-          RequestUrlBar: RequestUrlBarCaptureStub,
           RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
         },
       },
     })
 
-    expect(wrapper.get('[data-testid="request-url-bar-blockers"]').text()).toContain('Select an MCP tool')
+    expect(wrapper.get('[data-testid="request-url-bar-send"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[data-testid="mcp-request-panel"]').text()).toContain('Discover tools first')
+
+    await wrapper.get('[data-testid="request-url-bar-send"]').trigger('click')
+
+    expect(wrapper.emitted('send')).toBeUndefined()
   })
 
 
@@ -1102,14 +1153,17 @@ describe('RequestPanel i18n copy', () => {
       },
       global: {
         stubs: {
-          RequestUrlBar: RequestUrlBarCaptureStub,
           RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
         },
       },
     })
 
-    expect(wrapper.get('[data-testid="request-url-bar-blockers"]').text()).toContain('Enter an MCP client name')
-    expect(wrapper.get('[data-testid="request-url-bar-blockers"]').text()).toContain('Enter an MCP client version')
+    expect(wrapper.get('[data-testid="request-url-bar-send"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[data-testid="mcp-request-panel"]').text()).toContain('initialize')
+
+    await wrapper.get('[data-testid="request-url-bar-send"]').trigger('click')
+
+    expect(wrapper.emitted('send')).toBeUndefined()
   })
 
   it('blocks mcp tools.call when schema-required arguments are missing', async () => {
@@ -1164,13 +1218,18 @@ describe('RequestPanel i18n copy', () => {
       },
       global: {
         stubs: {
-          RequestUrlBar: RequestUrlBarCaptureStub,
           RequestParams: defineComponent({ template: '<div data-testid="request-params-stub" />' }),
         },
       },
     })
 
-    expect(wrapper.get('[data-testid="request-url-bar-blockers"]').text()).toContain('Fill required MCP arguments: query, limit')
+    expect(wrapper.get('[data-testid="request-url-bar-send"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[data-testid="mcp-request-panel"]').text()).toContain('query')
+    expect(wrapper.get('[data-testid="mcp-request-panel"]').text()).toContain('limit')
+
+    await wrapper.get('[data-testid="request-url-bar-send"]').trigger('click')
+
+    expect(wrapper.emitted('send')).toBeUndefined()
   })
 
 
@@ -1512,8 +1571,8 @@ describe('McpRequestPanel discoverability', () => {
     })
 
     expect(wrapper.text()).toContain('MCP 工作台')
-    expect(wrapper.text()).toContain('传输方式')
     expect(wrapper.text()).toContain('操作')
+    expect(wrapper.get('[data-testid="mcp-transport-value"]').text()).toContain('http')
     expect(wrapper.get('[data-testid="mcp-transport-hint"]').text()).toContain('当前版本已支持 HTTP 传输')
   })
 

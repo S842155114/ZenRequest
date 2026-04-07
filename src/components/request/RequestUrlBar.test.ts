@@ -102,9 +102,9 @@ describe('RequestUrlBar', () => {
       executionState: 'idle',
     })
 
-    expect(wrapper.get('[data-testid="request-readiness-blockers"]').text()).toContain('Enter a request URL')
-    expect(wrapper.get('[data-testid="request-readiness-blockers"]').text()).toContain('JSON body is invalid')
-    expect(wrapper.get('[data-testid="request-readiness-advisories"]').text()).toContain('Unsaved changes')
+    expect(wrapper.get('.zr-request-command-meta').text()).toContain('Enter a request URL')
+    expect(wrapper.get('.zr-request-command-meta').text()).toContain('JSON body is invalid')
+    expect(wrapper.get('.zr-request-command-meta').text()).toContain('Unsaved changes')
     expect(wrapper.get('[data-testid="request-command-send"]').attributes('disabled')).toBeDefined()
   })
 
@@ -146,5 +146,21 @@ describe('RequestUrlBar', () => {
     expect(wrapper.get('[data-testid="request-command-meta-environment"]').classes()).toContain(
       'zr-status-pill-signal',
     )
+  })
+
+
+  it('renders mode toggle in the http command bar when enabled', async () => {
+    const wrapper = mountUrlBar({
+      showModeSwitch: true,
+      requestKind: 'http',
+    })
+
+    expect(wrapper.find('[data-testid="request-kind-toggle"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="request-kind-http"]').text()).toContain('HTTP')
+    expect(wrapper.get('[data-testid="request-kind-mcp"]').text()).toContain('MCP')
+
+    await wrapper.get('[data-testid="request-kind-mcp"]').trigger('click')
+
+    expect(wrapper.emitted('update:request-kind')?.[0]).toEqual(['mcp'])
   })
 })
