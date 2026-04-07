@@ -6,7 +6,7 @@ use serde_json::{json, Value};
 use crate::errors::AppError;
 use crate::models::{
     McpExecutionArtifactDto, McpOperationInputDto, McpPromptArgumentSnapshotDto, McpPromptSnapshotDto, McpResourceContentSnapshotDto,
-    McpResourceSnapshotDto, ResponseHeaderItemDto, SendMcpRequestPayloadDto, SendMcpRequestResultDto,
+    McpResourceSnapshotDto, McpRootSnapshotDto, ResponseHeaderItemDto, SendMcpRequestPayloadDto, SendMcpRequestResultDto,
 };
 
 fn error(code: &str, message: impl Into<String>) -> AppError {
@@ -15,6 +15,32 @@ fn error(code: &str, message: impl Into<String>) -> AppError {
         message: message.into(),
         details: None,
     }
+}
+
+
+fn serialize_roots(roots: Option<&Vec<McpRootSnapshotDto>>) -> Value {
+    Value::Array(roots.unwrap_or(&Vec::new()).iter().filter_map(|root| {
+        if root.uri.trim().is_empty() {
+            return None;
+        }
+        let mut object = serde_json::Map::new();
+        object.insert("uri".to_string(), Value::String(root.uri.clone()));
+        if let Some(name) = &root.name {
+            if !name.trim().is_empty() {
+                object.insert("name".to_string(), Value::String(name.clone()));
+            }
+        }
+        Some(Value::Object(object))
+    }).collect())
+}
+
+fn merge_roots_capabilities(existing: Option<Value>) -> Value {
+    let mut capabilities = match existing {
+        Some(Value::Object(object)) => object,
+        _ => serde_json::Map::new(),
+    };
+    capabilities.insert("roots".to_string(), json!({ "listChanged": false }));
+    Value::Object(capabilities)
 }
 
 fn operation_name(operation: &McpOperationInputDto) -> &'static str {
@@ -42,7 +68,7 @@ fn build_protocol_request(payload: &SendMcpRequestPayloadDto) -> Result<Value, A
                     "name": if input.client_name.trim().is_empty() { "ZenRequest" } else { input.client_name.trim() },
                     "version": if input.client_version.trim().is_empty() { "0.1.0" } else { input.client_version.trim() },
                 },
-                "capabilities": input.capabilities.clone().unwrap_or_else(|| json!({}))
+                "capabilities": merge_roots_capabilities(input.capabilities.clone())
             }
         })),
         McpOperationInputDto::ToolsList { input } => {
@@ -366,6 +392,17 @@ pub async fn execute_mcp_request(payload: &SendMcpRequestPayloadDto) -> Result<S
         serde_json::from_str::<Value>(&response_text).unwrap_or_else(|_| Value::String(response_text.clone()))
     };
     let error_category = classify_protocol_error(status_code, &protocol_response);
+    let synthetic_protocol_response = if matches!(payload.mcp.operation, McpOperationInputDto::Initialize { .. }) && error_category.is_none() {
+        Some(json!({
+            "jsonrpc": "2.0",
+            "id": format!("{}:roots/list", payload.tab_id),
+            "result": {
+                "roots": serialize_roots(payload.mcp.roots.as_ref())
+            }
+        }))
+    } else {
+        None
+    };
 
     Ok(SendMcpRequestResultDto {
         request_method: "POST".to_string(),
@@ -375,7 +412,7 @@ pub async fn execute_mcp_request(payload: &SendMcpRequestPayloadDto) -> Result<S
         elapsed_ms,
         size_bytes,
         content_type,
-        response_body: serde_json::to_string_pretty(&protocol_response).unwrap_or(response_text),
+        response_body: serde_json::to_string_pretty(&synthetic_protocol_response.clone().unwrap_or_else(|| protocol_response.clone())).unwrap_or(response_text),
         headers,
         truncated: false,
         execution_source: "live".to_string(),
@@ -383,7 +420,7 @@ pub async fn execute_mcp_request(payload: &SendMcpRequestPayloadDto) -> Result<S
             transport: payload.mcp.connection.transport.clone(),
             operation: operation_name(&payload.mcp.operation).to_string(),
             protocol_request: Some(protocol_request),
-            protocol_response: Some(protocol_response.clone()),
+            protocol_response: Some(synthetic_protocol_response.unwrap_or_else(|| protocol_response.clone())),
             selected_tool: match &payload.mcp.operation {
                 McpOperationInputDto::ToolsCall { input } => input.schema.clone(),
                 _ => None,
@@ -411,6 +448,7 @@ pub async fn execute_mcp_request(payload: &SendMcpRequestPayloadDto) -> Result<S
                 _ => None,
             },
             cached_prompts: extract_cached_prompts(&protocol_response),
+            roots: payload.mcp.roots.clone(),
             session_id,
             error_category,
         }),
@@ -447,6 +485,7 @@ mod tests {
                     session_id: Some("session-1".to_string()),
                 },
                 operation,
+                roots: None,
             },
         }
     }

@@ -504,6 +504,7 @@ export const createAppShellStore = (state: AppShellState): AppShellStore => {
             ...mcpArtifact,
             cachedTools: mcpArtifact.cachedTools ?? responseTools ?? tab.response.mcpArtifact?.cachedTools,
             cachedResources: mcpArtifact.cachedResources ?? responseResources ?? tab.response.mcpArtifact?.cachedResources,
+            roots: mcpArtifact.roots ?? tab.response.mcpArtifact?.roots ?? tab.mcp?.roots,
           }
           : tab.response.mcpArtifact
 

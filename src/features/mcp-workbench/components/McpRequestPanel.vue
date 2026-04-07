@@ -20,6 +20,7 @@ import type {
   McpPromptSnapshot,
   McpRequestDefinition,
   McpResourceSnapshot,
+  McpRootSnapshot,
   McpToolSchemaSnapshot,
   RequestTabExecutionState,
   RequestTabOriginKind,
@@ -93,6 +94,35 @@ const updateMcp = (updater: (current: McpRequestDefinition) => McpRequestDefinit
   emit('update:mcp', updater(ensureMcpDefinition()))
 }
 
+
+const handleRootUriChange = (index: number, value: string) => {
+  updateMcp((current) => ({
+    ...current,
+    roots: (current.roots ?? []).map((root, currentIndex) => currentIndex === index ? { ...root, uri: value } : root),
+  }))
+}
+
+const handleRootNameChange = (index: number, value: string) => {
+  updateMcp((current) => ({
+    ...current,
+    roots: (current.roots ?? []).map((root, currentIndex) => currentIndex === index ? { ...root, name: value } : root),
+  }))
+}
+
+const handleAddRoot = () => {
+  updateMcp((current) => ({
+    ...current,
+    roots: [...(current.roots ?? []), { uri: '', name: '' }],
+  }))
+}
+
+const handleRemoveRoot = (index: number) => {
+  updateMcp((current) => ({
+    ...current,
+    roots: (current.roots ?? []).filter((_, currentIndex) => currentIndex != index),
+  }))
+}
+
 const text = computed(() => getMessages(props.locale))
 const currentOperation = computed<McpOperationInput['type']>(() => props.mcp?.operation.type ?? 'initialize')
 const operationLabel = computed(() => props.mcp?.operation.type ?? 'initialize')
@@ -160,6 +190,7 @@ const executionBadgeClass = computed(() => {
 const toolName = computed(() => props.mcp?.operation.type === 'tools.call' ? props.mcp.operation.input.toolName : '')
 const resourceUri = computed(() => props.mcp?.operation.type === 'resources.read' ? props.mcp.operation.input.uri : '')
 const promptName = computed(() => props.mcp?.operation.type === 'prompts.get' ? props.mcp.operation.input.promptName : '')
+const roots = computed<McpRootSnapshot[]>(() => props.mcp?.roots ?? [])
 
 const availableTools = computed<McpToolSchemaSnapshot[]>(() => {
   if (Array.isArray(props.mcpArtifact?.cachedTools) && props.mcpArtifact.cachedTools.length > 0) {
@@ -787,6 +818,59 @@ const handleDiscoverPrompts = () => emit('discover-prompts')
               <div data-testid="mcp-endpoint-value" class="zr-chip min-w-0 truncate rounded-full px-2 py-0.5 font-mono text-[var(--zr-text-muted)]">{{ text.request.mcp.endpoint }}: {{ baseUrl || text.request.mcp.endpointNotConfigured }}</div>
             </div>
             <div data-testid="mcp-transport-hint" class="text-xs leading-5 text-[var(--zr-text-muted)]">{{ transportHint }}</div>
+          </div>
+        </section>
+
+        
+        <section
+          data-testid="mcp-roots-panel"
+          class="rounded-xl border border-[color:var(--zr-border-soft)] bg-[color:color-mix(in_srgb,var(--zr-control-bg)_88%,var(--zr-editor-bg))] p-3.5"
+        >
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--zr-text-muted)]">{{ text.request.mcp.roots }}</div>
+              <div class="mt-1 text-sm leading-5 text-[var(--zr-text-secondary)]">{{ text.request.mcp.rootsHint }}</div>
+            </div>
+            <button
+              data-testid="mcp-add-root-button"
+              class="inline-flex items-center rounded-md border border-[color:var(--zr-border-soft)] px-2.5 py-1 text-xs font-medium text-[var(--zr-text-secondary)] transition-colors hover:border-[color:var(--zr-border)] hover:bg-[color:var(--zr-editor-bg)] hover:text-[var(--zr-text-primary)]"
+              @click="handleAddRoot"
+            >
+              {{ text.request.mcp.addRoot }}
+            </button>
+          </div>
+
+          <div v-if="roots.length === 0" data-testid="mcp-roots-empty" class="mt-3 text-sm leading-5 text-[var(--zr-text-secondary)]">
+            {{ text.request.mcp.rootsEmpty }}
+          </div>
+
+          <div v-else class="mt-3 grid gap-3">
+            <div
+              v-for="(root, index) in roots"
+              :key="`root-${index}`"
+              data-testid="mcp-root-row"
+              class="grid gap-2 rounded-lg border border-[color:var(--zr-border-soft)] bg-[color:var(--zr-editor-bg)] p-3 md:grid-cols-[minmax(0,1fr)_220px_auto]"
+            >
+              <Input
+                :data-testid="`mcp-root-uri-input-${index}`"
+                :model-value="root.uri"
+                placeholder="file:///workspace"
+                @update:model-value="handleRootUriChange(index, String($event))"
+              />
+              <Input
+                :data-testid="`mcp-root-name-input-${index}`"
+                :model-value="root.name ?? ''"
+                placeholder="Workspace"
+                @update:model-value="handleRootNameChange(index, String($event))"
+              />
+              <button
+                :data-testid="`mcp-root-remove-button-${index}`"
+                class="zr-secondary-action inline-flex h-9 items-center justify-center rounded-md px-3 text-xs"
+                @click="handleRemoveRoot(index)"
+              >
+                {{ text.common.delete }}
+              </button>
+            </div>
           </div>
         </section>
 
