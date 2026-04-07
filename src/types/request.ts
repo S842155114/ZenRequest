@@ -194,6 +194,11 @@ export interface McpPromptSnapshot {
   arguments?: McpPromptArgumentSnapshot[]
 }
 
+export interface McpRootSnapshot {
+  uri: string
+  name?: string
+}
+
 export interface McpToolsListInput {
   cursor?: string
 }
@@ -235,6 +240,7 @@ export type McpOperationInput =
 export interface McpRequestDefinition {
   connection: McpConnectionConfig
   operation: McpOperationInput
+  roots?: McpRootSnapshot[]
 }
 
 export interface McpExecutionArtifact {
@@ -249,6 +255,7 @@ export interface McpExecutionArtifact {
   resourceContents?: McpResourceContentSnapshot[]
   selectedPrompt?: McpPromptSnapshot
   cachedPrompts?: McpPromptSnapshot[]
+  roots?: McpRootSnapshot[]
   sessionId?: string
   errorCategory?: 'transport' | 'session' | 'tool-call' | 'initialize' | 'tool_execution'
 }

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { defineComponent, nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
 import McpRequestPanel from './McpRequestPanel.vue'
 
@@ -195,6 +196,30 @@ describe('McpRequestPanel', () => {
     const updateEvents = wrapper.emitted('update:mcp') ?? []
     const lastPayload = updateEvents[updateEvents.length - 1]?.[0] as { operation?: { input?: { uri?: string } } } | undefined
     expect(lastPayload?.operation?.input?.uri).toBe('file:///manual/override.txt')
+  })
+
+
+  it('supports adding and removing session roots in the MCP workbench', async () => {
+    const wrapper = mount(McpRequestPanel, {
+      props: {
+        locale: 'en',
+        requestName: 'MCP Search',
+        requestKey: 'tab-mcp',
+        mcp: {
+          ...baseMcp,
+          roots: [],
+        },
+      },
+    })
+
+    expect(wrapper.get('[data-testid="mcp-roots-panel"]').text()).toContain('Roots')
+    expect(wrapper.get('[data-testid="mcp-roots-empty"]').text()).toContain('No roots configured')
+
+    await wrapper.get('[data-testid="mcp-add-root-button"]').trigger('click')
+    const updateEvents = wrapper.emitted('update:mcp') ?? []
+    const payload = updateEvents[updateEvents.length - 1]?.[0] as { roots?: Array<{ uri: string, name?: string }> }
+    expect(payload.roots).toHaveLength(1)
+    expect(payload.roots?.[0]?.uri).toBe('')
   })
 
   it('renders the mode toggle and action buttons in the workbench header', async () => {

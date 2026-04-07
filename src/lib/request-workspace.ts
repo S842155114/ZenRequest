@@ -11,6 +11,7 @@ import type {
   RequestBodySnapshot,
   McpExecutionArtifact,
   McpRequestDefinition,
+  McpRootSnapshot,
   ResponseLifecycleState,
   RequestPreset,
   RequestTestDefinition,
@@ -179,6 +180,9 @@ const cloneMcpExecutionArtifact = (artifact?: McpExecutionArtifact): McpExecutio
           arguments: prompt.arguments ? prompt.arguments.map((argument) => ({ ...argument })) : undefined,
         }))
         : undefined,
+      roots: artifact.roots
+        ? artifact.roots.map((root) => ({ ...root }))
+        : undefined,
     }
     : undefined
 )
@@ -191,6 +195,7 @@ const cloneMcpRequestDefinition = (definition?: McpRequestDefinition): McpReques
         headers: cloneItems(definition.connection.headers),
         auth: cloneAuth(definition.connection.auth),
       },
+      roots: definition.roots ? definition.roots.map((root) => ({ ...root })) : undefined,
       operation: definition.operation.type === 'tools.call'
         ? {
           type: 'tools.call',

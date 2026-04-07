@@ -30,7 +30,7 @@ pub use importing::{
 pub use request::{
     AssertionResultSetDto, AuthConfigDto, CompiledRequestDto, ExecutionArtifactDto,
     KeyValueItemDto, McpExecutionArtifactDto, McpOperationInputDto, McpPromptArgumentSnapshotDto,
-    McpPromptSnapshotDto, McpResourceContentSnapshotDto, McpResourceSnapshotDto, NormalizedResponseDto,
+    McpPromptSnapshotDto, McpResourceContentSnapshotDto, McpResourceSnapshotDto, McpRootSnapshotDto, NormalizedResponseDto,
     RequestAssertionResultDto, RequestBodyDto, RequestExecutionOptionsDto,
     RequestTestDefinitionDto, ResponseHeaderItemDto, SendMcpRequestPayloadDto,
     SendMcpRequestResultDto, SendRequestPayloadDto, SendRequestResultDto,

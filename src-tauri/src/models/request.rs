@@ -364,6 +364,15 @@ pub struct McpPromptSnapshotDto {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+pub struct McpRootSnapshotDto {
+    #[serde(default)]
+    pub uri: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct McpPromptsListInputDto {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cursor: Option<String>,
@@ -412,6 +421,8 @@ impl Default for McpOperationInputDto {
 pub struct McpRequestDefinitionDto {
     pub connection: McpConnectionConfigDto,
     pub operation: McpOperationInputDto,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub roots: Option<Vec<McpRootSnapshotDto>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -530,6 +541,8 @@ pub struct McpExecutionArtifactDto {
     pub selected_prompt: Option<McpPromptSnapshotDto>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cached_prompts: Option<Vec<McpPromptSnapshotDto>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub roots: Option<Vec<McpRootSnapshotDto>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
