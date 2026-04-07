@@ -23,39 +23,39 @@ defineProps<{
 </script>
 
 <template>
-  <TabsList data-testid="request-compose-rail" class="zr-input zr-compose-rail mx-3 mt-3.5 w-fit shrink-0 rounded-xl p-1">
+  <TabsList data-testid="request-compose-rail" class="zr-input zr-compose-rail mx-3 mt-3 w-fit shrink-0 rounded-xl p-1 shadow-none">
     <TabsTrigger value="params" data-testid="request-section-trigger-params" class="zr-tab-trigger">
       {{ requestText.params }}
-      <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ enabledParamsCount }}</Badge>
+      <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[10px] text-[var(--zr-text-secondary)]">{{ enabledParamsCount }}</Badge>
       <Badge
         v-if="invalidParamsCount > 0"
         data-testid="request-section-invalid-params"
         variant="secondary"
-        class="ml-1 rounded-full border border-rose-500/25 bg-rose-500/10 px-1.5 py-0 text-[9px] text-rose-700 dark:text-rose-300"
+        class="ml-1 rounded-full border border-rose-500/25 bg-rose-500/10 px-1.5 py-0 text-[10px] text-rose-700 dark:text-rose-300"
       >
         {{ invalidParamsCount }}
       </Badge>
     </TabsTrigger>
     <TabsTrigger value="headers" data-testid="request-section-trigger-headers" class="zr-tab-trigger">
       {{ requestText.headers }}
-      <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ enabledHeadersCount }}</Badge>
+      <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[10px] text-[var(--zr-text-secondary)]">{{ enabledHeadersCount }}</Badge>
       <Badge
         v-if="invalidHeadersCount > 0"
         data-testid="request-section-invalid-headers"
         variant="secondary"
-        class="ml-1 rounded-full border border-rose-500/25 bg-rose-500/10 px-1.5 py-0 text-[9px] text-rose-700 dark:text-rose-300"
+        class="ml-1 rounded-full border border-rose-500/25 bg-rose-500/10 px-1.5 py-0 text-[10px] text-rose-700 dark:text-rose-300"
       >
         {{ invalidHeadersCount }}
       </Badge>
     </TabsTrigger>
     <TabsTrigger value="body" data-testid="request-section-trigger-body" class="zr-tab-trigger">
       {{ requestText.body }}
-      <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ bodyConfiguredCount }}</Badge>
+      <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[10px] text-[var(--zr-text-secondary)]">{{ bodyConfiguredCount }}</Badge>
       <Badge
         v-if="bodyInvalidCount > 0"
         data-testid="request-section-invalid-body"
         variant="secondary"
-        class="ml-1 rounded-full border border-rose-500/25 bg-rose-500/10 px-1.5 py-0 text-[9px] text-rose-700 dark:text-rose-300"
+        class="ml-1 rounded-full border border-rose-500/25 bg-rose-500/10 px-1.5 py-0 text-[10px] text-rose-700 dark:text-rose-300"
       >
         {{ bodyInvalidCount }}
       </Badge>
@@ -66,32 +66,32 @@ defineProps<{
     </TabsTrigger>
     <TabsTrigger value="execution" data-testid="request-section-trigger-execution" data-request-secondary="true" class="zr-tab-trigger zr-tab-trigger-secondary">
       {{ requestText.execution }}
-      <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ executionConfiguredCount }}</Badge>
+      <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[10px] text-[var(--zr-text-secondary)]">{{ executionConfiguredCount }}</Badge>
       <Badge
         v-if="executionInvalidCount > 0"
         data-testid="request-section-invalid-execution"
         variant="secondary"
-        class="ml-1 rounded-full border border-rose-500/25 bg-rose-500/10 px-1.5 py-0 text-[9px] text-rose-700 dark:text-rose-300"
+        class="ml-1 rounded-full border border-rose-500/25 bg-rose-500/10 px-1.5 py-0 text-[10px] text-rose-700 dark:text-rose-300"
       >
         {{ executionInvalidCount }}
       </Badge>
     </TabsTrigger>
     <TabsTrigger value="auth" data-testid="request-section-trigger-auth" data-request-secondary="true" class="zr-tab-trigger zr-tab-trigger-secondary">
       {{ requestText.auth }}
-      <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ authConfiguredCount }}</Badge>
+      <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[10px] text-[var(--zr-text-secondary)]">{{ authConfiguredCount }}</Badge>
     </TabsTrigger>
     <TabsTrigger value="tests" data-testid="request-section-trigger-tests" data-request-secondary="true" class="zr-tab-trigger zr-tab-trigger-secondary">
       {{ requestText.tests }}
-      <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ testsCount }}</Badge>
+      <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[10px] text-[var(--zr-text-secondary)]">{{ testsCount }}</Badge>
     </TabsTrigger>
     <TabsTrigger value="env" data-testid="request-section-trigger-env" data-request-secondary="true" class="zr-tab-trigger zr-tab-trigger-secondary">
       {{ requestText.env }}
-      <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[9px] text-[var(--zr-text-secondary)]">{{ enabledEnvironmentVariablesCount }}</Badge>
+      <Badge variant="secondary" class="ml-1.5 rounded-full border border-[color:var(--zr-border)] bg-[var(--zr-chip-bg)] px-1.5 py-0 text-[10px] text-[var(--zr-text-secondary)]">{{ enabledEnvironmentVariablesCount }}</Badge>
       <Badge
         v-if="invalidEnvironmentVariablesCount > 0"
         data-testid="request-section-invalid-env"
         variant="secondary"
-        class="ml-1 rounded-full border border-rose-500/25 bg-rose-500/10 px-1.5 py-0 text-[9px] text-rose-700 dark:text-rose-300"
+        class="ml-1 rounded-full border border-rose-500/25 bg-rose-500/10 px-1.5 py-0 text-[10px] text-rose-700 dark:text-rose-300"
       >
         {{ invalidEnvironmentVariablesCount }}
       </Badge>

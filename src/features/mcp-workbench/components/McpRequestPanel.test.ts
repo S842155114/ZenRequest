@@ -196,4 +196,53 @@ describe('McpRequestPanel', () => {
     const lastPayload = updateEvents[updateEvents.length - 1]?.[0] as { operation?: { input?: { uri?: string } } } | undefined
     expect(lastPayload?.operation?.input?.uri).toBe('file:///manual/override.txt')
   })
+
+  it('renders the mode toggle and action buttons in the workbench header', async () => {
+    const wrapper = mount(McpRequestPanel, {
+      props: {
+        locale: 'en',
+        requestName: 'MCP Search',
+        requestKey: 'tab-mcp',
+        requestKind: 'mcp',
+        isSending: false,
+        disableSend: false,
+        mcp: baseMcp,
+      },
+    })
+
+    expect(wrapper.get('[data-testid="request-kind-toggle"]').text()).toContain('HTTP')
+    expect(wrapper.get('[data-testid="request-kind-toggle"]').text()).toContain('MCP')
+    expect(wrapper.get('[data-testid="request-url-bar-send"]').text()).toContain('Send')
+    expect(wrapper.get('[data-testid="request-command-save"]').attributes('aria-label')).toBe('Save')
+    expect(wrapper.get('[data-testid="request-command-save"]').classes()).toContain('zr-secondary-action')
+
+    await wrapper.get('[data-testid="request-kind-http"]').trigger('click')
+    await wrapper.get('[data-testid="request-url-bar-send"]').trigger('click')
+    await wrapper.get('[data-testid="request-command-save"]').trigger('click')
+
+    expect(wrapper.emitted('update:request-kind')?.[0]).toEqual(['http'])
+    expect(wrapper.emitted('send')).toHaveLength(1)
+    expect(wrapper.emitted('save')).toHaveLength(1)
+  })
+
+  it('renders http-style request status pills in the mcp header', () => {
+    const wrapper = mount(McpRequestPanel, {
+      props: {
+        locale: 'zh-CN',
+        requestName: 'MCP Search',
+        requestKey: 'tab-mcp',
+        requestKind: 'mcp',
+        originKind: 'detached',
+        persistenceState: 'unbound',
+        executionState: 'success',
+        mcp: baseMcp,
+      },
+    })
+
+    expect(wrapper.find('[data-testid="mcp-request-context"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="request-identity-origin"]').text()).toContain('已脱离')
+    expect(wrapper.get('[data-testid="request-identity-persistence"]').text()).toContain('未绑定')
+    expect(wrapper.get('[data-testid="request-identity-execution"]').text()).toContain('成功')
+  })
+
 })

@@ -165,6 +165,20 @@ const cloneMcpExecutionArtifact = (artifact?: McpExecutionArtifact): McpExecutio
       resourceContents: artifact.resourceContents
         ? artifact.resourceContents.map((content) => ({ ...content }))
         : undefined,
+      selectedPrompt: artifact.selectedPrompt
+        ? {
+          ...artifact.selectedPrompt,
+          arguments: artifact.selectedPrompt.arguments
+            ? artifact.selectedPrompt.arguments.map((argument) => ({ ...argument }))
+            : undefined,
+        }
+        : undefined,
+      cachedPrompts: artifact.cachedPrompts
+        ? artifact.cachedPrompts.map((prompt) => ({
+          ...prompt,
+          arguments: prompt.arguments ? prompt.arguments.map((argument) => ({ ...argument })) : undefined,
+        }))
+        : undefined,
     }
     : undefined
 )
@@ -193,35 +207,56 @@ const cloneMcpRequestDefinition = (definition?: McpRequestDefinition): McpReques
               : undefined,
           },
         }
-        : definition.operation.type === 'initialize'
+        : definition.operation.type === 'prompts.get'
           ? {
-            type: 'initialize',
+            type: 'prompts.get',
             input: {
               ...definition.operation.input,
-              capabilities: definition.operation.input.capabilities
-                ? clonePlainData(definition.operation.input.capabilities)
+              arguments: clonePlainData(definition.operation.input.arguments),
+              prompt: definition.operation.input.prompt
+                ? {
+                  ...definition.operation.input.prompt,
+                  arguments: definition.operation.input.prompt.arguments
+                    ? definition.operation.input.prompt.arguments.map((argument) => ({ ...argument }))
+                    : undefined,
+                }
                 : undefined,
             },
           }
-          : definition.operation.type === 'resources.read'
+          : definition.operation.type === 'initialize'
             ? {
-              type: 'resources.read',
+              type: 'initialize',
               input: {
                 ...definition.operation.input,
-                resource: definition.operation.input.resource
-                  ? { ...definition.operation.input.resource }
+                capabilities: definition.operation.input.capabilities
+                  ? clonePlainData(definition.operation.input.capabilities)
                   : undefined,
               },
             }
-            : definition.operation.type === 'resources.list'
+            : definition.operation.type === 'resources.read'
               ? {
-                type: 'resources.list',
-                input: { ...definition.operation.input },
+                type: 'resources.read',
+                input: {
+                  ...definition.operation.input,
+                  resource: definition.operation.input.resource
+                    ? { ...definition.operation.input.resource }
+                    : undefined,
+                },
               }
-              : {
-                type: 'tools.list',
-                input: { ...definition.operation.input },
-              },
+              : definition.operation.type === 'resources.list'
+                ? {
+                  type: 'resources.list',
+                  input: { ...definition.operation.input },
+                }
+                : definition.operation.type === 'prompts.list'
+                  ? {
+                    type: 'prompts.list',
+                    input: { ...definition.operation.input },
+                  }
+                  : {
+                    type: 'tools.list',
+                    input: { ...definition.operation.input },
+                  },
     }
     : undefined
 )

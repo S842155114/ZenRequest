@@ -187,6 +187,7 @@ const createAdapter = (
     }),
   discoverMcpTools: async (_payload) => ok([]),
   discoverMcpResources: async (_payload) => ok([]),
+  discoverMcpPrompts: async (_payload) => ok([]),
   saveTextFile: async (input) => ok({ path: input.targetPath ?? input.fileName }),
   promptSavePath: async (options) => options?.defaultPath ?? null,
   ...overrides,

@@ -141,6 +141,7 @@ export interface RequestPanelHandlers {
   onSaveRequest: () => void
   onDiscoverMcpTools: () => void
   onDiscoverMcpResources: () => void
+  onDiscoverMcpPrompts: () => void
   onImportWorkspace: () => void
   onImportOpenApi: () => void
   onImportCurl: () => void

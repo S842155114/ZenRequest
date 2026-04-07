@@ -392,6 +392,79 @@ export const createAppShellViewModel = (deps: AppShellViewModelDeps): AppShellVi
     })
   }
 
+  const handleDiscoverMcpPrompts = async () => {
+    const tab = deps.activeTab.value
+    if (!tab || tab.requestKind !== 'mcp' || !tab.mcp) return
+
+    const payload: SendRequestPayload = {
+      tabId: tab.id,
+      requestKind: 'mcp',
+      mcp: tab.mcp,
+      requestId: tab.requestId,
+      name: tab.name,
+      description: tab.description,
+      tags: [...tab.tags],
+      collectionName: tab.collectionName,
+      method: tab.method,
+      url: tab.mcp.connection.baseUrl,
+      params: [],
+      headers: [],
+      body: '',
+      bodyType: 'json',
+      auth: tab.auth,
+      tests: [...tab.tests],
+      mock: tab.mock,
+      executionOptions: tab.executionOptions,
+    }
+
+    const result = await deps.services.discoverMcpPrompts({ payload })
+    if (!result.ok || !result.data) {
+      deps.showErrorToast({
+        title: deps.text.value.busy.requestSendingTitle,
+        description: deps.text.value.busy.requestSendingDescription,
+      }, result.message)
+      return
+    }
+
+    deps.store.mutations.updateTab(tab.id, (current) => {
+      let nextMcp = current.mcp
+      if (current.mcp?.operation.type === 'prompts.get') {
+        const currentPromptName = current.mcp.operation.input.promptName
+        nextMcp = {
+          ...current.mcp,
+          operation: {
+            ...current.mcp.operation,
+            input: {
+              ...current.mcp.operation.input,
+              prompt: result.data!.find((prompt) => prompt.name === currentPromptName) ?? current.mcp.operation.input.prompt,
+            },
+          },
+        }
+      }
+
+      return {
+        ...current,
+        response: {
+          ...current.response,
+          requestKind: 'mcp',
+          mcpArtifact: {
+            ...current.response.mcpArtifact,
+            transport: current.mcp?.connection.transport ?? 'http',
+            operation: 'prompts.list',
+            cachedPrompts: result.data,
+          },
+        },
+        mcp: nextMcp,
+      }
+    })
+
+    deps.showToast({
+      title: deps.text.value.request.mcp.refreshPrompts,
+      description: `${result.data.length} prompt(s) available for the current MCP connection.`,
+      tone: 'success',
+    })
+  }
+
   const handleDiscoverMcpResources = async () => {
     const tab = deps.activeTab.value
     if (!tab || tab.requestKind !== 'mcp' || !tab.mcp) return
@@ -591,6 +664,7 @@ export const createAppShellViewModel = (deps: AppShellViewModelDeps): AppShellVi
     onSaveRequest: () => deps.dialogs.handleSaveRequest(),
     onDiscoverMcpTools: handleDiscoverMcpTools,
     onDiscoverMcpResources: handleDiscoverMcpResources,
+    onDiscoverMcpPrompts: handleDiscoverMcpPrompts,
     onImportWorkspace: deps.dialogs.handleImportWorkspaceClick,
     onImportOpenApi: deps.dialogs.handleImportOpenApiClick,
     onImportCurl: deps.dialogs.handleImportCurlClick,

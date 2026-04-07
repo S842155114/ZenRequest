@@ -7,6 +7,7 @@ import type {
   FormDataFieldSnapshot,
   HistoryItem,
   McpExecutionArtifact,
+  McpPromptSnapshot,
   McpRequestDefinition,
   McpResourceSnapshot,
   McpToolSchemaSnapshot,
@@ -271,6 +272,7 @@ export interface RuntimeAdapter {
   sendMcpRequest(payload: SendMcpRequestPayloadDto): Promise<ApiEnvelope<SendMcpRequestResult>>
   discoverMcpTools(payload: SendMcpRequestPayloadDto): Promise<ApiEnvelope<McpToolSchemaSnapshot[]>>
   discoverMcpResources(payload: SendMcpRequestPayloadDto): Promise<ApiEnvelope<McpResourceSnapshot[]>>
+  discoverMcpPrompts(payload: SendMcpRequestPayloadDto): Promise<ApiEnvelope<McpPromptSnapshot[]>>
   saveTextFile(input: SaveTextFileInput): Promise<ApiEnvelope<SaveTextFileResult>>
   promptSavePath(options?: SaveDialogOptions): Promise<string | null>
 }
@@ -581,6 +583,39 @@ const tauriAdapter: RuntimeAdapter = {
         .filter((resource) => resource.uri.trim().length > 0),
     }
   },
+  discoverMcpPrompts: async (payload) => {
+    const result = await invokeEnvelope<SendMcpRequestResult>('send_mcp_request', {
+      payload: {
+        ...payload,
+        mcp: {
+          ...payload.mcp,
+          operation: { type: 'prompts.list', input: { cursor: '' } },
+        },
+      },
+    })
+    if (!result.ok || !result.data) return { ok: false, error: result.error }
+    const prompts = (((result.data.mcpArtifact?.protocolResponse as Record<string, unknown> | undefined)?.result as Record<string, unknown> | undefined)?.prompts)
+    if (!Array.isArray(prompts)) return { ok: true, data: [] }
+    return {
+      ok: true,
+      data: prompts
+        .filter((prompt): prompt is Record<string, unknown> => typeof prompt === 'object' && prompt !== null)
+        .map((prompt) => ({
+          name: typeof prompt.name === 'string' ? prompt.name : '',
+          title: typeof prompt.title === 'string' ? prompt.title : undefined,
+          description: typeof prompt.description === 'string' ? prompt.description : undefined,
+          arguments: Array.isArray(prompt.arguments)
+            ? prompt.arguments.filter((argument): argument is Record<string, unknown> => typeof argument === 'object' && argument !== null).map((argument) => ({
+                name: typeof argument.name === 'string' ? argument.name : '',
+                title: typeof argument.title === 'string' ? argument.title : undefined,
+                description: typeof argument.description === 'string' ? argument.description : undefined,
+                required: typeof argument.required === 'boolean' ? argument.required : undefined,
+              })).filter((argument) => argument.name.trim().length > 0)
+            : undefined,
+        }))
+        .filter((prompt) => prompt.name.trim().length > 0),
+    }
+  },
   saveTextFile: (input) => invokeEnvelope<SaveTextFileResult>('save_text_file', { payload: input }),
   promptSavePath: async (options = {}) => {
     const selected = await save({
@@ -662,6 +697,7 @@ const mockAdapter: RuntimeAdapter = {
   sendMcpRequest: async () => ({ ok: false, error: buildNotImplementedError('send_mcp_request') }),
   discoverMcpTools: async () => ({ ok: false, error: buildNotImplementedError('discover_mcp_tools') }),
   discoverMcpResources: async () => ({ ok: false, error: buildNotImplementedError('discover_mcp_resources') }),
+  discoverMcpPrompts: async () => ({ ok: false, error: buildNotImplementedError('discover_mcp_prompts') }),
   saveTextFile: async (input) => ({ ok: true, data: { path: input.targetPath ?? input.fileName } }),
   promptSavePath: async (options) => options?.defaultPath ?? null,
 }
@@ -704,6 +740,8 @@ export const runtimeClient = {
     activeAdapter.discoverMcpTools(toSendMcpRequestPayloadDto(workspaceId, activeEnvironmentId, payload)),
   discoverMcpResources: (workspaceId: string, activeEnvironmentId: string | undefined, payload: SendRequestPayload) =>
     activeAdapter.discoverMcpResources(toSendMcpRequestPayloadDto(workspaceId, activeEnvironmentId, payload)),
+  discoverMcpPrompts: (workspaceId: string, activeEnvironmentId: string | undefined, payload: SendRequestPayload) =>
+    activeAdapter.discoverMcpPrompts(toSendMcpRequestPayloadDto(workspaceId, activeEnvironmentId, payload)),
   saveTextFile: (input: SaveTextFileInput) => activeAdapter.saveTextFile(input),
   promptSavePath: (options: SaveDialogOptions = {}) => activeAdapter.promptSavePath(options),
 }
