@@ -496,10 +496,14 @@ export const createAppShellStore = (state: AppShellState): AppShellStore => {
         const responseTools = mcpArtifact?.protocolResponse && typeof mcpArtifact.protocolResponse === 'object'
           ? (((mcpArtifact.protocolResponse as Record<string, unknown>).result as Record<string, unknown> | undefined)?.tools as typeof mcpArtifact.cachedTools | undefined)
           : undefined
+        const responseResources = mcpArtifact?.protocolResponse && typeof mcpArtifact.protocolResponse === 'object'
+          ? (((mcpArtifact.protocolResponse as Record<string, unknown>).result as Record<string, unknown> | undefined)?.resources as typeof mcpArtifact.cachedResources | undefined)
+          : undefined
         const nextMcpArtifact = mcpArtifact
           ? {
             ...mcpArtifact,
             cachedTools: mcpArtifact.cachedTools ?? responseTools ?? tab.response.mcpArtifact?.cachedTools,
+            cachedResources: mcpArtifact.cachedResources ?? responseResources ?? tab.response.mcpArtifact?.cachedResources,
           }
           : tab.response.mcpArtifact
 
@@ -582,6 +586,9 @@ export const createAppShellStore = (state: AppShellState): AppShellStore => {
             errorCategory: mcpArtifact.errorCategory,
             toolName: input.payload.mcp?.operation.type === 'tools.call'
               ? input.payload.mcp.operation.input.toolName
+              : undefined,
+            resourceUri: input.payload.mcp?.operation.type === 'resources.read'
+              ? input.payload.mcp.operation.input.uri
               : undefined,
             sessionId: input.payload.mcp?.connection.sessionId,
           },

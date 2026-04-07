@@ -223,6 +223,8 @@ fn derive_mcp_history_summary(
         crate::models::request::McpOperationInputDto::Initialize { .. } => "initialize".to_string(),
         crate::models::request::McpOperationInputDto::ToolsList { .. } => "tools.list".to_string(),
         crate::models::request::McpOperationInputDto::ToolsCall { .. } => "tools.call".to_string(),
+        crate::models::request::McpOperationInputDto::ResourcesList { .. } => "resources.list".to_string(),
+        crate::models::request::McpOperationInputDto::ResourcesRead { .. } => "resources.read".to_string(),
     };
     let error_category = derive_mcp_error_category(&operation, status, response_preview);
 

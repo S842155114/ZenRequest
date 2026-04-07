@@ -46,6 +46,7 @@ const emit = defineEmits<{
   (e: 'send', payload: SendRequestPayload): void
   (e: 'save-request'): void
   (e: 'discover-mcp-tools'): void
+  (e: 'discover-mcp-resources'): void
   (e: 'import-workspace'): void
   (e: 'import-openapi'): void
   (e: 'import-curl'): void
@@ -436,6 +437,7 @@ const requestModeCaption = computed(() => activeTab.value?.requestKind === 'mcp'
               :mcp-artifact="activeTab.response?.mcpArtifact"
               @update:mcp="emit('update-active-tab', { requestKind: 'mcp', mcp: $event })"
               @discover-tools="emit('discover-mcp-tools')"
+              @discover-resources="emit('discover-mcp-resources')"
             />
           </template>
         </div>

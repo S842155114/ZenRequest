@@ -5,8 +5,8 @@ use serde_json::{json, Value};
 
 use crate::errors::AppError;
 use crate::models::{
-    McpExecutionArtifactDto, McpOperationInputDto, ResponseHeaderItemDto, SendMcpRequestPayloadDto,
-    SendMcpRequestResultDto,
+    McpExecutionArtifactDto, McpOperationInputDto, McpResourceContentSnapshotDto,
+    McpResourceSnapshotDto, ResponseHeaderItemDto, SendMcpRequestPayloadDto, SendMcpRequestResultDto,
 };
 
 fn error(code: &str, message: impl Into<String>) -> AppError {
@@ -22,6 +22,8 @@ fn operation_name(operation: &McpOperationInputDto) -> &'static str {
         McpOperationInputDto::Initialize { .. } => "initialize",
         McpOperationInputDto::ToolsList { .. } => "tools.list",
         McpOperationInputDto::ToolsCall { .. } => "tools.call",
+        McpOperationInputDto::ResourcesList { .. } => "resources.list",
+        McpOperationInputDto::ResourcesRead { .. } => "resources.read",
     }
 }
 
@@ -69,6 +71,33 @@ fn build_protocol_request(payload: &SendMcpRequestPayloadDto) -> Result<Value, A
                 }
             }))
         }
+        McpOperationInputDto::ResourcesList { input } => {
+            let mut params = serde_json::Map::new();
+            if let Some(cursor) = &input.cursor {
+                if !cursor.trim().is_empty() {
+                    params.insert("cursor".to_string(), Value::String(cursor.clone()));
+                }
+            }
+            Ok(json!({
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "method": "resources/list",
+                "params": Value::Object(params),
+            }))
+        }
+        McpOperationInputDto::ResourcesRead { input } => {
+            if input.uri.trim().is_empty() {
+                return Err(error("MCP_RESOURCE_URI_REQUIRED", "resource read requires a uri"));
+            }
+            Ok(json!({
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "method": "resources/read",
+                "params": {
+                    "uri": input.uri,
+                }
+            }))
+        }
     }
 }
 
@@ -88,11 +117,13 @@ fn build_headers(payload: &SendMcpRequestPayloadDto) -> Result<HeaderMap, AppErr
         headers.insert(name, value);
     }
 
-    if let Some(session_id) = &payload.mcp.connection.session_id {
-        if !session_id.trim().is_empty() {
-            let value = HeaderValue::from_str(session_id.trim())
-                .map_err(|_| error("INVALID_MCP_SESSION", "invalid mcp session id"))?;
-            headers.insert(HeaderName::from_static("mcp-session-id"), value);
+    if !matches!(payload.mcp.operation, McpOperationInputDto::Initialize { .. }) {
+        if let Some(session_id) = &payload.mcp.connection.session_id {
+            if !session_id.trim().is_empty() {
+                let value = HeaderValue::from_str(session_id.trim())
+                    .map_err(|_| error("INVALID_MCP_SESSION", "invalid mcp session id"))?;
+                headers.insert(HeaderName::from_static("mcp-session-id"), value);
+            }
         }
     }
 
@@ -134,6 +165,45 @@ fn extract_sse_payload(response_text: &str) -> Option<Value> {
 
     let joined = data_lines.join("\n");
     serde_json::from_str::<Value>(&joined).ok()
+}
+
+fn extract_cached_resources(protocol_response: &Value) -> Option<Vec<McpResourceSnapshotDto>> {
+    let result = protocol_response.get("result")?.as_object()?;
+    let resources = result.get("resources")?.as_array()?;
+
+    Some(resources.iter().filter_map(|resource| {
+        let object = resource.as_object()?;
+        let uri = object.get("uri")?.as_str()?.trim().to_string();
+        if uri.is_empty() {
+            return None;
+        }
+        Some(McpResourceSnapshotDto {
+            uri,
+            name: object.get("name").and_then(|value| value.as_str()).map(|value| value.to_string()),
+            title: object.get("title").and_then(|value| value.as_str()).map(|value| value.to_string()),
+            description: object.get("description").and_then(|value| value.as_str()).map(|value| value.to_string()),
+            mime_type: object.get("mimeType").and_then(|value| value.as_str()).map(|value| value.to_string()),
+        })
+    }).collect())
+}
+
+fn extract_resource_contents(protocol_response: &Value) -> Option<Vec<McpResourceContentSnapshotDto>> {
+    let result = protocol_response.get("result")?.as_object()?;
+    let contents = result.get("contents")?.as_array()?;
+
+    Some(contents.iter().filter_map(|content| {
+        let object = content.as_object()?;
+        let uri = object.get("uri")?.as_str()?.trim().to_string();
+        if uri.is_empty() {
+            return None;
+        }
+        Some(McpResourceContentSnapshotDto {
+            uri,
+            mime_type: object.get("mimeType").and_then(|value| value.as_str()).map(|value| value.to_string()),
+            text: object.get("text").and_then(|value| value.as_str()).map(|value| value.to_string()),
+            blob: object.get("blob").and_then(|value| value.as_str()).map(|value| value.to_string()),
+        })
+    }).collect())
 }
 
 fn classify_protocol_error(status_code: u16, protocol_response: &Value) -> Option<String> {
@@ -248,14 +318,86 @@ pub async fn execute_mcp_request(payload: &SendMcpRequestPayloadDto) -> Result<S
             transport: payload.mcp.connection.transport.clone(),
             operation: operation_name(&payload.mcp.operation).to_string(),
             protocol_request: Some(protocol_request),
-            protocol_response: Some(protocol_response),
+            protocol_response: Some(protocol_response.clone()),
             selected_tool: match &payload.mcp.operation {
                 McpOperationInputDto::ToolsCall { input } => input.schema.clone(),
                 _ => None,
             },
+            cached_tools: None,
+            selected_resource: match &payload.mcp.operation {
+                McpOperationInputDto::ResourcesRead { input } => input.resource.clone().or_else(|| Some(McpResourceSnapshotDto {
+                    uri: input.uri.clone(),
+                    name: None,
+                    title: None,
+                    description: None,
+                    mime_type: None,
+                })),
+                _ => None,
+            },
+            cached_resources: extract_cached_resources(&protocol_response),
+            resource_contents: extract_resource_contents(&protocol_response),
             session_id,
             error_category,
         }),
         history_item: None,
     })
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::build_headers;
+    use crate::models::{
+        AuthConfigDto, McpConnectionConfigDto, McpInitializeInputDto, McpOperationInputDto,
+        McpRequestDefinitionDto, McpToolsListInputDto, SendMcpRequestPayloadDto,
+    };
+
+    fn base_payload(operation: McpOperationInputDto) -> SendMcpRequestPayloadDto {
+        SendMcpRequestPayloadDto {
+            workspace_id: "workspace-1".to_string(),
+            active_environment_id: None,
+            tab_id: "tab-1".to_string(),
+            request_id: None,
+            name: "MCP".to_string(),
+            description: String::new(),
+            tags: Vec::new(),
+            collection_name: "Scratch Pad".to_string(),
+            request_kind: "mcp".to_string(),
+            mcp: McpRequestDefinitionDto {
+                connection: McpConnectionConfigDto {
+                    transport: "http".to_string(),
+                    base_url: "http://127.0.0.1:3000/mcp".to_string(),
+                    headers: Vec::new(),
+                    auth: AuthConfigDto::default(),
+                    session_id: Some("session-1".to_string()),
+                },
+                operation,
+            },
+        }
+    }
+
+    #[test]
+    fn initialize_does_not_send_mcp_session_id_header() {
+        let payload = base_payload(McpOperationInputDto::Initialize {
+            input: McpInitializeInputDto {
+                client_name: "ZenRequest".to_string(),
+                client_version: "0.1.0".to_string(),
+                protocol_version: None,
+                capabilities: None,
+            },
+        });
+
+        let headers = build_headers(&payload).expect("headers");
+        assert!(headers.get("mcp-session-id").is_none());
+    }
+
+    #[test]
+    fn follow_up_requests_keep_mcp_session_id_header() {
+        let payload = base_payload(McpOperationInputDto::ToolsList {
+            input: McpToolsListInputDto { cursor: None },
+        });
+
+        let headers = build_headers(&payload).expect("headers");
+        assert_eq!(headers.get("mcp-session-id").and_then(|v| v.to_str().ok()), Some("session-1"));
+    }
 }

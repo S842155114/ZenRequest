@@ -21,7 +21,7 @@ export type RequestTabPersistenceState = 'saved' | 'unsaved' | 'unbound'
 export type RequestTabExecutionState = ResponseLifecycleState
 export type RequestKind = 'http' | 'mcp'
 export type McpTransportKind = 'http' | 'stdio'
-export type McpOperationType = 'initialize' | 'tools.list' | 'tools.call'
+export type McpOperationType = 'initialize' | 'tools.list' | 'tools.call' | 'resources.list' | 'resources.read'
 
 export interface WorkbenchActivitySignal {
   active: boolean
@@ -165,8 +165,32 @@ export interface McpToolSchemaSnapshot {
   inputSchema?: Record<string, unknown>
 }
 
+export interface McpResourceContentSnapshot {
+  uri: string
+  mimeType?: string
+  text?: string
+  blob?: string
+}
+
+export interface McpResourceSnapshot {
+  uri: string
+  name?: string
+  title?: string
+  description?: string
+  mimeType?: string
+}
+
 export interface McpToolsListInput {
   cursor?: string
+}
+
+export interface McpResourcesListInput {
+  cursor?: string
+}
+
+export interface McpResourceReadInput {
+  uri: string
+  resource?: McpResourceSnapshot
 }
 
 export interface McpToolCallInput {
@@ -179,6 +203,8 @@ export type McpOperationInput =
   | { type: 'initialize'; input: McpInitializeInput }
   | { type: 'tools.list'; input: McpToolsListInput }
   | { type: 'tools.call'; input: McpToolCallInput }
+  | { type: 'resources.list'; input: McpResourcesListInput }
+  | { type: 'resources.read'; input: McpResourceReadInput }
 
 export interface McpRequestDefinition {
   connection: McpConnectionConfig
@@ -192,6 +218,9 @@ export interface McpExecutionArtifact {
   protocolResponse?: Record<string, unknown>
   selectedTool?: McpToolSchemaSnapshot
   cachedTools?: McpToolSchemaSnapshot[]
+  selectedResource?: McpResourceSnapshot
+  cachedResources?: McpResourceSnapshot[]
+  resourceContents?: McpResourceContentSnapshot[]
   sessionId?: string
   errorCategory?: 'transport' | 'session' | 'tool-call' | 'initialize' | 'tool_execution'
 }
@@ -259,6 +288,7 @@ export interface HistoryItem {
     transport: McpTransportKind
     errorCategory?: McpExecutionArtifact['errorCategory']
     toolName?: string
+    resourceUri?: string
     sessionId?: string
   }
 }

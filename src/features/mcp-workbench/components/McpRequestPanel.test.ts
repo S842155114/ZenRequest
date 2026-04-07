@@ -131,4 +131,69 @@ describe('McpRequestPanel', () => {
     expect(wrapper.find('[data-testid="mcp-arg-input-query"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="mcp-arg-input-stale"]').exists()).toBe(false)
   })
+
+
+  it('shows explicit resources guidance and emits discover-resources when no resources are available', async () => {
+    const wrapper = mount(McpRequestPanel, {
+      props: {
+        locale: 'en',
+        requestName: 'MCP Resource',
+        requestKey: 'tab-mcp-resource',
+        mcp: {
+          ...baseMcp,
+          operation: {
+            type: 'resources.read',
+            input: {
+              uri: '',
+            },
+          },
+        },
+      },
+    })
+
+    expect(wrapper.get('[data-testid="mcp-discover-resources-button"]').text()).toContain('Discover Resources')
+    expect(wrapper.get('[data-testid="mcp-resource-discovery-recommendation"]').text()).toContain('Discover resources first')
+
+    await wrapper.get('[data-testid="mcp-discover-resources-button"]').trigger('click')
+
+    expect(wrapper.emitted('discover-resources')).toHaveLength(1)
+    expect(wrapper.find('[data-testid="mcp-resource-uri-input"]').exists()).toBe(true)
+  })
+
+  it('prefers discovered resources for resources.read while allowing manual uri fallback', async () => {
+    const wrapper = mount(McpRequestPanel, {
+      props: {
+        locale: 'en',
+        requestName: 'MCP Resource',
+        requestKey: 'tab-mcp-resource',
+        mcp: {
+          ...baseMcp,
+          operation: {
+            type: 'resources.read',
+            input: {
+              uri: 'file:///docs/readme.md',
+            },
+          },
+        },
+        mcpArtifact: {
+          transport: 'http',
+          operation: 'resources.list',
+          cachedResources: [
+            {
+              uri: 'file:///docs/readme.md',
+              title: 'Readme',
+            },
+          ],
+        },
+      },
+    })
+
+    expect(wrapper.find('[data-testid="mcp-resource-select"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="mcp-resource-uri"]').text()).toContain('file:///docs/readme.md')
+
+    await wrapper.get('[data-testid="mcp-resource-uri-input"]').setValue('file:///manual/override.txt')
+    const updateEvents = wrapper.emitted('update:mcp') ?? []
+    const lastPayload = updateEvents[updateEvents.length - 1]?.[0] as { operation?: { input?: { uri?: string } } } | undefined
+    expect(lastPayload?.operation?.input?.uri).toBe('file:///manual/override.txt')
+  })
 })
