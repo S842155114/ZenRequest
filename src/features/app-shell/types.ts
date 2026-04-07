@@ -140,6 +140,7 @@ export interface RequestPanelHandlers {
   onSend: (payload: SendRequestPayload) => Promise<void>
   onSaveRequest: () => void
   onDiscoverMcpTools: () => void
+  onDiscoverMcpResources: () => void
   onImportWorkspace: () => void
   onImportOpenApi: () => void
   onImportCurl: () => void

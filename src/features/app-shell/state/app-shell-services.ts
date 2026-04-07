@@ -11,6 +11,7 @@ import type {
 import type {
   EnvironmentPreset,
   KeyValueItem,
+  McpResourceSnapshot,
   McpToolSchemaSnapshot,
   RequestCollection,
   RequestPreset,
@@ -60,6 +61,7 @@ export interface AppShellServices {
   applyOpenApiImport: (input: { analysis: OpenApiImportAnalysis }) => Promise<ServiceResult<OpenApiImportApplyResult>>
   importCurl: (input: { command: string }) => Promise<ServiceResult<RequestTabState>>
   discoverMcpTools: (input: { payload: SendRequestPayload }) => Promise<ServiceResult<McpToolSchemaSnapshot[]>>
+  discoverMcpResources: (input: { payload: SendRequestPayload }) => Promise<ServiceResult<McpResourceSnapshot[]>>
   sendRequest: (input: { payload: SendRequestPayload }) => Promise<ServiceResult<{ tabId: string; response: SendRequestResult }>>
 }
 
@@ -590,6 +592,24 @@ export const createAppShellServices = (deps: AppShellServiceDeps): AppShellServi
       }
 
       const response = await deps.runtime.discoverMcpTools(workspaceId, activeEnvironmentId, payload)
+      if (!response.ok || !response.data) {
+        return failure('mcp.discover_failed', response.error?.message)
+      }
+
+      return success('mcp.discovered', response.data)
+    },
+    discoverMcpResources: async ({ payload }) => {
+      const workspaceId = getActiveWorkspaceId()
+      const activeEnvironmentId = deps.store.state.environment.activeId
+      if (!workspaceId || !activeEnvironmentId) {
+        return failure('mcp.discover_failed', 'Missing active workspace or environment')
+      }
+
+      if (payload.requestKind !== 'mcp' || !payload.mcp) {
+        return failure('mcp.discover_failed', 'discoverMcpResources requires an MCP payload')
+      }
+
+      const response = await deps.runtime.discoverMcpResources(workspaceId, activeEnvironmentId, payload)
       if (!response.ok || !response.data) {
         return failure('mcp.discover_failed', response.error?.message)
       }

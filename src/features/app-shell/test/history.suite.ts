@@ -294,6 +294,91 @@ describe('App workbench shell - history recovery', () => {
   })
 
 
+  it('adds mcp resource reads to history with replayable summaries', async () => {
+    window.innerWidth = 1440
+
+    const payload = createBootstrapPayload()
+    payload.session = {
+      activeEnvironmentId: 'env-local',
+      activeTabId: 'tab-mcp-resource-read',
+      openTabs: [{
+        id: 'tab-mcp-resource-read',
+        requestKind: 'mcp',
+        mcp: {
+          connection: {
+            transport: 'http',
+            baseUrl: 'https://example.com/mcp',
+            headers: [],
+            auth: {
+              type: 'none', bearerToken: '', username: '', password: '', apiKeyKey: '', apiKeyValue: '', apiKeyPlacement: 'header',
+            },
+          },
+          operation: {
+            type: 'resources.read',
+            input: {
+              uri: 'file:///docs/readme.md',
+            },
+          },
+        },
+        name: 'MCP Resource Read',
+        description: '',
+        tags: ['mcp'],
+        collectionName: 'Scratch Pad',
+        method: 'POST',
+        url: 'https://example.com/mcp',
+        params: [], headers: [], body: '', bodyType: 'json',
+        auth: { type: 'none', bearerToken: '', username: '', password: '', apiKeyKey: '', apiKeyValue: '', apiKeyPlacement: 'header' },
+        tests: [],
+        response: { requestKind: 'mcp', responseBody: '', status: 0, statusText: '', time: '0 ms', size: '0 B', headers: [], contentType: 'application/json', requestMethod: 'POST', requestUrl: 'https://example.com/mcp', testResults: [] },
+        isSending: false,
+        isDirty: false,
+      }],
+    }
+
+    setRuntimeAdapter(createAdapter(payload, {
+      sendMcpRequest: async () => ok({
+        requestMethod: 'POST',
+        requestUrl: 'https://example.com/mcp',
+        status: 200,
+        statusText: 'OK',
+        elapsedMs: 12,
+        sizeBytes: 120,
+        contentType: 'application/json',
+        responseBody: '{"result":{"contents":[{"uri":"file:///docs/readme.md","mimeType":"text/plain","text":"hello"}]}}',
+        headers: [],
+        truncated: false,
+        executionSource: 'live' as const,
+        mcpArtifact: {
+          transport: 'http',
+          operation: 'resources.read',
+          selectedResource: { uri: 'file:///docs/readme.md', title: 'Readme' },
+          resourceContents: [{ uri: 'file:///docs/readme.md', mimeType: 'text/plain', text: 'hello' }],
+        },
+      }),
+    }))
+
+    const wrapper = await mountApp()
+    await wrapper.get('[data-testid="request-panel-send"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    const historyItems = wrapper.findComponent(AppSidebarStub).props('historyItems') as HistoryItem[]
+    expect(historyItems[0]?.mcpSummary).toEqual({
+      operation: 'resources.read',
+      transport: 'http',
+      resourceUri: 'file:///docs/readme.md',
+    })
+
+    await wrapper.get('[data-testid="sidebar-select-history"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    const replayTab = getActiveRequestPanelTab(wrapper)
+    expect(replayTab?.requestKind).toBe('mcp')
+    expect(replayTab?.mcp?.operation.type).toBe('resources.read')
+    expect(replayTab?.mcp?.operation.input.uri).toBe('file:///docs/readme.md')
+  })
+
   it('replays initialize, tools.list, and tools.call MCP history snapshots through one workbench flow', async () => {
     window.innerWidth = 1440
 

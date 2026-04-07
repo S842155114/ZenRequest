@@ -336,6 +336,7 @@ const createAdapter = (
   sendMcpRequest: async (_payload) =>
     ({ ok: false, error: { code: 'NOT_IMPLEMENTED', message: 'send_mcp_request is not implemented yet' } }),
   discoverMcpTools: async (_payload) => ok([]),
+  discoverMcpResources: async (_payload) => ok([]),
   sendRequest: async (_payload: SendRequestPayloadDto) =>
     ({ ok: false, error: { code: 'NOT_IMPLEMENTED', message: 'not implemented' } }),
   ...overrides,

@@ -270,6 +270,10 @@ export const useRequestPanelState = (
           blockers.push(text.value.request.mcp.blockerRequiredArguments(missingRequiredKeys.join(', ')))
         }
       }
+
+      if (operation?.type === 'resources.read' && !operation.input.uri.trim()) {
+        blockers.push(text.value.request.mcp.blockerResourceUri)
+      }
     } else if (!url.value.trim()) {
       blockers.push(text.value.request.emptyUrlBlocker)
     }

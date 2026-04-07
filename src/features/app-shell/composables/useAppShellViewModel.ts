@@ -392,6 +392,79 @@ export const createAppShellViewModel = (deps: AppShellViewModelDeps): AppShellVi
     })
   }
 
+  const handleDiscoverMcpResources = async () => {
+    const tab = deps.activeTab.value
+    if (!tab || tab.requestKind !== 'mcp' || !tab.mcp) return
+
+    const payload: SendRequestPayload = {
+      tabId: tab.id,
+      requestKind: 'mcp',
+      mcp: tab.mcp,
+      requestId: tab.requestId,
+      name: tab.name,
+      description: tab.description,
+      tags: [...tab.tags],
+      collectionName: tab.collectionName,
+      method: tab.method,
+      url: tab.mcp.connection.baseUrl,
+      params: [],
+      headers: [],
+      body: '',
+      bodyType: 'json',
+      auth: tab.auth,
+      tests: [...tab.tests],
+      mock: tab.mock,
+      executionOptions: tab.executionOptions,
+    }
+
+    const result = await deps.services.discoverMcpResources({ payload })
+    if (!result.ok || !result.data) {
+      deps.showErrorToast({
+        title: deps.text.value.busy.requestSendingTitle,
+        description: deps.text.value.busy.requestSendingDescription,
+      }, result.message)
+      return
+    }
+
+    deps.store.mutations.updateTab(tab.id, (current) => {
+      let nextMcp = current.mcp
+      if (current.mcp?.operation.type === 'resources.read') {
+        const currentUri = current.mcp.operation.input.uri
+        nextMcp = {
+          ...current.mcp,
+          operation: {
+            ...current.mcp.operation,
+            input: {
+              ...current.mcp.operation.input,
+              resource: result.data!.find((resource) => resource.uri === currentUri) ?? current.mcp.operation.input.resource,
+            },
+          },
+        }
+      }
+
+      return {
+        ...current,
+        response: {
+          ...current.response,
+          requestKind: 'mcp',
+          mcpArtifact: {
+            ...current.response.mcpArtifact,
+            transport: current.mcp?.connection.transport ?? 'http',
+            operation: 'resources.list',
+            cachedResources: result.data,
+          },
+        },
+        mcp: nextMcp,
+      }
+    })
+
+    deps.showToast({
+      title: deps.text.value.request.mcp.refreshResources,
+      description: `${result.data.length} resource(s) available for the current MCP endpoint.`,
+      tone: 'success',
+    })
+  }
+
   const handleWorkspaceChange = async (workspaceId: string) => {
     if (!workspaceId || workspaceId === deps.activeWorkspaceId.value) return
 
@@ -517,6 +590,7 @@ export const createAppShellViewModel = (deps: AppShellViewModelDeps): AppShellVi
     onSend: handleSend,
     onSaveRequest: () => deps.dialogs.handleSaveRequest(),
     onDiscoverMcpTools: handleDiscoverMcpTools,
+    onDiscoverMcpResources: handleDiscoverMcpResources,
     onImportWorkspace: deps.dialogs.handleImportWorkspaceClick,
     onImportOpenApi: deps.dialogs.handleImportOpenApiClick,
     onImportCurl: deps.dialogs.handleImportCurlClick,

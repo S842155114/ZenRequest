@@ -959,6 +959,79 @@ describe('app-shell services', () => {
     expect(runtime.discoverMcpTools).toHaveBeenCalledWith('workspace-1', 'env-local', payload)
   })
 
+  it('discovers mcp resources through the runtime seam', async () => {
+    const state = reactive(createInitialAppShellState())
+    state.workspace.items = [{ id: 'workspace-1', name: 'Primary Workspace' }]
+    state.workspace.activeId = 'workspace-1'
+    state.environment.items = [{ id: 'env-local', name: 'Local', variables: [] }]
+    state.environment.activeId = 'env-local'
+
+    const store = createAppShellStore(state)
+    const payload: SendRequestPayload = {
+      tabId: 'tab-mcp-resource-list',
+      requestKind: 'mcp',
+      mcp: {
+        connection: {
+          transport: 'http',
+          baseUrl: 'https://example.com/mcp',
+          headers: [],
+          auth: {
+            type: 'none',
+            bearerToken: '',
+            username: '',
+            password: '',
+            apiKeyKey: '',
+            apiKeyValue: '',
+            apiKeyPlacement: 'header',
+          },
+        },
+        operation: {
+          type: 'resources.list',
+          input: {
+            cursor: '',
+          },
+        },
+      },
+      requestId: undefined,
+      name: 'List Resources',
+      description: '',
+      tags: [],
+      collectionName: 'Scratch Pad',
+      method: 'POST',
+      url: 'https://example.com/mcp',
+      params: [],
+      headers: [],
+      body: '',
+      bodyType: 'json',
+      auth: {
+        type: 'none',
+        bearerToken: '',
+        username: '',
+        password: '',
+        apiKeyKey: '',
+        apiKeyValue: '',
+        apiKeyPlacement: 'header',
+      },
+      tests: [],
+      executionOptions: {
+        redirectPolicy: 'follow',
+        proxy: { mode: 'inherit' },
+        verifySsl: true,
+      },
+    }
+
+    const runtime = {
+      discoverMcpResources: vi.fn(async () => ({ ok: true, data: [{ uri: 'file:///docs/readme.md', title: 'Readme' }] })),
+    } as const
+
+    const services = createAppShellServices({ runtime: runtime as never, store })
+    const result = await services.discoverMcpResources({ payload })
+
+    expect(result).toMatchObject({ ok: true, code: 'mcp.discovered' })
+    expect(result.ok && result.data ? result.data[0] : null).toMatchObject({ uri: 'file:///docs/readme.md' })
+    expect(runtime.discoverMcpResources).toHaveBeenCalledWith('workspace-1', 'env-local', payload)
+  })
+
   it('creates a missing collection before saving a request and updates the store state', async () => {
     const state = reactive(createInitialAppShellState())
     state.workspace.items = [{ id: 'workspace-1', name: 'Primary Workspace' }]

@@ -276,9 +276,53 @@ pub struct McpToolSchemaSnapshotDto {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+pub struct McpResourceSnapshotDto {
+    #[serde(default)]
+    pub uri: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct McpResourceContentSnapshotDto {
+    #[serde(default)]
+    pub uri: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blob: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct McpToolsListInputDto {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cursor: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct McpResourcesListInputDto {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct McpResourceReadInputDto {
+    #[serde(default)]
+    pub uri: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resource: Option<McpResourceSnapshotDto>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -301,6 +345,10 @@ pub enum McpOperationInputDto {
     ToolsList { input: McpToolsListInputDto },
     #[serde(rename = "tools.call", alias = "toolsCall")]
     ToolsCall { input: McpToolCallInputDto },
+    #[serde(rename = "resources.list", alias = "resourcesList")]
+    ResourcesList { input: McpResourcesListInputDto },
+    #[serde(rename = "resources.read", alias = "resourcesRead")]
+    ResourcesRead { input: McpResourceReadInputDto },
 }
 
 impl Default for McpOperationInputDto {
@@ -422,6 +470,14 @@ pub struct McpExecutionArtifactDto {
     pub protocol_response: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selected_tool: Option<McpToolSchemaSnapshotDto>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cached_tools: Option<Vec<McpToolSchemaSnapshotDto>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selected_resource: Option<McpResourceSnapshotDto>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cached_resources: Option<Vec<McpResourceSnapshotDto>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resource_contents: Option<Vec<McpResourceContentSnapshotDto>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

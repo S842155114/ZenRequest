@@ -1,3 +1,17 @@
+---
+gsd_state_version: 1.0
+milestone: v1.1
+milestone_name: milestone
+status: unknown
+last_updated: "2026-04-07T01:43:23.350Z"
+progress:
+  total_phases: 4
+  completed_phases: 0
+  total_plans: 1
+  completed_plans: 0
+  percent: 0
+---
+
 # GSD State
 
 ## Project Reference
@@ -5,7 +19,7 @@
 See: `.planning/PROJECT.md` (updated 2026-04-06)
 
 **Core value:** 让开发者以本地优先、快速、可控的方式完成高频 API 调试与工作流操作，而不被臃肿云平台和账号绑定打断。
-**Current focus:** v1.0 milestone audit passed and ready for archival
+**Current focus:** Phase 08 — mcp-resources-workbench
 
 ## Current Artifacts
 
@@ -20,14 +34,11 @@ See: `.planning/PROJECT.md` (updated 2026-04-06)
 
 - Project initialized as brownfield workspace
 - Research, requirements, roadmap, and codebase mapping completed
-- Phase 1 through Phase 7 have been implemented, verified, and merged
-- Phase 4 PR created: `#29`
-- Phase 5 PR created: `#30`
-- Phase 7 PR created and merged: `#31`
-- Internal branch strategy has been documented for main-based delivery
-- Milestone gap-closure phases (Phase 6 and Phase 7) are complete
-- v1.0 milestone re-audit now passes with requirements and archive-proof evidence aligned
-- Recommended next step: `$gsd-complete-milestone 1.0`
+- v1.0 has been archived and tagged
+- v1.0.1 tag has been pushed to rerun release workflow on the post-archive CI/build fix commit
+- New milestone selected: `v1.1 MCP Expansion`
+- Current status: defining milestone requirements and roadmap
+- Recommended next step: start Phase `08` after roadmap approval
 
 ## Branch Strategy
 
@@ -37,9 +48,10 @@ See: `.planning/PROJECT.md` (updated 2026-04-06)
 - Completed branches should be deleted locally and remotely after merge
 
 Recommended branch names:
+
 - `feat/short-name`
 - `fix/short-name`
 - `gsd/phase-XX-short-name`
 
 ---
-*Last updated: 2026-04-06 after Phase 7 merge and v1.0 re-audit*
+*Last updated: 2026-04-07 after v1.1 kickoff*

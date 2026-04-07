@@ -156,6 +156,15 @@ const cloneMcpExecutionArtifact = (artifact?: McpExecutionArtifact): McpExecutio
           inputSchema: tool.inputSchema ? clonePlainData(tool.inputSchema) : undefined,
         }))
         : undefined,
+      selectedResource: artifact.selectedResource
+        ? { ...artifact.selectedResource }
+        : undefined,
+      cachedResources: artifact.cachedResources
+        ? artifact.cachedResources.map((resource) => ({ ...resource }))
+        : undefined,
+      resourceContents: artifact.resourceContents
+        ? artifact.resourceContents.map((content) => ({ ...content }))
+        : undefined,
     }
     : undefined
 )
@@ -194,10 +203,25 @@ const cloneMcpRequestDefinition = (definition?: McpRequestDefinition): McpReques
                 : undefined,
             },
           }
-          : {
-            type: 'tools.list',
-            input: { ...definition.operation.input },
-          },
+          : definition.operation.type === 'resources.read'
+            ? {
+              type: 'resources.read',
+              input: {
+                ...definition.operation.input,
+                resource: definition.operation.input.resource
+                  ? { ...definition.operation.input.resource }
+                  : undefined,
+              },
+            }
+            : definition.operation.type === 'resources.list'
+              ? {
+                type: 'resources.list',
+                input: { ...definition.operation.input },
+              }
+              : {
+                type: 'tools.list',
+                input: { ...definition.operation.input },
+              },
     }
     : undefined
 )

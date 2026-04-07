@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { buildMcpSchemaFormModel, parseMcpStructuredArguments } from '@/features/mcp-workbench/lib/mcp-schema-form'
-import type { AppLocale, McpExecutionArtifact, McpOperationInput, McpRequestDefinition, McpToolSchemaSnapshot } from '@/types/request'
+import type { AppLocale, McpExecutionArtifact, McpOperationInput, McpRequestDefinition, McpResourceSnapshot, McpToolSchemaSnapshot } from '@/types/request'
 
 const props = withDefaults(defineProps<{
   locale: AppLocale
@@ -30,6 +30,7 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   (e: 'update:mcp', value: McpRequestDefinition): void
   (e: 'discover-tools'): void
+  (e: 'discover-resources'): void
 }>()
 
 const defaultMcpDefinition = (): McpRequestDefinition => ({
@@ -69,6 +70,7 @@ const transportLabel = computed(() => props.mcp?.connection.transport ?? 'http')
 const baseUrl = computed(() => props.mcp?.connection.baseUrl ?? '')
 const headerCount = computed(() => props.mcp?.connection.headers.filter((item) => item.enabled && item.key.trim()).length ?? 0)
 const toolName = computed(() => props.mcp?.operation.type === 'tools.call' ? props.mcp.operation.input.toolName : '')
+const resourceUri = computed(() => props.mcp?.operation.type === 'resources.read' ? props.mcp.operation.input.uri : '')
 const currentOperation = computed<McpOperationInput['type']>(() => props.mcp?.operation.type ?? 'initialize')
 
 const availableTools = computed<McpToolSchemaSnapshot[]>(() => {
@@ -105,11 +107,48 @@ const selectedToolSchema = computed<McpToolSchemaSnapshot | undefined>(() => {
 })
 
 const hasDiscoveredTools = computed(() => availableTools.value.length > 0)
+const availableResources = computed<McpResourceSnapshot[]>(() => {
+  if (Array.isArray(props.mcpArtifact?.cachedResources) && props.mcpArtifact.cachedResources.length > 0) {
+    return props.mcpArtifact.cachedResources.map((resource) => ({ ...resource }))
+  }
+
+  const response = props.mcpArtifact?.protocolResponse
+  if (!response || typeof response !== 'object') return []
+  const result = (response as Record<string, unknown>).result
+  if (!result || typeof result !== 'object') return []
+  const resources = (result as Record<string, unknown>).resources
+  if (!Array.isArray(resources)) return []
+
+  return resources
+    .filter((resource): resource is Record<string, unknown> => typeof resource === 'object' && resource !== null)
+    .map((resource) => ({
+      uri: typeof resource.uri === 'string' ? resource.uri : '',
+      name: typeof resource.name === 'string' ? resource.name : undefined,
+      title: typeof resource.title === 'string' ? resource.title : undefined,
+      description: typeof resource.description === 'string' ? resource.description : undefined,
+      mimeType: typeof resource.mimeType === 'string' ? resource.mimeType : undefined,
+    }))
+    .filter((resource) => resource.uri.trim().length > 0)
+})
+
+const selectedResource = computed<McpResourceSnapshot | undefined>(() => {
+  if (props.mcp?.operation.type !== 'resources.read') return undefined
+  return availableResources.value.find((resource) => resource.uri === resourceUri.value)
+    ?? props.mcp.operation.input.resource
+})
+
+const hasDiscoveredResources = computed(() => availableResources.value.length > 0)
 const discoveryActionLabel = computed(() => hasDiscoveredTools.value ? text.value.request.mcp.refreshTools : text.value.request.mcp.discoverTools)
+const resourceDiscoveryActionLabel = computed(() => hasDiscoveredResources.value ? text.value.request.mcp.refreshResources : text.value.request.mcp.discoverResources)
 const showDiscoveryRecommendation = computed(() => currentOperation.value === 'tools.call' && !hasDiscoveredTools.value)
+const showResourceDiscoveryRecommendation = computed(() => currentOperation.value === 'resources.read' && !hasDiscoveredResources.value)
 
 const handleDiscoverTools = () => {
   emit('discover-tools')
+}
+
+const handleDiscoverResources = () => {
+  emit('discover-resources')
 }
 
 const currentToolArguments = computed<Record<string, unknown>>(() => (
@@ -182,6 +221,32 @@ const handleOperationChange = (value: unknown) => {
       }
     }
 
+    if (value === 'resources.list') {
+      return {
+        ...current,
+        operation: {
+          type: 'resources.list',
+          input: {
+            cursor: '',
+          },
+        },
+      }
+    }
+
+    if (value === 'resources.read') {
+      const firstResource = availableResources.value[0]
+      return {
+        ...current,
+        operation: {
+          type: 'resources.read',
+          input: {
+            uri: firstResource?.uri ?? '',
+            resource: firstResource,
+          },
+        },
+      }
+    }
+
     return {
       ...current,
       operation: {
@@ -232,6 +297,49 @@ const handleToolNameChange = (value: string | number) => {
         input: {
           ...current.operation.input,
           toolName: nextToolName,
+        },
+      },
+    }
+  })
+}
+
+const handleResourceSelection = (nextUri: unknown) => {
+  if (typeof nextUri !== 'string' || nextUri.length === 0) return
+  updateMcp((current) => {
+    if (current.operation.type !== 'resources.read') return current
+    const matchedResource = availableResources.value.find((resource) => resource.uri === nextUri)
+
+    return {
+      ...current,
+      operation: {
+        ...current.operation,
+        input: {
+          ...current.operation.input,
+          uri: nextUri,
+          resource: matchedResource,
+        },
+      },
+    }
+  })
+}
+
+const handleResourceUriChange = (value: string | number) => {
+  const nextUri = String(value)
+  if (availableResources.value.some((resource) => resource.uri === nextUri)) {
+    handleResourceSelection(nextUri)
+    return
+  }
+
+  updateMcp((current) => {
+    if (current.operation.type !== 'resources.read') return current
+    return {
+      ...current,
+      operation: {
+        ...current.operation,
+        input: {
+          ...current.operation.input,
+          uri: nextUri,
+          resource: current.operation.input.resource?.uri === nextUri ? current.operation.input.resource : undefined,
         },
       },
     }
@@ -325,6 +433,8 @@ const handleRawArgumentsChange = (value: string | number) => {
             <SelectItem value="initialize">initialize</SelectItem>
             <SelectItem value="tools.list">tools.list</SelectItem>
             <SelectItem value="tools.call">tools.call</SelectItem>
+            <SelectItem value="resources.list">resources.list</SelectItem>
+            <SelectItem value="resources.read">resources.read</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -391,6 +501,52 @@ const handleRawArgumentsChange = (value: string | number) => {
           class="mt-2 text-xs text-[var(--zr-text-secondary)]"
         >
           {{ text.request.mcp.discoveryRecommended }}
+        </div>
+      </div>
+
+      <div
+        v-else-if="currentOperation === 'resources.read'"
+        class="rounded-lg border border-[color:var(--zr-border-soft)] bg-[color:var(--zr-control-bg)] px-3 py-2.5"
+      >
+        <div class="mb-2 flex items-center justify-between gap-3">
+          <div class="text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">{{ text.request.mcp.resource }}</div>
+          <button
+            type="button"
+            data-testid="mcp-discover-resources-button"
+            class="inline-flex items-center rounded-md border border-[color:var(--zr-border)] px-2.5 py-1 text-[11px] font-medium text-[var(--zr-text-primary)] hover:bg-[color:var(--zr-editor-bg)]"
+            @click="handleDiscoverResources"
+          >
+            {{ resourceDiscoveryActionLabel }}
+          </button>
+        </div>
+        <Select
+          v-if="availableResources.length > 0"
+          :model-value="resourceUri"
+          @update:model-value="handleResourceSelection"
+        >
+          <SelectTrigger data-testid="mcp-resource-select" class="mt-2 w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem v-for="resource in availableResources" :key="resource.uri" :value="resource.uri">
+              {{ resource.title || resource.name || resource.uri }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+        <Input
+          data-testid="mcp-resource-uri-input"
+          class="mt-2"
+          :model-value="resourceUri"
+          placeholder="file:///docs/readme.md"
+          @update:model-value="handleResourceUriChange"
+        />
+        <div data-testid="mcp-resource-uri" class="mt-2 text-xs text-[var(--zr-text-secondary)]">{{ resourceUri || text.request.mcp.resourceNotSelected }}</div>
+        <div
+          v-if="showResourceDiscoveryRecommendation"
+          data-testid="mcp-resource-discovery-recommendation"
+          class="mt-2 text-xs text-[var(--zr-text-secondary)]"
+        >
+          {{ text.request.mcp.resourceDiscoveryRecommended }}
         </div>
       </div>
 
