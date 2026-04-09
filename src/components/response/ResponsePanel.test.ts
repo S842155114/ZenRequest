@@ -260,6 +260,31 @@ describe('ResponsePanel i18n copy', () => {
     expect(wrapper.get('[data-testid="response-mcp-error-message"]').text()).toContain('bad request')
   })
 
+  it('renders stdio runtime diagnostics when the artifact exposes failure details', () => {
+    const wrapper = mount(ResponsePanel, {
+      props: {
+        locale: 'en',
+        requestKind: 'mcp',
+        responseBody: JSON.stringify({ error: { code: -32000, message: 'spawn failed' } }),
+        contentType: 'application/json',
+        mcpArtifact: {
+          transport: 'stdio',
+          operation: 'initialize',
+          errorCategory: 'transport',
+          failurePhase: 'spawn',
+          sessionState: 'idle',
+          stderrSummary: 'ENOENT: node not found',
+          protocolResponse: { error: { code: -32000, message: 'spawn failed' } },
+        },
+      },
+    })
+
+    expect(wrapper.get('[data-testid="response-mcp-runtime-diagnostics"]').text()).toContain('stdio diagnostics')
+    expect(wrapper.get('[data-testid="response-mcp-failure-phase"]').text()).toContain('spawn')
+    expect(wrapper.get('[data-testid="response-mcp-session-state"]').text()).toContain('idle')
+    expect(wrapper.get('[data-testid="response-mcp-stderr-summary"]').text()).toContain('ENOENT: node not found')
+  })
+
   it('renders mcp body mode toggles and switches to protocol envelope content', async () => {
     const wrapper = mount(ResponsePanel, {
       props: {

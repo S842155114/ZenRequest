@@ -326,6 +326,7 @@ mod tests {
                             headers: Vec::new(),
                             auth: Default::default(),
                             session_id: None,
+                            stdio: None,
                         },
                         operation: crate::models::request::McpOperationInputDto::ToolsCall {
                             input: crate::models::request::McpToolCallInputDto {
@@ -334,6 +335,7 @@ mod tests {
                                 schema: None,
                             },
                         },
+                        roots: None,
                     }),
                     active_environment_id: None,
                     tab_id: "tab-mcp".to_string(),
@@ -401,6 +403,7 @@ mod tests {
                             headers: Vec::new(),
                             auth: Default::default(),
                             session_id: None,
+                            stdio: None,
                         },
                         operation: McpOperationInputDto::ToolsCall {
                             input: McpToolCallInputDto {
@@ -409,6 +412,7 @@ mod tests {
                                 schema: None,
                             },
                         },
+                        roots: None,
                     }),
                     active_environment_id: None,
                     tab_id: "tab-mcp-transport-error".to_string(),
@@ -475,6 +479,7 @@ mod tests {
                             headers: Vec::new(),
                             auth: Default::default(),
                             session_id: None,
+                            stdio: None,
                         },
                         operation: McpOperationInputDto::Initialize {
                             input: McpInitializeInputDto {
@@ -484,6 +489,7 @@ mod tests {
                                 capabilities: None,
                             },
                         },
+                        roots: None,
                     }),
                     active_environment_id: None,
                     tab_id: "tab-mcp-initialize-error".to_string(),

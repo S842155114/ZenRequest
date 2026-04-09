@@ -182,6 +182,13 @@ const mcpErrorMessage = computed(() => {
   const message = mcpProtocolError.value?.message
   return typeof message === 'string' ? message : ''
 })
+const mcpFailurePhaseLabel = computed(() => props.mcpArtifact?.failurePhase ?? '')
+const mcpSessionStateLabel = computed(() => props.mcpArtifact?.sessionState ?? '')
+const mcpStderrSummary = computed(() => props.mcpArtifact?.stderrSummary?.trim() ?? '')
+const showMcpRuntimeDiagnostics = computed(() => (
+  isMcpResponse.value
+  && Boolean(mcpFailurePhaseLabel.value || mcpSessionStateLabel.value || mcpStderrSummary.value)
+))
 
 const isBodyTab = computed(() => activeTab.value === 'body')
 
@@ -560,16 +567,36 @@ const downloadCurrentContent = async () => {
               <div v-if="mcpErrorCode" data-testid="response-mcp-error-code" class="mt-1 font-mono text-xs text-[var(--zr-text-primary)]">Code: {{ mcpErrorCode }}</div>
               <div v-if="mcpErrorMessage" data-testid="response-mcp-error-message" class="mt-1 text-xs text-[var(--zr-text-primary)]">{{ mcpErrorMessage }}</div>
             </div>
+            <div
+              v-if="showMcpRuntimeDiagnostics && !showIdleState && !showPendingState"
+              data-testid="response-mcp-runtime-diagnostics"
+              class="mb-2 rounded-lg border border-[color:var(--zr-border-soft)] bg-[var(--zr-soft-bg)] px-3 py-2"
+            >
+              <div class="flex flex-wrap items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-[var(--zr-text-muted)]">
+                <span>stdio diagnostics</span>
+                <Badge v-if="mcpFailurePhaseLabel" data-testid="response-mcp-failure-phase" variant="outline" class="rounded-full px-2 py-0.5 text-[9px] font-semibold tracking-[0.14em]">
+                  phase: {{ mcpFailurePhaseLabel }}
+                </Badge>
+                <Badge v-if="mcpSessionStateLabel" data-testid="response-mcp-session-state" variant="outline" class="rounded-full px-2 py-0.5 text-[9px] font-semibold tracking-[0.14em]">
+                  state: {{ mcpSessionStateLabel }}
+                </Badge>
+              </div>
+              <pre
+                v-if="mcpStderrSummary"
+                data-testid="response-mcp-stderr-summary"
+                class="mt-2 whitespace-pre-wrap break-words rounded-md bg-[var(--zr-surface)] px-2.5 py-2 font-mono text-[11px] leading-5 text-[var(--zr-text-primary)]"
+              >{{ mcpStderrSummary }}</pre>
+            </div>
             <ResponseCodeViewer
               ref="responseCodeViewer"
-              v-else-if="!isHtmlPreviewMode"
+              v-if="!showIdleState && !showPendingState && !isHtmlPreviewMode"
               :content="activeBodyContent"
               :language="activeBodyLanguage"
               :theme="theme"
             />
             <ResponseHtmlPreview
               ref="responseHtmlPreview"
-              v-else
+              v-else-if="!showIdleState && !showPendingState"
               :document="props.responseBody"
               :title="text.response.previewFrameTitle"
               @scoped-select-all="handleScopedSelectAll"

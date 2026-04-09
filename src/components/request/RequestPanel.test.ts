@@ -796,7 +796,7 @@ describe('RequestPanel i18n copy', () => {
     )
     expect(wrapper.find('[data-testid="mcp-operation-select"]').exists()).toBe(true)
     expect(wrapper.get('[data-testid="mcp-transport-value"]').text()).toContain('http')
-    expect(wrapper.get('[data-testid="mcp-transport-hint"]').text()).toContain('stdio is planned')
+    expect(wrapper.get('[data-testid="mcp-transport-hint"]').text()).toContain('HTTP and stdio transports are available in this release')
     expect(wrapper.get('[data-testid="mcp-endpoint-value"]').text()).toContain('https://example.com/mcp')
     expect(wrapper.get('[data-testid="mcp-tool-name"]').text()).toContain('search')
     expect(wrapper.find('[data-testid="mcp-command-bar"]').exists()).toBe(false)
@@ -1573,10 +1573,10 @@ describe('McpRequestPanel discoverability', () => {
     expect(wrapper.text()).toContain('MCP 工作台')
     expect(wrapper.text()).toContain('操作')
     expect(wrapper.get('[data-testid="mcp-transport-value"]').text()).toContain('http')
-    expect(wrapper.get('[data-testid="mcp-transport-hint"]').text()).toContain('当前版本已支持 HTTP 传输')
+    expect(wrapper.get('[data-testid="mcp-transport-hint"]').text()).toContain('当前版本已支持 HTTP 与 stdio 传输')
   })
 
-  it('shows HTTP active and stdio planned guidance in the transport hint', () => {
+  it('shows active HTTP and stdio guidance in the transport hint', () => {
     const wrapper = mount(McpRequestPanel, {
       props: {
         locale: 'en',
@@ -1608,7 +1608,6 @@ describe('McpRequestPanel discoverability', () => {
     })
 
     expect(wrapper.get('[data-testid="mcp-transport-value"]').text()).toContain('http')
-    expect(wrapper.get('[data-testid="mcp-transport-hint"]').text()).toContain('HTTP transport is available in this release')
-    expect(wrapper.get('[data-testid="mcp-transport-hint"]').text()).toContain('stdio is planned')
+    expect(wrapper.get('[data-testid="mcp-transport-hint"]').text()).toContain('HTTP and stdio transports are available in this release')
   })
 })

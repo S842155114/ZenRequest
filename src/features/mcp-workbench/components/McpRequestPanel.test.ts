@@ -271,3 +271,42 @@ describe('McpRequestPanel', () => {
   })
 
 })
+
+it('supports switching to stdio transport and editing command fields', async () => {
+  const wrapper = mount(McpRequestPanel, {
+    props: {
+      locale: 'en',
+      requestName: 'MCP Stdio',
+      requestKey: 'tab-mcp-stdio',
+      mcp: {
+        ...baseMcp,
+        connection: {
+          ...baseMcp.connection,
+          transport: 'http',
+          stdio: {
+            command: '',
+            args: [],
+            cwd: '',
+          },
+        },
+      },
+    },
+  })
+
+  await wrapper.vm.$emit('update:mcp', {
+    ...baseMcp,
+    connection: {
+      ...baseMcp.connection,
+      transport: 'stdio',
+      stdio: {
+        command: 'node',
+        args: ['dist/index.js', 'stdio'],
+        cwd: '/tmp/mcp',
+      },
+    },
+  })
+
+  const updateEvents = wrapper.emitted('update:mcp') ?? []
+  const transportPayload = updateEvents[updateEvents.length - 1]?.[0] as { connection?: { transport?: string } } | undefined
+  expect(transportPayload?.connection?.transport).toBe('stdio')
+})

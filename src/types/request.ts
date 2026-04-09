@@ -143,12 +143,19 @@ export interface ExecutionArtifact {
   assertionResults: AssertionResultSet
 }
 
+export interface McpStdioConnectionConfig {
+  command: string
+  args: string[]
+  cwd?: string
+}
+
 export interface McpConnectionConfig {
   transport: McpTransportKind
   baseUrl: string
   headers: KeyValueItem[]
   auth: AuthConfig
   sessionId?: string
+  stdio?: McpStdioConnectionConfig
 }
 
 export interface McpInitializeInput {
@@ -246,6 +253,9 @@ export interface McpRequestDefinition {
 export interface McpExecutionArtifact {
   transport: McpTransportKind
   operation: McpOperationType
+  stderrSummary?: string
+  failurePhase?: 'spawn' | 'stdin' | 'stdout' | 'protocol' | 'initialize' | 'operation'
+  sessionState?: 'idle' | 'starting' | 'ready' | 'restarting' | 'exited'
   protocolRequest?: Record<string, unknown>
   protocolResponse?: Record<string, unknown>
   selectedTool?: McpToolSchemaSnapshot

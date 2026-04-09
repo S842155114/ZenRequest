@@ -235,6 +235,17 @@ pub struct SendRequestPayloadDto {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+pub struct McpStdioConnectionConfigDto {
+    #[serde(default)]
+    pub command: String,
+    #[serde(default)]
+    pub args: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct McpConnectionConfigDto {
     #[serde(default)]
     pub transport: String,
@@ -246,6 +257,8 @@ pub struct McpConnectionConfigDto {
     pub auth: AuthConfigDto,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stdio: Option<McpStdioConnectionConfigDto>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -519,6 +532,12 @@ pub struct ExecutionArtifactDto {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct McpExecutionArtifactDto {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stderr_summary: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub failure_phase: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_state: Option<String>,
     #[serde(default)]
     pub transport: String,
     #[serde(default)]
