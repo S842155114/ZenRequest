@@ -821,11 +821,11 @@ const handleDiscoverPrompts = () => emit('discover-prompts')
       <div aria-hidden="true" class="pointer-events-none sticky top-0 z-10 h-3 bg-[linear-gradient(180deg,color-mix(in_srgb,var(--zr-editor-bg)_96%,transparent),transparent)]" />
       <div class="grid gap-3 px-3 pb-4 pt-0">
         <section class="grid gap-2 bg-[var(--zr-editor-accent)] px-0 pb-2.5 pt-1.5">
-          <div class="grid gap-2 xl:grid-cols-[160px_minmax(0,1fr)_auto] xl:items-center">
+          <div class="grid gap-2 xl:grid-cols-[140px_180px_minmax(0,1fr)_auto] xl:items-center">
             <div>
               <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--zr-text-muted)] xl:hidden">{{ text.request.mcp.transport }}</div>
               <Select :model-value="transportLabel" @update:model-value="handleTransportChange">
-                <SelectTrigger data-testid="mcp-transport-select" class="zr-input mt-2 h-9 w-full rounded-md shadow-none transition-colors xl:mt-0 xl:w-[160px]">
+                <SelectTrigger data-testid="mcp-transport-select" class="zr-input mt-2 h-9 w-full rounded-md shadow-none transition-colors xl:mt-0 xl:w-[140px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -851,12 +851,12 @@ const handleDiscoverPrompts = () => emit('discover-prompts')
                 </SelectContent>
               </Select>
             </div>
-            <div class="min-w-0">
+            <div class="min-w-0 xl:min-w-[320px]">
               <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--zr-text-muted)] xl:hidden">{{ transportLabel === 'http' ? text.request.mcp.endpoint : 'Command' }}</div>
               <Input
                 v-if="transportLabel === 'http'"
                 data-testid="mcp-base-url-input"
-                class="zr-input mt-2 h-9 rounded-md text-[13px] font-mono shadow-none focus-visible:border-[#ff6c37]/45 focus-visible:ring-[#ff6c37]/30 xl:mt-0"
+                class="zr-input mt-2 h-9 w-full rounded-md text-[13px] font-mono shadow-none focus-visible:border-[#ff6c37]/45 focus-visible:ring-[#ff6c37]/30 xl:mt-0"
                 :model-value="baseUrl"
                 placeholder="https://example.com/mcp"
                 @update:model-value="handleBaseUrlChange"
@@ -864,13 +864,13 @@ const handleDiscoverPrompts = () => emit('discover-prompts')
               <Input
                 v-else
                 data-testid="mcp-stdio-command-input"
-                class="zr-input mt-2 h-9 rounded-md text-[13px] font-mono shadow-none focus-visible:border-[#ff6c37]/45 focus-visible:ring-[#ff6c37]/30 xl:mt-0"
+                class="zr-input mt-2 h-9 w-full rounded-md text-[13px] font-mono shadow-none focus-visible:border-[#ff6c37]/45 focus-visible:ring-[#ff6c37]/30 xl:mt-0"
                 :model-value="stdioCommand"
                 placeholder="node dist/index.js stdio"
                 @update:model-value="handleStdioCommandChange"
               />
             </div>
-            <div data-testid="request-command-actions" class="flex items-center justify-end gap-2">
+            <div data-testid="request-command-actions" class="flex items-center justify-end gap-2 xl:justify-self-end xl:self-center">
               <button
                 data-testid="request-url-bar-send"
                 :disabled="props.isSending || props.disableSend"
