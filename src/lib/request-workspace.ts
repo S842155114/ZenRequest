@@ -194,6 +194,13 @@ const cloneMcpRequestDefinition = (definition?: McpRequestDefinition): McpReques
         ...definition.connection,
         headers: cloneItems(definition.connection.headers),
         auth: cloneAuth(definition.connection.auth),
+        stdio: definition.connection.stdio
+          ? {
+            command: definition.connection.stdio.command,
+            args: [...definition.connection.stdio.args],
+            cwd: definition.connection.stdio.cwd,
+          }
+          : undefined,
       },
       roots: definition.roots ? definition.roots.map((root) => ({ ...root })) : undefined,
       operation: definition.operation.type === 'tools.call'

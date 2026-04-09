@@ -67,6 +67,11 @@ const defaultMcpDefinition = (): McpRequestDefinition => ({
     transport: 'http',
     baseUrl: '',
     headers: [],
+    stdio: {
+      command: '',
+      args: [],
+      cwd: '',
+    },
     auth: {
       type: 'none',
       bearerToken: '',
@@ -128,7 +133,10 @@ const currentOperation = computed<McpOperationInput['type']>(() => props.mcp?.op
 const operationLabel = computed(() => props.mcp?.operation.type ?? 'initialize')
 const transportLabel = computed(() => props.mcp?.connection.transport ?? 'http')
 const baseUrl = computed(() => props.mcp?.connection.baseUrl ?? '')
-const headerCount = computed(() => props.mcp?.connection.headers.filter((item) => item.enabled && item.key.trim()).length ?? 0)
+const stdioCommand = computed(() => props.mcp?.connection.stdio?.command ?? '')
+const stdioArgs = computed(() => (props.mcp?.connection.stdio?.args ?? []).join(' '))
+const stdioCwd = computed(() => props.mcp?.connection.stdio?.cwd ?? '')
+const headerCount = computed(() => props.mcp?.connection.transport === 'http' ? props.mcp?.connection.headers.filter((item) => item.enabled && item.key.trim()).length ?? 0 : 0)
 const transportHint = computed(() => text.value.request.mcp.transportHint)
 
 const originLabel = computed(() => {
@@ -352,6 +360,65 @@ const rawArgumentsError = computed(() => {
     return error instanceof Error ? error.message : String(error)
   }
 })
+
+
+const handleTransportChange = (value: unknown) => {
+  if (value !== 'http' && value !== 'stdio') return
+  updateMcp((current) => ({
+    ...current,
+    connection: {
+      ...current.connection,
+      transport: value,
+      stdio: current.connection.stdio ?? { command: '', args: [], cwd: '' },
+    },
+  }))
+}
+
+const handleStdioCommandChange = (value: string | number) => {
+  updateMcp((current) => ({
+    ...current,
+    connection: {
+      ...current.connection,
+      stdio: {
+        command: String(value),
+        args: current.connection.stdio?.args ?? [],
+        cwd: current.connection.stdio?.cwd ?? '',
+      },
+    },
+  }))
+}
+
+const handleStdioArgsChange = (value: string | number) => {
+  const normalized = String(value)
+    .split(/\s+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+  updateMcp((current) => ({
+    ...current,
+    connection: {
+      ...current.connection,
+      stdio: {
+        command: current.connection.stdio?.command ?? '',
+        args: normalized,
+        cwd: current.connection.stdio?.cwd ?? '',
+      },
+    },
+  }))
+}
+
+const handleStdioCwdChange = (value: string | number) => {
+  updateMcp((current) => ({
+    ...current,
+    connection: {
+      ...current.connection,
+      stdio: {
+        command: current.connection.stdio?.command ?? '',
+        args: current.connection.stdio?.args ?? [],
+        cwd: String(value),
+      },
+    },
+  }))
+}
 
 const handleBaseUrlChange = (value: string | number) => {
   updateMcp((current) => ({
@@ -754,7 +821,19 @@ const handleDiscoverPrompts = () => emit('discover-prompts')
       <div aria-hidden="true" class="pointer-events-none sticky top-0 z-10 h-3 bg-[linear-gradient(180deg,color-mix(in_srgb,var(--zr-editor-bg)_96%,transparent),transparent)]" />
       <div class="grid gap-3 px-3 pb-4 pt-0">
         <section class="grid gap-2 bg-[var(--zr-editor-accent)] px-0 pb-2.5 pt-1.5">
-          <div class="grid gap-2 xl:grid-cols-[180px_minmax(0,1fr)_auto] xl:items-center">
+          <div class="grid gap-2 xl:grid-cols-[160px_minmax(0,1fr)_auto] xl:items-center">
+            <div>
+              <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--zr-text-muted)] xl:hidden">{{ text.request.mcp.transport }}</div>
+              <Select :model-value="transportLabel" @update:model-value="handleTransportChange">
+                <SelectTrigger data-testid="mcp-transport-select" class="zr-input mt-2 h-9 w-full rounded-md shadow-none transition-colors xl:mt-0 xl:w-[160px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="http">http</SelectItem>
+                  <SelectItem value="stdio">stdio</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div>
               <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--zr-text-muted)] xl:hidden">{{ text.request.mcp.operation }}</div>
               <Select :model-value="currentOperation" @update:model-value="handleOperationChange">
@@ -773,13 +852,22 @@ const handleDiscoverPrompts = () => emit('discover-prompts')
               </Select>
             </div>
             <div class="min-w-0">
-              <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--zr-text-muted)] xl:hidden">{{ text.request.mcp.endpoint }}</div>
+              <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--zr-text-muted)] xl:hidden">{{ transportLabel === 'http' ? text.request.mcp.endpoint : 'Command' }}</div>
               <Input
+                v-if="transportLabel === 'http'"
                 data-testid="mcp-base-url-input"
                 class="zr-input mt-2 h-9 rounded-md text-[13px] font-mono shadow-none focus-visible:border-[#ff6c37]/45 focus-visible:ring-[#ff6c37]/30 xl:mt-0"
                 :model-value="baseUrl"
                 placeholder="https://example.com/mcp"
                 @update:model-value="handleBaseUrlChange"
+              />
+              <Input
+                v-else
+                data-testid="mcp-stdio-command-input"
+                class="zr-input mt-2 h-9 rounded-md text-[13px] font-mono shadow-none focus-visible:border-[#ff6c37]/45 focus-visible:ring-[#ff6c37]/30 xl:mt-0"
+                :model-value="stdioCommand"
+                placeholder="node dist/index.js stdio"
+                @update:model-value="handleStdioCommandChange"
               />
             </div>
             <div data-testid="request-command-actions" class="flex items-center justify-end gap-2">
@@ -815,13 +903,41 @@ const handleDiscoverPrompts = () => emit('discover-prompts')
               >
                 {{ transportLabel }}
               </span>
-              <div data-testid="mcp-endpoint-value" class="zr-chip min-w-0 truncate rounded-full px-2 py-0.5 font-mono text-[var(--zr-text-muted)]">{{ text.request.mcp.endpoint }}: {{ baseUrl || text.request.mcp.endpointNotConfigured }}</div>
+              <div data-testid="mcp-endpoint-value" class="zr-chip min-w-0 truncate rounded-full px-2 py-0.5 font-mono text-[var(--zr-text-muted)]">{{ transportLabel === 'http' ? `${text.request.mcp.endpoint}: ${baseUrl || text.request.mcp.endpointNotConfigured}` : `command: ${stdioCommand || 'not configured'}` }}</div>
             </div>
             <div data-testid="mcp-transport-hint" class="text-xs leading-5 text-[var(--zr-text-muted)]">{{ transportHint }}</div>
           </div>
         </section>
 
-        
+        <section
+          v-if="transportLabel === 'stdio'"
+          data-testid="mcp-stdio-panel"
+          class="rounded-xl border border-[color:var(--zr-border-soft)] bg-[color:color-mix(in_srgb,var(--zr-control-bg)_88%,var(--zr-editor-bg))] p-3.5"
+        >
+          <div class="grid gap-3 md:grid-cols-2">
+            <div>
+              <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--zr-text-muted)]">Arguments</div>
+              <Input
+                data-testid="mcp-stdio-args-input"
+                class="mt-2"
+                :model-value="stdioArgs"
+                placeholder="dist/index.js stdio"
+                @update:model-value="handleStdioArgsChange"
+              />
+            </div>
+            <div>
+              <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--zr-text-muted)]">Working Directory</div>
+              <Input
+                data-testid="mcp-stdio-cwd-input"
+                class="mt-2"
+                :model-value="stdioCwd"
+                placeholder="/path/to/project"
+                @update:model-value="handleStdioCwdChange"
+              />
+            </div>
+          </div>
+        </section>
+
         <section
           data-testid="mcp-roots-panel"
           class="rounded-xl border border-[color:var(--zr-border-soft)] bg-[color:color-mix(in_srgb,var(--zr-control-bg)_88%,var(--zr-editor-bg))] p-3.5"

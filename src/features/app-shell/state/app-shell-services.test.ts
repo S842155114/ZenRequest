@@ -627,6 +627,108 @@ describe('app-shell services', () => {
     }))
   })
 
+  it('keeps stdio initialize session context for follow-up tools.list style requests', async () => {
+    const state = reactive(createInitialAppShellState())
+    state.workspace.items = [{ id: 'workspace-1', name: 'Primary Workspace' }]
+    state.workspace.activeId = 'workspace-1'
+    state.environment.items = [{ id: 'env-local', name: 'Local', variables: [] }]
+    state.environment.activeId = 'env-local'
+
+    const tab = createRequestTabFromPreset(defaultRequestPreset)
+    tab.id = 'tab-mcp-stdio-tools-list'
+    tab.requestKind = 'mcp'
+    tab.mcp = {
+      connection: {
+        transport: 'stdio',
+        baseUrl: '',
+        headers: [],
+        auth: {
+          type: 'none',
+          bearerToken: '',
+          username: '',
+          password: '',
+          apiKeyKey: 'X-API-Key',
+          apiKeyValue: '',
+          apiKeyPlacement: 'header',
+        },
+        sessionId: 'stdio-session-1',
+        stdio: {
+          command: 'node',
+          args: ['dist/mock-mcp.js'],
+          cwd: '/tmp',
+        },
+      },
+      operation: {
+        type: 'tools.list',
+        input: { cursor: '' },
+      },
+    }
+    state.request.openTabs = [tab]
+    state.request.activeTabId = tab.id
+
+    const store = createAppShellStore(state)
+    const runtime = {
+      sendRequest: vi.fn(async () => ({ ok: true, data: {} })),
+      sendMcpRequest: vi.fn(async (_workspaceId, _envId, payload) => ({
+        ok: true,
+        data: {
+          requestMethod: 'STDIO',
+          requestUrl: 'node dist/mock-mcp.js',
+          status: 200,
+          statusText: 'STDIO OK',
+          elapsedMs: 11,
+          sizeBytes: 72,
+          contentType: 'application/json',
+          responseBody: '{"result":{"tools":[]}}',
+          headers: [],
+          truncated: false,
+          executionSource: 'live',
+          mcpArtifact: {
+            transport: 'stdio',
+            operation: 'tools.list',
+            sessionId: payload.mcp.connection.sessionId,
+            sessionState: 'ready',
+            protocolResponse: { result: { tools: [] } },
+          },
+        },
+      })),
+    } as const
+
+    const services = createAppShellServices({ runtime: runtime as never, store })
+    const result = await services.sendRequest({
+      payload: {
+        tabId: tab.id,
+        requestKind: 'mcp',
+        mcp: tab.mcp,
+        requestId: tab.requestId,
+        name: tab.name,
+        description: tab.description,
+        tags: tab.tags,
+        collectionName: tab.collectionName,
+        method: tab.method,
+        url: '',
+        params: [],
+        headers: [],
+        body: '',
+        bodyType: 'json',
+        auth: tab.auth,
+        tests: [],
+        executionOptions: tab.executionOptions,
+      },
+    })
+
+    expect(result.ok).toBe(true)
+    expect(runtime.sendMcpRequest).toHaveBeenCalledWith('workspace-1', 'env-local', expect.objectContaining({
+      mcp: expect.objectContaining({
+        connection: expect.objectContaining({
+          transport: 'stdio',
+          sessionId: 'stdio-session-1',
+          stdio: expect.objectContaining({ command: 'node' }),
+        }),
+      }),
+    }))
+  })
+
   it('preserves runtime-provided mcp history items after a successful send', async () => {
     const state = reactive(createInitialAppShellState())
     state.workspace.items = [{ id: 'workspace-1', name: 'Primary Workspace' }]

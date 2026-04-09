@@ -1,3 +1,8 @@
+use std::io::{BufRead, BufReader, Read, Write};
+use std::collections::HashMap;
+use std::process::{Command, Stdio};
+use std::sync::{Arc, Mutex};
+use std::thread;
 use std::time::Instant;
 
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE};
@@ -5,9 +10,21 @@ use serde_json::{json, Value};
 
 use crate::errors::AppError;
 use crate::models::{
-    McpExecutionArtifactDto, McpOperationInputDto, McpPromptArgumentSnapshotDto, McpPromptSnapshotDto, McpResourceContentSnapshotDto,
-    McpResourceSnapshotDto, McpRootSnapshotDto, ResponseHeaderItemDto, SendMcpRequestPayloadDto, SendMcpRequestResultDto,
+    McpExecutionArtifactDto, McpOperationInputDto, McpPromptArgumentSnapshotDto, McpPromptSnapshotDto,
+    ResponseHeaderItemDto, SendMcpRequestPayloadDto, SendMcpRequestResultDto,
+    McpResourceContentSnapshotDto, McpResourceSnapshotDto, McpRootSnapshotDto,
 };
+use crate::models::request::{McpInitializeInputDto, McpRequestDefinitionDto, McpToolSchemaSnapshotDto};
+
+struct StdioSession {
+    stdin: std::process::ChildStdin,
+    stdout: BufReader<std::process::ChildStdout>,
+    stderr_buffer: Arc<Mutex<String>>,
+    child: std::process::Child,
+    command_label: String,
+}
+
+static STDIO_SESSIONS: std::sync::LazyLock<Mutex<HashMap<String, StdioSession>>> = std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
 
 fn error(code: &str, message: impl Into<String>) -> AppError {
     AppError {
@@ -331,9 +348,488 @@ fn classify_protocol_error(status_code: u16, protocol_response: &Value) -> Optio
     None
 }
 
+fn summarize_stderr(stderr: &str) -> Option<String> {
+    let summary = stderr
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .take(6)
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    if summary.is_empty() {
+        None
+    } else {
+        Some(summary)
+    }
+}
+
+fn build_stdio_result(
+    payload: &SendMcpRequestPayloadDto,
+    command_label: &str,
+    elapsed_ms: u64,
+    protocol_request: Option<Value>,
+    protocol_response: Option<Value>,
+    stderr_summary: Option<String>,
+    failure_phase: Option<&str>,
+    session_state: &str,
+    error_category: Option<&str>,
+) -> SendMcpRequestResultDto {
+    let response_body_value = protocol_response.clone().unwrap_or_else(|| json!({
+        "jsonrpc": "2.0",
+        "id": format!("{}:stdio", payload.tab_id),
+        "result": null,
+    }));
+    let response_body = serde_json::to_string_pretty(&response_body_value).unwrap_or_else(|_| "{}".to_string());
+
+    SendMcpRequestResultDto {
+        request_method: "STDIO".to_string(),
+        request_url: command_label.to_string(),
+        status: if error_category.is_some() { 400 } else { 200 },
+        status_text: if error_category.is_some() { "STDIO ERROR".to_string() } else { "STDIO OK".to_string() },
+        elapsed_ms,
+        size_bytes: response_body.len(),
+        content_type: "application/json".to_string(),
+        response_body,
+        headers: Vec::new(),
+        truncated: false,
+        execution_source: "live".to_string(),
+        mcp_artifact: Some(McpExecutionArtifactDto {
+            transport: "stdio".to_string(),
+            operation: operation_name(&payload.mcp.operation).to_string(),
+            protocol_request,
+            protocol_response: protocol_response.clone(),
+            stderr_summary,
+            failure_phase: failure_phase.map(|value| value.to_string()),
+            session_state: Some(session_state.to_string()),
+            selected_tool: match &payload.mcp.operation {
+                McpOperationInputDto::ToolsCall { input } => input.schema.clone(),
+                _ => None,
+            },
+            cached_tools: protocol_response.as_ref().and_then(extract_cached_tools),
+            selected_resource: match &payload.mcp.operation {
+                McpOperationInputDto::ResourcesRead { input } => input.resource.clone().or_else(|| Some(McpResourceSnapshotDto {
+                    uri: input.uri.clone(),
+                    name: None,
+                    title: None,
+                    description: None,
+                    mime_type: None,
+                })),
+                _ => None,
+            },
+            cached_resources: protocol_response.as_ref().and_then(extract_cached_resources),
+            resource_contents: protocol_response.as_ref().and_then(extract_resource_contents),
+            selected_prompt: match &payload.mcp.operation {
+                McpOperationInputDto::PromptsGet { input } => input.prompt.clone().or_else(|| Some(McpPromptSnapshotDto {
+                    name: input.prompt_name.clone(),
+                    title: None,
+                    description: None,
+                    arguments: None,
+                })),
+                _ => None,
+            },
+            cached_prompts: protocol_response.as_ref().and_then(extract_cached_prompts),
+            roots: payload.mcp.roots.clone(),
+            session_id: None,
+            error_category: error_category.map(|value| value.to_string()),
+        }),
+        history_item: None,
+    }
+}
+
+fn extract_cached_tools(protocol_response: &Value) -> Option<Vec<McpToolSchemaSnapshotDto>> {
+    let result = protocol_response.get("result")?.as_object()?;
+    let tools = result.get("tools")?.as_array()?;
+
+    Some(tools.iter().filter_map(|tool| {
+        let object = tool.as_object()?;
+        let name = object.get("name")?.as_str()?.trim().to_string();
+        if name.is_empty() {
+            return None;
+        }
+
+        Some(McpToolSchemaSnapshotDto {
+            name,
+            title: object.get("title").and_then(|value| value.as_str()).map(|value| value.to_string()),
+            description: object.get("description").and_then(|value| value.as_str()).map(|value| value.to_string()),
+            input_schema: object.get("inputSchema").cloned(),
+        })
+    }).collect())
+}
+
+fn read_stdio_json_line(stdout: &mut BufReader<impl Read>) -> Result<Value, AppError> {
+    let mut line = String::new();
+
+    loop {
+        line.clear();
+        let read = stdout
+            .read_line(&mut line)
+            .map_err(|err| error("MCP_STDIO_STDOUT_FAILED", err.to_string()))?;
+
+        if read == 0 {
+            return Err(error("MCP_STDIO_STDOUT_EOF", "stdio process closed before returning a protocol message"));
+        }
+
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        return serde_json::from_str::<Value>(trimmed)
+            .map_err(|err| error("MCP_STDIO_PROTOCOL_INVALID", err.to_string()));
+    }
+}
+
+fn write_stdio_json(stdin: &mut impl Write, payload: &Value) -> Result<(), AppError> {
+    let serialized = serde_json::to_string(payload)
+        .map_err(|err| error("MCP_STDIO_PROTOCOL_INVALID", err.to_string()))?;
+    stdin
+        .write_all(serialized.as_bytes())
+        .and_then(|_| stdin.write_all(b"\n"))
+        .and_then(|_| stdin.flush())
+        .map_err(|err| error("MCP_STDIO_STDIN_FAILED", err.to_string()))
+}
+
+fn build_stdio_session_key(payload: &SendMcpRequestPayloadDto) -> Result<String, AppError> {
+    let stdio = payload
+        .mcp
+        .connection
+        .stdio
+        .as_ref()
+        .ok_or_else(|| error("INVALID_MCP_STDIO_CONFIG", "stdio transport requires stdio config"))?;
+    let command = stdio.command.trim();
+    if command.is_empty() {
+        return Err(error("INVALID_MCP_STDIO_COMMAND", "stdio transport requires a command"));
+    }
+
+    let cwd = stdio.cwd.clone().unwrap_or_default();
+    Ok(format!("{}\u{1f}{}\u{1f}{}", command, stdio.args.join("\u{1e}"), cwd))
+}
+
+fn collect_stderr_summary(stderr_buffer: &Arc<Mutex<String>>) -> Option<String> {
+    summarize_stderr(&stderr_buffer.lock().map(|value| value.clone()).unwrap_or_default())
+}
+
+fn remove_stdio_session(session_key: &str) {
+    if let Ok(mut sessions) = STDIO_SESSIONS.lock() {
+        if let Some(mut session) = sessions.remove(session_key) {
+            let _ = session.child.kill();
+            let _ = session.child.wait();
+        }
+    }
+}
+
+fn create_stdio_session(
+    payload: &SendMcpRequestPayloadDto,
+    session_key: &str,
+    protocol_request: &Value,
+) -> Result<Option<SendMcpRequestResultDto>, AppError> {
+    let stdio = payload
+        .mcp
+        .connection
+        .stdio
+        .as_ref()
+        .ok_or_else(|| error("INVALID_MCP_STDIO_CONFIG", "stdio transport requires stdio config"))?;
+    let command = stdio.command.trim();
+    let started_at = Instant::now();
+
+    let initialize_payload = SendMcpRequestPayloadDto {
+        mcp: McpRequestDefinitionDto {
+            connection: payload.mcp.connection.clone(),
+            operation: McpOperationInputDto::Initialize {
+                input: McpInitializeInputDto {
+                    client_name: "ZenRequest".to_string(),
+                    client_version: "0.1.0".to_string(),
+                    protocol_version: None,
+                    capabilities: None,
+                },
+            },
+            roots: payload.mcp.roots.clone(),
+        },
+        ..payload.clone()
+    };
+    let initialize_request = build_protocol_request(&initialize_payload)?;
+    let command_label = std::iter::once(command.to_string())
+        .chain(stdio.args.iter().cloned())
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    let mut child = Command::new(command);
+    child.args(&stdio.args).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
+    if let Some(cwd) = &stdio.cwd {
+        if !cwd.trim().is_empty() {
+            child.current_dir(cwd.trim());
+        }
+    }
+
+    let mut child = match child.spawn() {
+        Ok(child) => child,
+        Err(err) => {
+            let elapsed_ms = started_at.elapsed().as_millis() as u64;
+            return Ok(Some(build_stdio_result(
+                payload,
+                &command_label,
+                elapsed_ms,
+                Some(protocol_request.clone()),
+                Some(json!({
+                    "jsonrpc": "2.0",
+                    "id": format!("{}:stdio", payload.tab_id),
+                    "error": { "code": -32000, "message": err.to_string() }
+                })),
+                None,
+                Some("spawn"),
+                "idle",
+                Some("transport"),
+            )));
+        }
+    };
+
+    let stderr_buffer = Arc::new(Mutex::new(String::new()));
+    if let Some(stderr) = child.stderr.take() {
+        let stderr_buffer = Arc::clone(&stderr_buffer);
+        thread::spawn(move || {
+            let mut reader = BufReader::new(stderr);
+            let mut collected = String::new();
+            let _ = reader.read_to_string(&mut collected);
+            if let Ok(mut guard) = stderr_buffer.lock() {
+                *guard = collected;
+            }
+        });
+    }
+
+    let mut stdin = child.stdin.take().ok_or_else(|| error("MCP_STDIO_STDIN_UNAVAILABLE", "stdio process did not expose stdin"))?;
+    let stdout = child.stdout.take().ok_or_else(|| error("MCP_STDIO_STDOUT_UNAVAILABLE", "stdio process did not expose stdout"))?;
+    let mut stdout_reader = BufReader::new(stdout);
+
+    if let Err(err) = write_stdio_json(&mut stdin, &initialize_request) {
+        let elapsed_ms = started_at.elapsed().as_millis() as u64;
+        let stderr_summary = collect_stderr_summary(&stderr_buffer);
+        let _ = child.kill();
+        let _ = child.wait();
+        return Ok(Some(build_stdio_result(
+            payload,
+            &command_label,
+            elapsed_ms,
+            Some(protocol_request.clone()),
+            Some(json!({
+                "jsonrpc": "2.0",
+                "id": format!("{}:initialize", payload.tab_id),
+                "error": { "code": -32000, "message": err.message.clone() }
+            })),
+            stderr_summary,
+            Some("stdin"),
+            "idle",
+            Some("transport"),
+        )));
+    }
+
+    let initialize_response = match read_stdio_json_line(&mut stdout_reader) {
+        Ok(response) => response,
+        Err(err) => {
+            let elapsed_ms = started_at.elapsed().as_millis() as u64;
+            let stderr_summary = collect_stderr_summary(&stderr_buffer);
+            let _ = child.kill();
+            let _ = child.wait();
+            return Ok(Some(build_stdio_result(
+                payload,
+                &command_label,
+                elapsed_ms,
+                Some(protocol_request.clone()),
+                Some(json!({
+                    "jsonrpc": "2.0",
+                    "id": format!("{}:initialize", payload.tab_id),
+                    "error": { "code": -32000, "message": err.message.clone() }
+                })),
+                stderr_summary,
+                Some(if err.code.contains("PROTOCOL") { "protocol" } else { "stdout" }),
+                "starting",
+                Some(if err.code.contains("PROTOCOL") { "session" } else { "transport" }),
+            )));
+        }
+    };
+
+    if initialize_response.get("error").is_some() {
+        let elapsed_ms = started_at.elapsed().as_millis() as u64;
+        let stderr_summary = collect_stderr_summary(&stderr_buffer);
+        let _ = child.kill();
+        let _ = child.wait();
+        return Ok(Some(build_stdio_result(
+            payload,
+            &command_label,
+            elapsed_ms,
+            Some(protocol_request.clone()),
+            Some(initialize_response),
+            stderr_summary,
+            Some("initialize"),
+            "starting",
+            Some("session"),
+        )));
+    }
+
+    let initialized_notification = json!({
+        "jsonrpc": "2.0",
+        "method": "notifications/initialized",
+        "params": {}
+    });
+    if let Err(err) = write_stdio_json(&mut stdin, &initialized_notification) {
+        let elapsed_ms = started_at.elapsed().as_millis() as u64;
+        let stderr_summary = collect_stderr_summary(&stderr_buffer);
+        let _ = child.kill();
+        let _ = child.wait();
+        return Ok(Some(build_stdio_result(
+            payload,
+            &command_label,
+            elapsed_ms,
+            Some(protocol_request.clone()),
+            Some(json!({
+                "jsonrpc": "2.0",
+                "id": format!("{}:initialized", payload.tab_id),
+                "error": { "code": -32000, "message": err.message.clone() }
+            })),
+            stderr_summary,
+            Some("stdin"),
+            "restarting",
+            Some("transport"),
+        )));
+    }
+
+    let session = StdioSession {
+        stdin,
+        stdout: stdout_reader,
+        stderr_buffer,
+        child,
+        command_label,
+    };
+    STDIO_SESSIONS.lock().map_err(|_| error("MCP_STDIO_SESSION_LOCK_FAILED", "failed to access stdio session registry"))?.insert(session_key.to_string(), session);
+    Ok(None)
+}
+
+fn execute_stdio_request(payload: &SendMcpRequestPayloadDto) -> Result<SendMcpRequestResultDto, AppError> {
+    let protocol_request = build_protocol_request(payload)?;
+    let session_key = build_stdio_session_key(payload)?;
+    if matches!(payload.mcp.operation, McpOperationInputDto::Initialize { .. }) {
+        remove_stdio_session(&session_key);
+    }
+
+    if !STDIO_SESSIONS.lock().map_err(|_| error("MCP_STDIO_SESSION_LOCK_FAILED", "failed to access stdio session registry"))?.contains_key(&session_key) {
+        if let Some(result) = create_stdio_session(payload, &session_key, &protocol_request)? {
+            return Ok(result);
+        }
+    }
+
+    let started_at = Instant::now();
+    let mut sessions = STDIO_SESSIONS.lock().map_err(|_| error("MCP_STDIO_SESSION_LOCK_FAILED", "failed to access stdio session registry"))?;
+    let session = match sessions.get_mut(&session_key) {
+        Some(session) => session,
+        None => {
+            return Ok(build_stdio_result(
+                payload,
+                payload.mcp.connection.stdio.as_ref().map(|stdio| stdio.command.as_str()).unwrap_or("stdio"),
+                0,
+                Some(protocol_request),
+                Some(json!({
+                    "jsonrpc": "2.0",
+                    "id": format!("{}:session", payload.tab_id),
+                    "error": { "code": -32000, "message": "stdio session was not available after initialization" }
+                })),
+                None,
+                Some("initialize"),
+                "restarting",
+                Some("session"),
+            ));
+        }
+    };
+
+    if let Err(err) = write_stdio_json(&mut session.stdin, &protocol_request) {
+        let elapsed_ms = started_at.elapsed().as_millis() as u64;
+        let stderr_summary = collect_stderr_summary(&session.stderr_buffer);
+        let command_label = session.command_label.clone();
+        let _ = session.child.kill();
+        let _ = session.child.wait();
+        sessions.remove(&session_key);
+        return Ok(build_stdio_result(
+            payload,
+            &command_label,
+            elapsed_ms,
+            Some(protocol_request),
+            Some(json!({
+                "jsonrpc": "2.0",
+                "id": format!("{}:operation", payload.tab_id),
+                "error": { "code": -32000, "message": err.message.clone() }
+            })),
+            stderr_summary,
+            Some("stdin"),
+            "exited",
+            Some("transport"),
+        ));
+    }
+
+    let protocol_response = match read_stdio_json_line(&mut session.stdout) {
+        Ok(response) => response,
+        Err(err) => {
+            let elapsed_ms = started_at.elapsed().as_millis() as u64;
+            let stderr_summary = collect_stderr_summary(&session.stderr_buffer);
+            let command_label = session.command_label.clone();
+            let _ = session.child.kill();
+            let _ = session.child.wait();
+            sessions.remove(&session_key);
+            return Ok(build_stdio_result(
+                payload,
+                &command_label,
+                elapsed_ms,
+                Some(protocol_request),
+                Some(json!({
+                    "jsonrpc": "2.0",
+                    "id": format!("{}:operation", payload.tab_id),
+                    "error": { "code": -32000, "message": err.message.clone() }
+                })),
+                stderr_summary,
+                Some(if err.code.contains("PROTOCOL") { "protocol" } else { "stdout" }),
+                "exited",
+                Some(if err.code.contains("PROTOCOL") { "tool-call" } else { "transport" }),
+            ));
+        }
+    };
+
+    let elapsed_ms = started_at.elapsed().as_millis() as u64;
+    let stderr_summary = collect_stderr_summary(&session.stderr_buffer);
+    let command_label = session.command_label.clone();
+    let error_category = if protocol_response.get("error").is_some() {
+        Some(match payload.mcp.operation {
+            McpOperationInputDto::Initialize { .. } => "session",
+            _ => "tool-call",
+        })
+    } else {
+        None
+    };
+
+    if matches!(payload.mcp.operation, McpOperationInputDto::Initialize { .. }) == false && error_category.is_none() {
+        let _ = session.child.try_wait().map(|status| {
+            if status.is_some() {
+                let _ = sessions.remove(&session_key);
+            }
+        });
+    }
+
+    Ok(build_stdio_result(
+        payload,
+        &command_label,
+        elapsed_ms,
+        Some(protocol_request),
+        Some(protocol_response),
+        stderr_summary,
+        error_category.map(|_| "operation"),
+        if error_category.is_some() { "ready" } else { "ready" },
+        error_category,
+    ))
+}
+
 pub async fn execute_mcp_request(payload: &SendMcpRequestPayloadDto) -> Result<SendMcpRequestResultDto, AppError> {
     if payload.request_kind != "mcp" {
         return Err(error("INVALID_REQUEST_KIND", "send_mcp_request requires requestKind=mcp"));
+    }
+    if payload.mcp.connection.transport == "stdio" {
+        return execute_stdio_request(payload);
     }
     if payload.mcp.connection.transport != "http" {
         return Err(error("UNSUPPORTED_MCP_TRANSPORT", format!("unsupported mcp transport: {}", payload.mcp.connection.transport)));
@@ -450,6 +946,9 @@ pub async fn execute_mcp_request(payload: &SendMcpRequestPayloadDto) -> Result<S
             cached_prompts: extract_cached_prompts(&protocol_response),
             roots: payload.mcp.roots.clone(),
             session_id,
+            stderr_summary: None,
+            failure_phase: None,
+            session_state: None,
             error_category,
         }),
         history_item: None,
@@ -461,9 +960,9 @@ pub async fn execute_mcp_request(payload: &SendMcpRequestPayloadDto) -> Result<S
 mod tests {
     use super::build_headers;
     use crate::models::{
-        AuthConfigDto, McpConnectionConfigDto, McpInitializeInputDto, McpOperationInputDto,
-        McpRequestDefinitionDto, McpToolsListInputDto, SendMcpRequestPayloadDto,
+        AuthConfigDto, McpOperationInputDto, SendMcpRequestPayloadDto,
     };
+    use crate::models::request::{McpConnectionConfigDto, McpInitializeInputDto, McpRequestDefinitionDto, McpToolsListInputDto};
 
     fn base_payload(operation: McpOperationInputDto) -> SendMcpRequestPayloadDto {
         SendMcpRequestPayloadDto {
@@ -483,6 +982,7 @@ mod tests {
                     headers: Vec::new(),
                     auth: AuthConfigDto::default(),
                     session_id: Some("session-1".to_string()),
+                    stdio: None,
                 },
                 operation,
                 roots: None,
@@ -514,4 +1014,5 @@ mod tests {
         let headers = build_headers(&payload).expect("headers");
         assert_eq!(headers.get("mcp-session-id").and_then(|v| v.to_str().ok()), Some("session-1"));
     }
+
 }
