@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: none
-milestone_name: no-active-milestone
-status: "v1.2 archived — ready for next milestone definition"
-last_updated: "2026-04-10T20:40:00+08:00"
+milestone: v1.3
+milestone_name: mcp-sampling-debugging
+status: "Defining requirements for v1.3"
+last_updated: "2026-04-10T20:55:00+08:00"
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 3
-  completed_plans: 3
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # GSD State
@@ -19,7 +19,7 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-04-06)
 
 **Core value:** 让开发者以本地优先、快速、可控的方式完成高频 API 调试与工作流操作，而不被臃肿云平台和账号绑定打断。
-**Current focus:** Define the next milestone
+**Current focus:** Define requirements for v1.3 MCP Sampling Debugging
 
 ## Current Artifacts
 
@@ -39,9 +39,10 @@ See: `.planning/PROJECT.md` (updated 2026-04-06)
 - v1.0.1 tag has been pushed to rerun release workflow on the post-archive CI/build fix commit
 - v1.1 has been shipped, audited, and archived
 - `v1.2 Usage Guidance & Product Manual` has been completed and archived
-- Phase 12, 13, and 14 have all been planned, executed, and summarized
-- Current status: no active milestone
-- Recommended next step: run `$gsd-new-milestone`
+- New milestone started: `v1.3 MCP Sampling Debugging`
+- Previous phase directories cleared to prepare for new roadmap generation
+- Current status: defining requirements
+- Recommended next step: create `.planning/REQUIREMENTS.md` for v1.3
 
 ## Branch Strategy
 
@@ -58,4 +59,4 @@ Recommended branch names:
 - `gsd/phase-XX-short-name`
 
 ---
-*Last updated: 2026-04-10 after v1.2 milestone archive*
+*Last updated: 2026-04-10 after v1.3 milestone start*
