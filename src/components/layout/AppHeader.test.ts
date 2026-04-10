@@ -213,7 +213,7 @@ describe('AppHeader', () => {
     expect(wrapper.get('[data-testid="header-environment-switcher"]').classes()).toContain('zr-header-context-card')
     expect(wrapper.find('[data-testid="header-settings-trigger"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="header-help-section"]').exists()).toBe(true)
-    expect(wrapper.get('[data-testid="header-help-link"]').attributes('href')).toBe('https://github.com/S842155114/ZenRequest#快速开始')
+    expect(wrapper.get('[data-testid="header-help-link"]').attributes('href')).toBe('https://github.com/S842155114/ZenRequest#应用内帮助')
     expect(wrapper.text()).toContain('Primary Workspace')
     expect(wrapper.text()).toContain('Local')
     expect(wrapper.text()).toContain('2 vars')
