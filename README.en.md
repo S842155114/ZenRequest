@@ -36,6 +36,26 @@ Modern API tools like Postman and Insomnia have become bloated — forced logins
 - Request-local mock templates
 - Response HTML preview
 
+If you want to learn the product as a workflow instead of discovering features one by one, start with the English manual.
+
+---
+
+## Documentation
+
+### Repository entry and in-app help
+
+- [English manual](docs/en-manual.md)
+- [Chinese manual](docs/zh-CN-manual.md)
+- [In-app help anchor in Chinese README](README.md#应用内帮助)
+
+### Recommended sections
+
+- [What to check after the first launch](docs/en-manual.md#what-to-check-after-the-first-launch)
+- [Send your first HTTP request](docs/en-manual.md#send-your-first-http-request)
+- [Understand responses, history, and replay](docs/en-manual.md#understand-responses-history-and-replay)
+- [Start with the MCP workbench](docs/en-manual.md#start-with-the-mcp-workbench)
+- [Connect to a local MCP server through stdio](docs/en-manual.md#connect-to-a-local-mcp-server-through-stdio)
+
 ---
 
 ## Tech Stack
