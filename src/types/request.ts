@@ -21,7 +21,7 @@ export type RequestTabPersistenceState = 'saved' | 'unsaved' | 'unbound'
 export type RequestTabExecutionState = ResponseLifecycleState
 export type RequestKind = 'http' | 'mcp'
 export type McpTransportKind = 'http' | 'stdio'
-export type McpOperationType = 'initialize' | 'tools.list' | 'tools.call' | 'resources.list' | 'resources.read' | 'prompts.list' | 'prompts.get'
+export type McpOperationType = 'initialize' | 'tools.list' | 'tools.call' | 'resources.list' | 'resources.read' | 'prompts.list' | 'prompts.get' | 'sampling'
 
 export interface WorkbenchActivitySignal {
   active: boolean
@@ -235,6 +235,14 @@ export interface McpToolCallInput {
   schema?: McpToolSchemaSnapshot
 }
 
+export interface McpSamplingInput {
+  prompt: string
+  systemPrompt?: string
+  maxTokens?: number
+  temperature?: number
+  metadata?: Record<string, unknown>
+}
+
 export type McpOperationInput =
   | { type: 'initialize'; input: McpInitializeInput }
   | { type: 'tools.list'; input: McpToolsListInput }
@@ -243,6 +251,7 @@ export type McpOperationInput =
   | { type: 'resources.read'; input: McpResourceReadInput }
   | { type: 'prompts.list'; input: McpPromptsListInput }
   | { type: 'prompts.get'; input: McpPromptGetInput }
+  | { type: 'sampling'; input: McpSamplingInput }
 
 export interface McpRequestDefinition {
   connection: McpConnectionConfig
@@ -267,7 +276,7 @@ export interface McpExecutionArtifact {
   cachedPrompts?: McpPromptSnapshot[]
   roots?: McpRootSnapshot[]
   sessionId?: string
-  errorCategory?: 'transport' | 'session' | 'tool-call' | 'initialize' | 'tool_execution'
+  errorCategory?: 'transport' | 'session' | 'tool-call' | 'initialize' | 'tool_execution' | 'sampling'
 }
 
 export type HistoryRequestSnapshot = Omit<SendRequestPayload, 'body' | 'bodyType'> & {

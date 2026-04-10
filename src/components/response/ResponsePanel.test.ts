@@ -238,6 +238,34 @@ describe('ResponsePanel i18n copy', () => {
     expect(wrapper.get('[data-testid="response-panel-tabs"]').text()).not.toContain('Tests')
   })
 
+  it('keeps sampling responses readable-first in mcp response chrome', () => {
+    const wrapper = mount(ResponsePanel, {
+      props: {
+        locale: 'en',
+        requestKind: 'mcp',
+        responseBody: JSON.stringify({
+          result: {
+            message: {
+              role: 'assistant',
+              content: 'Here is a short summary.',
+            },
+          },
+        }),
+        contentType: 'application/json',
+        mcpArtifact: {
+          transport: 'http',
+          operation: 'sampling',
+          protocolRequest: { method: 'sampling' },
+          protocolResponse: { result: { message: { role: 'assistant', content: 'Here is a short summary.' } } },
+          errorCategory: 'sampling',
+        },
+      },
+    })
+
+    expect(wrapper.get('[data-testid="response-mcp-operation"]').text()).toContain('sampling')
+    expect(wrapper.get('[data-testid="response-code-viewer"]').attributes('data-content')).toContain('short summary')
+  })
+
   it('renders an in-body mcp error notice when the response carries an error category', () => {
     const wrapper = mount(ResponsePanel, {
       props: {

@@ -805,6 +805,40 @@ describe('RequestPanel i18n copy', () => {
     expect(wrapper.find('[data-testid="request-params-stub"]').exists()).toBe(false)
   })
 
+  it('shows sampling as an mcp operation path inside the request panel', () => {
+    const wrapper = mount(McpRequestPanel, {
+      props: {
+        locale: 'en',
+        requestName: 'MCP Sampling',
+        requestKey: 'tab-sampling',
+        mcp: {
+          connection: {
+            transport: 'http',
+            baseUrl: 'https://example.com/mcp',
+            headers: [],
+            auth: {
+              type: 'none',
+              bearerToken: '',
+              username: '',
+              password: '',
+              apiKeyKey: 'X-API-Key',
+              apiKeyValue: '',
+              apiKeyPlacement: 'header',
+            },
+          },
+          operation: {
+            type: 'sampling',
+            input: {
+              prompt: 'Hello',
+            },
+          },
+        },
+      },
+    })
+
+    expect(wrapper.get('[data-testid="mcp-sampling-panel"]').exists()).toBe(true)
+  })
+
   it('forwards discover-tools from the mcp panel', async () => {
     const wrapper = mount(RequestPanel, {
       props: {
