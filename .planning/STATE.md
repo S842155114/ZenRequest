@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.1
-milestone_name: milestone
-status: unknown
-last_updated: "2026-04-07T01:43:23.350Z"
+milestone_name: archived
+status: "v1.1 archived — waiting for next milestone"
+last_updated: "2026-04-10T11:00:00+08:00"
 progress:
   total_phases: 4
-  completed_phases: 0
-  total_plans: 1
-  completed_plans: 0
-  percent: 0
+  completed_phases: 4
+  total_plans: 4
+  completed_plans: 4
+  percent: 100
 ---
 
 # GSD State
@@ -19,16 +19,17 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-04-06)
 
 **Core value:** 让开发者以本地优先、快速、可控的方式完成高频 API 调试与工作流操作，而不被臃肿云平台和账号绑定打断。
-**Current focus:** Phase 08 — mcp-resources-workbench
+**Current focus:** next milestone definition
 
 ## Current Artifacts
 
 - Project: `.planning/PROJECT.md`
 - Config: `.planning/config.json`
-- Requirements: `.planning/REQUIREMENTS.md`
+- Requirements: none active (create fresh with `$gsd-new-milestone`)
 - Roadmap: `.planning/ROADMAP.md`
 - Codebase map: `.planning/codebase/`
 - Milestone audit: `.planning/v1.0-MILESTONE-AUDIT.md`
+- Latest milestone audit: `.planning/v1.1-MILESTONE-AUDIT.md`
 
 ## Workflow State
 
@@ -36,9 +37,9 @@ See: `.planning/PROJECT.md` (updated 2026-04-06)
 - Research, requirements, roadmap, and codebase mapping completed
 - v1.0 has been archived and tagged
 - v1.0.1 tag has been pushed to rerun release workflow on the post-archive CI/build fix commit
-- New milestone selected: `v1.1 MCP Expansion`
-- Current status: defining milestone requirements and roadmap
-- Recommended next step: start Phase `08` after roadmap approval
+- v1.1 has been shipped, audited, and archived
+- Current status: no active milestone
+- Recommended next step: run `$gsd-new-milestone`
 
 ## Branch Strategy
 
@@ -55,4 +56,4 @@ Recommended branch names:
 - `gsd/phase-XX-short-name`
 
 ---
-*Last updated: 2026-04-07 after v1.1 kickoff*
+*Last updated: 2026-04-10 after v1.1 audit artifact backfill*
