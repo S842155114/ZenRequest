@@ -1610,4 +1610,48 @@ describe('McpRequestPanel discoverability', () => {
     expect(wrapper.get('[data-testid="mcp-transport-value"]').text()).toContain('http')
     expect(wrapper.get('[data-testid="mcp-transport-hint"]').text()).toContain('HTTP and stdio transports are available in this release')
   })
+
+  it('shows stdio onboarding and field hints when stdio transport is active', () => {
+    const wrapper = mount(McpRequestPanel, {
+      props: {
+        locale: 'en',
+        requestName: 'MCP Debug',
+        mcp: {
+          connection: {
+            transport: 'stdio',
+            baseUrl: '',
+            headers: [],
+            stdio: {
+              command: '',
+              args: [],
+              cwd: '',
+            },
+            auth: {
+              type: 'none',
+              bearerToken: '',
+              username: '',
+              password: '',
+              apiKeyKey: 'X-API-Key',
+              apiKeyValue: '',
+              apiKeyPlacement: 'header',
+            },
+          },
+          operation: {
+            type: 'initialize',
+            input: {
+              clientName: 'ZenRequest',
+              clientVersion: '0.1.0',
+            },
+          },
+        },
+      },
+    })
+
+    expect(wrapper.get('[data-testid="mcp-stdio-onboarding"]').text()).toContain('First stdio run')
+    expect(wrapper.get('[data-testid="mcp-stdio-command-empty-state"]').text()).toContain('The executable to launch')
+    expect(wrapper.get('[data-testid="mcp-stdio-command-hint"]').text()).toContain('The executable to launch')
+    expect(wrapper.get('[data-testid="mcp-stdio-args-hint"]').text()).toContain('space-separated arguments')
+    expect(wrapper.get('[data-testid="mcp-stdio-cwd-hint"]').text()).toContain('specific project folder')
+    expect(wrapper.get('[data-testid="mcp-stdio-troubleshooting"]').text()).toContain('check command path')
+  })
 })

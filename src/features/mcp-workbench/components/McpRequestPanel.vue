@@ -138,6 +138,7 @@ const stdioArgs = computed(() => (props.mcp?.connection.stdio?.args ?? []).join(
 const stdioCwd = computed(() => props.mcp?.connection.stdio?.cwd ?? '')
 const headerCount = computed(() => props.mcp?.connection.transport === 'http' ? props.mcp?.connection.headers.filter((item) => item.enabled && item.key.trim()).length ?? 0 : 0)
 const transportHint = computed(() => text.value.request.mcp.transportHint)
+const hasStdioCommand = computed(() => stdioCommand.value.trim().length > 0)
 
 const originLabel = computed(() => {
   switch (props.originKind) {
@@ -869,6 +870,13 @@ const handleDiscoverPrompts = () => emit('discover-prompts')
                 placeholder="node dist/index.js stdio"
                 @update:model-value="handleStdioCommandChange"
               />
+              <div
+                v-if="transportLabel === 'stdio'"
+                data-testid="mcp-stdio-command-hint"
+                class="mt-2 text-xs leading-5 text-[var(--zr-text-muted)]"
+              >
+                {{ text.request.mcp.stdioCommandHint }}
+              </div>
             </div>
             <div data-testid="request-command-actions" class="flex items-center justify-end gap-2 xl:justify-self-end xl:self-center">
               <button
@@ -914,9 +922,28 @@ const handleDiscoverPrompts = () => emit('discover-prompts')
           data-testid="mcp-stdio-panel"
           class="rounded-xl border border-[color:var(--zr-border-soft)] bg-[color:color-mix(in_srgb,var(--zr-control-bg)_88%,var(--zr-editor-bg))] p-3.5"
         >
+          <div data-testid="mcp-stdio-onboarding" class="mb-3 rounded-lg border border-[color:var(--zr-border-soft)] bg-[color:var(--zr-editor-bg)] p-3">
+            <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--zr-text-muted)]">
+              {{ text.request.mcp.stdioOnboardingTitle }}
+            </div>
+            <div class="mt-2 text-sm leading-5 text-[var(--zr-text-primary)]">
+              {{ text.request.mcp.stdioOnboardingBody }}
+            </div>
+            <div data-testid="mcp-stdio-onboarding-checklist" class="mt-2 text-xs leading-5 text-[var(--zr-text-muted)]">
+              {{ text.request.mcp.stdioOnboardingChecklist }}
+            </div>
+            <div
+              v-if="!hasStdioCommand"
+              data-testid="mcp-stdio-command-empty-state"
+              class="mt-2 text-xs font-medium leading-5 text-[var(--zr-text-secondary)]"
+            >
+              {{ text.request.mcp.stdioCommandHint }}
+            </div>
+          </div>
+
           <div class="grid gap-3 md:grid-cols-2">
             <div>
-              <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--zr-text-muted)]">Arguments</div>
+              <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--zr-text-muted)]">{{ text.request.mcp.stdioArgsLabel }}</div>
               <Input
                 data-testid="mcp-stdio-args-input"
                 class="mt-2"
@@ -924,9 +951,12 @@ const handleDiscoverPrompts = () => emit('discover-prompts')
                 placeholder="dist/index.js stdio"
                 @update:model-value="handleStdioArgsChange"
               />
+              <div data-testid="mcp-stdio-args-hint" class="mt-2 text-xs leading-5 text-[var(--zr-text-muted)]">
+                {{ text.request.mcp.stdioArgsHint }}
+              </div>
             </div>
             <div>
-              <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--zr-text-muted)]">Working Directory</div>
+              <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--zr-text-muted)]">{{ text.request.mcp.stdioCwdLabel }}</div>
               <Input
                 data-testid="mcp-stdio-cwd-input"
                 class="mt-2"
@@ -934,7 +964,13 @@ const handleDiscoverPrompts = () => emit('discover-prompts')
                 placeholder="/path/to/project"
                 @update:model-value="handleStdioCwdChange"
               />
+              <div data-testid="mcp-stdio-cwd-hint" class="mt-2 text-xs leading-5 text-[var(--zr-text-muted)]">
+                {{ text.request.mcp.stdioCwdHint }}
+              </div>
             </div>
+          </div>
+          <div data-testid="mcp-stdio-troubleshooting" class="mt-3 text-xs leading-5 text-[var(--zr-text-muted)]">
+            {{ text.request.mcp.stdioTroubleshooting }}
           </div>
         </section>
 

@@ -318,6 +318,27 @@ watch(() => props.isCompactLayout, (isCompactLayout) => {
                 </DropdownMenuRadioGroup>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel class="px-2 py-1.5 text-[10px] uppercase tracking-[0.14em] text-[var(--zr-text-muted)]">
+                  {{ text.header.helpLabel }}
+                </DropdownMenuLabel>
+                <div data-testid="header-help-section" class="px-2 pb-2">
+                  <div class="text-[12px] font-medium text-[var(--zr-text-primary)]">
+                    {{ text.header.helpTitle }}
+                  </div>
+                  <div class="mt-1 text-[11px] leading-5 text-[var(--zr-text-muted)]">
+                    {{ text.header.helpDescription }}
+                  </div>
+                  <a
+                    data-testid="header-help-link"
+                    class="mt-2 inline-flex items-center rounded-md border border-[color:var(--zr-border)] px-2.5 py-1 text-[11px] font-medium text-[var(--zr-text-primary)] transition-colors hover:bg-[var(--zr-editor-bg)]"
+                    :href="text.header.helpHref"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {{ text.header.helpAction }}
+                  </a>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel class="px-2 py-1.5 text-[10px] uppercase tracking-[0.14em] text-[var(--zr-text-muted)]">
                   {{ text.header.themeLabel }}
                 </DropdownMenuLabel>
                 <DropdownMenuRadioGroup
@@ -396,6 +417,29 @@ watch(() => props.isCompactLayout, (isCompactLayout) => {
               >
                 {{ text.header.language.chinese }}
               </Button>
+            </div>
+          </section>
+
+          <section>
+            <div class="text-[10px] uppercase tracking-[0.18em] text-[var(--zr-text-muted)]">
+              {{ text.header.helpLabel }}
+            </div>
+            <div data-testid="header-help-section" class="mt-2 rounded-lg border border-[var(--zr-border)] bg-[var(--zr-editor-bg)] p-3">
+              <div class="text-sm font-medium text-[var(--zr-text-primary)]">
+                {{ text.header.helpTitle }}
+              </div>
+              <div class="mt-1 text-sm leading-5 text-[var(--zr-text-muted)]">
+                {{ text.header.helpDescription }}
+              </div>
+              <a
+                data-testid="header-help-link"
+                class="mt-3 inline-flex items-center rounded-md border border-[var(--zr-border)] px-3 py-1.5 text-sm font-medium text-[var(--zr-text-primary)]"
+                :href="text.header.helpHref"
+                target="_blank"
+                rel="noreferrer"
+              >
+                {{ text.header.helpAction }}
+              </a>
             </div>
           </section>
 

@@ -212,6 +212,8 @@ describe('AppHeader', () => {
     expect(wrapper.get('[data-testid="header-workspace-switcher"]').classes()).toContain('zr-header-context-card')
     expect(wrapper.get('[data-testid="header-environment-switcher"]').classes()).toContain('zr-header-context-card')
     expect(wrapper.find('[data-testid="header-settings-trigger"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="header-help-section"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="header-help-link"]').attributes('href')).toBe('https://github.com/S842155114/ZenRequest#快速开始')
     expect(wrapper.text()).toContain('Primary Workspace')
     expect(wrapper.text()).toContain('Local')
     expect(wrapper.text()).toContain('2 vars')
@@ -236,6 +238,8 @@ describe('AppHeader', () => {
 
     expect(wrapper.find('[data-testid="header-settings-sheet"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('Adjust language and theme for the workbench shell.')
+    expect(wrapper.text()).toContain('Usage Help')
+    expect(wrapper.text()).toContain('Open Quick Start')
     expect(wrapper.text()).toContain('Language')
     expect(wrapper.text()).toContain('Theme')
 
