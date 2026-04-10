@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: usage-guidance-and-product-manual
-status: "Defining requirements"
-last_updated: "2026-04-10T12:10:00+08:00"
+status: "Phase 12 complete — ready for Phase 13 discuss"
+last_updated: "2026-04-10T15:05:00+08:00"
 progress:
-  total_phases: 0
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_phases: 3
+  completed_phases: 1
+  total_plans: 1
+  completed_plans: 1
+  percent: 33
 ---
 
 # GSD State
@@ -19,7 +19,7 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-04-06)
 
 **Core value:** 让开发者以本地优先、快速、可控的方式完成高频 API 调试与工作流操作，而不被臃肿云平台和账号绑定打断。
-**Current focus:** v1.2 requirements and roadmap definition
+**Current focus:** Phase 13 discussion and documentation planning
 
 ## Current Artifacts
 
@@ -39,8 +39,9 @@ See: `.planning/PROJECT.md` (updated 2026-04-06)
 - v1.0.1 tag has been pushed to rerun release workflow on the post-archive CI/build fix commit
 - v1.1 has been shipped, audited, and archived
 - New milestone selected: `v1.2 Usage Guidance & Product Manual`
-- Current status: defining requirements and roadmap
-- Recommended next step: create scoped requirements, then roadmap phases
+- Phase 12 has been planned, executed, reviewed, and verified
+- Current status: ready to start Phase 13
+- Recommended next step: run `$gsd-discuss-phase 13`
 
 ## Branch Strategy
 
@@ -57,4 +58,4 @@ Recommended branch names:
 - `gsd/phase-XX-short-name`
 
 ---
-*Last updated: 2026-04-10 after v1.2 kickoff*
+*Last updated: 2026-04-10 after Phase 12 completion*

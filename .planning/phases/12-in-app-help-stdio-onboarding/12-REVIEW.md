@@ -22,10 +22,7 @@ Reviewed files:
 
 ### MEDIUM
 
-1. **Duplicate `快速开始` headings in `README.md` create anchor ambiguity**
-   - `README.md` now contains two `## 快速开始` sections.
-   - The in-app help link points to `https://github.com/S842155114/ZenRequest#快速开始`, but duplicate headings can produce ambiguous or unstable GitHub anchor behavior and may not land users on the intended new quick-start block.
-   - **Recommendation:** Rename one of the headings or use a unique docs landing target so the in-app help link resolves predictably.
+- None.
 
 ### LOW
 
@@ -50,4 +47,4 @@ Reviewed files:
 
 PASS WITH MINOR ISSUES
 
-Phase 12 changes look safe to ship. The only actionable issue worth fixing soon is the duplicate `README` heading because it can make the help link less reliable.
+Phase 12 changes look safe to ship. The original README anchor ambiguity noted during review has been fixed; only minor maintainability/test-depth follow-ups remain.

@@ -19,7 +19,7 @@
 
 ### IA-01 — Product help linked to external docs entry
 - **Result:** Pass
-- **Evidence:** settings help action links to `README` quick-start anchor; `README.md` now contains a stable `快速开始` landing section.
+- **Evidence:** settings help action links to the unique `README` anchor `应用内帮助`; `README.md` now contains a stable landing section for the in-app help entry.
 
 ## Validation Performed
 
