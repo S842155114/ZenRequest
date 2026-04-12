@@ -165,6 +165,52 @@ describe('request workspace mock state helpers', () => {
     expect(item.requestSnapshot?.mcp?.operation.type).toBe('tools.call')
   })
 
+  it('clones sampling mcp definitions without dropping operation input', () => {
+    const preset: RequestPreset = {
+      id: 'request-mcp-sampling',
+      name: 'Sampling tool',
+      method: 'POST',
+      url: 'https://example.com/mcp',
+      body: '',
+      bodyType: 'json',
+      headers: [],
+      params: [],
+      mcp: {
+        connection: {
+          transport: 'http',
+          baseUrl: 'https://example.com/mcp',
+          headers: [],
+          auth: {
+            type: 'none',
+            bearerToken: '',
+            username: '',
+            password: '',
+            apiKeyKey: '',
+            apiKeyValue: '',
+            apiKeyPlacement: 'header',
+          },
+        },
+        operation: {
+          type: 'sampling',
+          input: {
+            prompt: 'Summarize this',
+            systemPrompt: 'Be concise',
+            maxTokens: 64,
+            temperature: 0.1,
+            metadata: { source: 'test' },
+          },
+        },
+      },
+    }
+
+    const tab = createRequestTabFromPreset(preset)
+    expect(tab.mcp?.operation.type).toBe('sampling')
+    if (tab.mcp?.operation.type === 'sampling') {
+      expect(tab.mcp.operation.input.prompt).toBe('Summarize this')
+      expect(tab.mcp.operation.input.metadata).toEqual({ source: 'test' })
+    }
+  })
+
   it('carries explicit execution provenance through response helpers', () => {
     const response = cloneResponse({
       status: 201,

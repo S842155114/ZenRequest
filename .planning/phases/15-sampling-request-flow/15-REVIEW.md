@@ -3,7 +3,7 @@
 **Date:** 2026-04-12
 **Depth:** standard
 **Scope:** 6 files
-**Status:** FLAGGED
+**Status:** ADDRESSED
 
 ## Reviewed Files
 
@@ -16,22 +16,19 @@
 
 ## Findings
 
-### Medium
+### Resolved
 
-1. **`sampling` currently only adds UI/types, but no execution-path integration**
-   - `src/types/request.ts` and `src/features/mcp-workbench/components/McpRequestPanel.vue` add `sampling` as a selectable operation.
-   - However, the phase implementation does not update the MCP execution pipeline in the runtime/service layer, so selecting `sampling` may still fall through existing operation handling or fail as an unsupported path at send time.
-   - Risk: the UI advertises a supported operation before the request execution layer has a matching protocol mapping.
-   - Recommendation: review and extend the MCP execution/service path so `sampling` is serialized, dispatched, and classified intentionally, not just represented in UI state.
+1. **`sampling` clone/persistence path updated**
+   - `src/lib/request-workspace.ts` now preserves `sampling` operation input during MCP request cloning.
+   - `src/lib/request-workspace.test.ts` covers this path.
 
-### Low
+2. **Empty sampling prompt now blocks send**
+   - `src/features/request-workbench/composables/useRequestPanelState.ts` now adds a readiness blocker when `sampling.prompt` is empty.
+   - `src/components/request/RequestPanel.test.ts` verifies send is blocked for an empty sampling prompt.
 
-1. **No targeted assertion for send-readiness / blockers around empty sampling prompt**
-   - New tests verify rendering and response chrome, but do not prove whether an empty `sampling.prompt` blocks send or produces a user-facing validation state.
-   - Risk: users may be able to send an obviously incomplete `sampling` request and only discover the issue at runtime.
-   - Recommendation: add a request-panel readiness test once the execution path is wired.
+### Remaining Low
 
-2. **Response review test does not yet guarantee readable transformation logic**
+1. **Response review test does not yet guarantee readable transformation logic**
    - The current response test checks that `sampling` labels and raw response content appear in the existing viewer.
    - It does not prove a dedicated readable-first mapping exists for more complex sampling payloads.
    - Risk: phase intent says “readable-first”, but current coverage mainly proves compatibility with the existing generic JSON viewer.
@@ -39,9 +36,9 @@
 
 ## Summary
 
-Phase 15 is directionally sound and follows the locked UX decisions, but the implementation currently looks **UI-first** rather than fully end-to-end complete. The main thing to verify before calling the phase done is whether `sampling` is actually handled in the MCP execution/runtime layer.
+Phase 15 now addresses the main review concerns found in the reviewed scope. The remaining observation is about how far “readable-first” response formatting should go in this phase versus Phase 16.
 
 ## Recommended Next Step
 
-- If execution-path support is indeed missing, fix it before merging or before starting Phase 16.
-- Otherwise, if another commit already handled runtime support outside this reviewed scope, update the phase summary/review context to point at that evidence.
+- Keep Phase 16 focused on replay / diagnostics integration.
+- If stronger readable transformation is desired, either extend response normalization there or explicitly keep Phase 15 at compatibility-level readable output.

@@ -7,6 +7,7 @@
 - Added boundary/risk guidance for `sampling` directly in the MCP authoring surface.
 - Kept the response experience readable-first by ensuring `sampling` artifacts render within the existing MCP response chrome.
 - Added targeted tests covering sampling authoring and readable response behavior.
+- Completed follow-up integration fixes from code review by preserving `sampling` through request-workspace cloning and blocking empty sampling sends.
 
 ## Files changed
 

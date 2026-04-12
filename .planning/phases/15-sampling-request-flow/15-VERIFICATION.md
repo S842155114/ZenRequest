@@ -9,13 +9,14 @@
 - Structured sampling inputs render with visible boundary guidance
 - `sampling` is represented in the MCP response chrome and remains readable-first
 - Targeted tests passed:
+ - `src/lib/request-workspace.test.ts`
   - `src/features/mcp-workbench/components/McpRequestPanel.test.ts`
   - `src/components/request/RequestPanel.test.ts`
   - `src/components/response/ResponsePanel.test.ts`
 
 ## Commands Run
 
-- `pnpm vitest run src/features/mcp-workbench/components/McpRequestPanel.test.ts src/components/request/RequestPanel.test.ts src/components/response/ResponsePanel.test.ts`
+- `pnpm vitest run src/lib/request-workspace.test.ts src/components/request/RequestPanel.test.ts src/features/mcp-workbench/components/McpRequestPanel.test.ts src/components/response/ResponsePanel.test.ts`
 
 ## Notes
 

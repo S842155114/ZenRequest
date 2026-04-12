@@ -235,6 +235,16 @@ const cloneMcpRequestDefinition = (definition?: McpRequestDefinition): McpReques
                 : undefined,
             },
           }
+          : definition.operation.type === 'sampling'
+            ? {
+              type: 'sampling',
+              input: {
+                ...definition.operation.input,
+                metadata: definition.operation.input.metadata
+                  ? clonePlainData(definition.operation.input.metadata)
+                  : undefined,
+              },
+            }
           : definition.operation.type === 'initialize'
             ? {
               type: 'initialize',

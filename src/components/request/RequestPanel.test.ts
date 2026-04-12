@@ -839,6 +839,48 @@ describe('RequestPanel i18n copy', () => {
     expect(wrapper.get('[data-testid="mcp-sampling-panel"]').exists()).toBe(true)
   })
 
+  it('blocks mcp sampling send when prompt is empty', async () => {
+    const tab = createTab({
+      requestKind: 'mcp',
+      mcp: {
+        connection: {
+          transport: 'http',
+          baseUrl: 'https://example.com/mcp',
+          headers: [],
+          auth: {
+            type: 'none',
+            bearerToken: '',
+            username: '',
+            password: '',
+            apiKeyKey: 'X-API-Key',
+            apiKeyValue: '',
+            apiKeyPlacement: 'header',
+          },
+        },
+        operation: {
+          type: 'sampling',
+          input: {
+            prompt: '',
+          },
+        },
+      },
+    })
+
+    const wrapper = mount(RequestPanel, {
+      props: {
+        locale: 'en',
+        tabs: [tab],
+        activeTabId: tab.id,
+        activeEnvironmentName: 'Local',
+        activeEnvironmentVariables: [],
+        resolvedActiveUrl: 'https://example.com/mcp',
+      },
+    })
+
+    await wrapper.get('[data-testid="request-url-bar-send"]').trigger('click')
+    expect(wrapper.emitted('send')).toBeFalsy()
+  })
+
   it('forwards discover-tools from the mcp panel', async () => {
     const wrapper = mount(RequestPanel, {
       props: {
