@@ -178,7 +178,7 @@ const getHistoryStatusMetaClass = (status: number) => (
 const getHistorySummary = (item: HistoryItem) => {
   if (!item.mcpSummary) return ''
 
-  const parts = [item.mcpSummary.operation, item.mcpSummary.transport]
+  const parts: string[] = [item.mcpSummary.operation, item.mcpSummary.transport]
 
   if (item.mcpSummary.operation === 'tools.call' && item.mcpSummary.toolName) {
     parts.push(item.mcpSummary.toolName)

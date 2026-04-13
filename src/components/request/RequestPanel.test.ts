@@ -836,7 +836,7 @@ describe('RequestPanel i18n copy', () => {
       },
     })
 
-    expect(wrapper.get('[data-testid="mcp-sampling-panel"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="mcp-sampling-panel"]').exists()).toBe(true)
   })
 
   it('blocks mcp sampling send when prompt is empty', async () => {
