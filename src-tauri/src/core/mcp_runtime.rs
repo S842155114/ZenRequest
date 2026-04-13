@@ -69,6 +69,7 @@ fn operation_name(operation: &McpOperationInputDto) -> &'static str {
         McpOperationInputDto::ResourcesRead { .. } => "resources.read",
         McpOperationInputDto::PromptsList { .. } => "prompts.list",
         McpOperationInputDto::PromptsGet { .. } => "prompts.get",
+        McpOperationInputDto::Sampling { .. } => "sampling",
     }
 }
 
@@ -169,6 +170,46 @@ fn build_protocol_request(payload: &SendMcpRequestPayloadDto) -> Result<Value, A
                     "name": input.prompt_name,
                     "arguments": input.arguments.clone(),
                 }
+            }))
+        }
+        McpOperationInputDto::Sampling { input } => {
+            if input.prompt.trim().is_empty() {
+                return Err(error("MCP_SAMPLING_PROMPT_REQUIRED", "sampling requires a prompt"));
+            }
+
+            let mut params = serde_json::Map::new();
+            params.insert(
+                "messages".to_string(),
+                json!([
+                    {
+                        "role": "user",
+                        "content": {
+                            "type": "text",
+                            "text": input.prompt,
+                        }
+                    }
+                ]),
+            );
+
+            if let Some(system_prompt) = &input.system_prompt {
+                if !system_prompt.trim().is_empty() {
+                    params.insert("systemPrompt".to_string(), Value::String(system_prompt.clone()));
+                }
+            }
+
+            if let Some(max_tokens) = input.max_tokens {
+                params.insert("maxTokens".to_string(), json!(max_tokens));
+            }
+
+            if let Some(temperature) = input.temperature {
+                params.insert("temperature".to_string(), json!(temperature));
+            }
+
+            Ok(json!({
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "method": "sampling/createMessage",
+                "params": Value::Object(params),
             }))
         }
     }
@@ -797,6 +838,7 @@ fn execute_stdio_request(payload: &SendMcpRequestPayloadDto) -> Result<SendMcpRe
     let error_category = if protocol_response.get("error").is_some() {
         Some(match payload.mcp.operation {
             McpOperationInputDto::Initialize { .. } => "session",
+            McpOperationInputDto::Sampling { .. } => "sampling",
             _ => "tool-call",
         })
     } else {
@@ -958,11 +1000,11 @@ pub async fn execute_mcp_request(payload: &SendMcpRequestPayloadDto) -> Result<S
 
 #[cfg(test)]
 mod tests {
-    use super::build_headers;
+    use super::{build_headers, build_protocol_request};
     use crate::models::{
         AuthConfigDto, McpOperationInputDto, SendMcpRequestPayloadDto,
     };
-    use crate::models::request::{McpConnectionConfigDto, McpInitializeInputDto, McpRequestDefinitionDto, McpToolsListInputDto};
+    use crate::models::request::{McpConnectionConfigDto, McpInitializeInputDto, McpRequestDefinitionDto, McpSamplingInputDto, McpToolsListInputDto};
 
     fn base_payload(operation: McpOperationInputDto) -> SendMcpRequestPayloadDto {
         SendMcpRequestPayloadDto {
@@ -1013,6 +1055,30 @@ mod tests {
 
         let headers = build_headers(&payload).expect("headers");
         assert_eq!(headers.get("mcp-session-id").and_then(|v| v.to_str().ok()), Some("session-1"));
+    }
+
+    #[test]
+    fn sampling_builds_create_message_protocol_request() {
+        let payload = base_payload(McpOperationInputDto::Sampling {
+            input: McpSamplingInputDto {
+                prompt: "Write a short haiku about autumn leaves.".to_string(),
+                system_prompt: Some("Respond with exactly three short lines.".to_string()),
+                max_tokens: Some(120),
+                temperature: Some(0.2),
+            },
+        });
+
+        let request = build_protocol_request(&payload).expect("protocol request");
+
+        assert_eq!(request.get("method").and_then(|value| value.as_str()), Some("sampling/createMessage"));
+        let params = request.get("params").and_then(|value| value.as_object()).expect("params object");
+        assert_eq!(params.get("systemPrompt").and_then(|value| value.as_str()), Some("Respond with exactly three short lines."));
+        assert_eq!(params.get("maxTokens").and_then(|value| value.as_u64()), Some(120));
+        assert_eq!(params.get("temperature").and_then(|value| value.as_f64()), Some(0.2));
+        let messages = params.get("messages").and_then(|value| value.as_array()).expect("messages array");
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].get("role").and_then(|value| value.as_str()), Some("user"));
+        assert_eq!(messages[0].get("content").and_then(|value| value.get("text")).and_then(|value| value.as_str()), Some("Write a short haiku about autumn leaves."));
     }
 
 }

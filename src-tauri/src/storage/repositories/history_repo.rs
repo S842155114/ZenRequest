@@ -227,6 +227,7 @@ fn derive_mcp_history_summary(
         crate::models::request::McpOperationInputDto::ResourcesRead { .. } => "resources.read".to_string(),
         crate::models::request::McpOperationInputDto::PromptsList { .. } => "prompts.list".to_string(),
         crate::models::request::McpOperationInputDto::PromptsGet { .. } => "prompts.get".to_string(),
+        crate::models::request::McpOperationInputDto::Sampling { .. } => "sampling".to_string(),
     };
     let error_category = derive_mcp_error_category(&operation, status, response_preview);
 

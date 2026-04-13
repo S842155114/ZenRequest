@@ -921,13 +921,6 @@ const handleDiscoverPrompts = () => emit('discover-prompts')
                 placeholder="node dist/index.js stdio"
                 @update:model-value="handleStdioCommandChange"
               />
-              <div
-                v-if="transportLabel === 'stdio'"
-                data-testid="mcp-stdio-command-hint"
-                class="mt-2 text-xs leading-5 text-[var(--zr-text-muted)]"
-              >
-                {{ text.request.mcp.stdioCommandHint }}
-              </div>
             </div>
             <div data-testid="request-command-actions" class="flex items-center justify-end gap-2 xl:justify-self-end xl:self-center">
               <button
@@ -1019,6 +1012,9 @@ const handleDiscoverPrompts = () => emit('discover-prompts')
                 {{ text.request.mcp.stdioCwdHint }}
               </div>
             </div>
+          </div>
+          <div data-testid="mcp-stdio-command-hint" class="mt-3 text-xs leading-5 text-[var(--zr-text-muted)]">
+            {{ text.request.mcp.stdioCommandHint }}
           </div>
           <div data-testid="mcp-stdio-troubleshooting" class="mt-3 text-xs leading-5 text-[var(--zr-text-muted)]">
             {{ text.request.mcp.stdioTroubleshooting }}
