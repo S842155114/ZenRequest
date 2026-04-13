@@ -51,8 +51,8 @@ describe('McpRequestPanel', () => {
 
     expect(wrapper.get('[data-testid="mcp-sampling-panel"]').text()).toContain('Sampling')
     expect(wrapper.get('[data-testid="mcp-sampling-boundary-note"]').text()).toContain('server support')
-    expect(wrapper.get('[data-testid="mcp-sampling-prompt-input"]').exists()).toBe(true)
-    expect(wrapper.get('[data-testid="mcp-sampling-system-prompt-input"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="mcp-sampling-prompt-input"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="mcp-sampling-system-prompt-input"]').exists()).toBe(true)
   })
   it('keeps the tool selector when cached tools exist without protocol tool results', () => {
     const wrapper = mount(McpRequestPanel, {

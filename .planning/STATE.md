@@ -1,8 +1,8 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.3
+milestone: archived-v1.3
 milestone_name: milestone
-status: "Phase 16 shipped — pending PR number"
+status: "Milestone v1.3 archived"
 last_updated: "2026-04-13T03:20:00.000Z"
 progress:
   total_phases: 2
@@ -19,7 +19,7 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-04-06)
 
 **Core value:** 让开发者以本地优先、快速、可控的方式完成高频 API 调试与工作流操作，而不被臃肿云平台和账号绑定打断。
-**Current focus:** Phase 16 shipped and awaiting review / merge
+**Current focus:** v1.3 archived; ready to define next milestone
 
 ## Current Artifacts
 
@@ -41,8 +41,8 @@ See: `.planning/PROJECT.md` (updated 2026-04-06)
 - `v1.2 Usage Guidance & Product Manual` has been completed and archived
 - New milestone started: `v1.3 MCP Sampling Debugging`
 - Requirements and roadmap for v1.3 have been defined
-- Current status: Phase 16 shipped and awaiting PR review
-- Recommended next step: review and merge the Phase 16 PR
+- Current status: Milestone v1.3 archived
+- Recommended next step: run `$gsd-new-milestone`
 
 ## Branch Strategy
 
