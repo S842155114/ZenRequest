@@ -224,4 +224,97 @@ describe('history-replay domain', () => {
     expect(tab.response.mcpArtifact?.selectedTool?.name).toBe('search')
     expect(tab.response.mcpArtifact?.cachedTools?.[0]?.name).toBe('search')
   })
+
+  it('replays sampling mcp history as a normal replay draft with preserved artifact context', () => {
+    const item: HistoryItem = {
+      id: 'history-mcp-sampling-1',
+      requestId: 'request-mcp-sampling-1',
+      name: 'MCP Sampling',
+      method: 'POST',
+      time: '14 ms',
+      status: 200,
+      url: 'https://example.com/mcp',
+      responsePreview: '{"result":{"content":{"type":"text","text":"Generated text"}}}',
+      requestSnapshot: {
+        tabId: 'tab-mcp-sampling-1',
+        requestId: 'request-mcp-sampling-1',
+        requestKind: 'mcp',
+        mcp: {
+          connection: {
+            transport: 'http',
+            baseUrl: 'https://example.com/mcp',
+            headers: [],
+            auth: {
+              type: 'none',
+              bearerToken: '',
+              username: '',
+              password: '',
+              apiKeyKey: 'X-API-Key',
+              apiKeyValue: '',
+              apiKeyPlacement: 'header',
+            },
+            sessionId: 'session-sampling-1',
+          },
+          operation: {
+            type: 'sampling',
+            input: {
+              prompt: 'Write a short haiku about autumn leaves.',
+              systemPrompt: 'Respond with exactly three short lines.',
+              maxTokens: 120,
+              temperature: 0.2,
+            },
+          },
+        },
+        name: 'MCP Sampling',
+        description: 'Replay sampling',
+        tags: ['mcp', 'sampling'],
+        collectionName: 'Scratch Pad',
+        method: 'POST',
+        url: 'https://example.com/mcp',
+        params: [],
+        headers: [],
+        body: '',
+        bodyType: 'json',
+        auth: {
+          type: 'none',
+          bearerToken: '',
+          username: '',
+          password: '',
+          apiKeyKey: 'X-API-Key',
+          apiKeyValue: '',
+          apiKeyPlacement: 'header',
+        },
+        tests: [],
+      },
+      mcpArtifact: {
+        transport: 'http',
+        operation: 'sampling',
+        protocolRequest: { method: 'sampling/createMessage' },
+        protocolResponse: { result: { content: { type: 'text', text: 'Generated text' } } },
+        sessionId: 'session-sampling-1',
+      },
+      mcpSummary: {
+        operation: 'sampling',
+        transport: 'http',
+        promptSummary: 'Write a short haiku about autumn leaves.',
+        sessionId: 'session-sampling-1',
+      },
+    }
+
+    const tab = buildHistoryReplayDraft({
+      item,
+      collections: [],
+      recoveredDescription: 'Recovered sampling',
+      historyTag: 'history',
+    })
+
+    expect(tab.origin?.kind).toBe('replay')
+    expect(tab.requestKind).toBe('mcp')
+    expect(tab.mcp?.operation.type).toBe('sampling')
+    if (tab.mcp?.operation.type === 'sampling') {
+      expect(tab.mcp.operation.input.prompt).toBe('Write a short haiku about autumn leaves.')
+    }
+    expect(tab.mcp?.connection.sessionId).toBe('session-sampling-1')
+    expect(tab.response.mcpArtifact?.operation).toBe('sampling')
+  })
 })

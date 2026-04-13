@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.3
-milestone_name: mcp-sampling-debugging
-status: "Ready for Phase 15 discuss/planning"
-last_updated: "2026-04-10T21:05:00+08:00"
+milestone_name: milestone
+status: "Phase 16 shipped — pending PR number"
+last_updated: "2026-04-13T03:20:00.000Z"
 progress:
-  total_phases: 0
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_phases: 2
+  completed_phases: 1
+  total_plans: 1
+  completed_plans: 1
+  percent: 100
 ---
 
 # GSD State
@@ -19,7 +19,7 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-04-06)
 
 **Core value:** 让开发者以本地优先、快速、可控的方式完成高频 API 调试与工作流操作，而不被臃肿云平台和账号绑定打断。
-**Current focus:** Phase 15 planning for v1.3 MCP Sampling Debugging
+**Current focus:** Phase 16 shipped and awaiting review / merge
 
 ## Current Artifacts
 
@@ -41,8 +41,8 @@ See: `.planning/PROJECT.md` (updated 2026-04-06)
 - `v1.2 Usage Guidance & Product Manual` has been completed and archived
 - New milestone started: `v1.3 MCP Sampling Debugging`
 - Requirements and roadmap for v1.3 have been defined
-- Current status: ready to start Phase 15
-- Recommended next step: run `$gsd-plan-phase 15`
+- Current status: Phase 16 shipped and awaiting PR review
+- Recommended next step: review and merge the Phase 16 PR
 
 ## Branch Strategy
 

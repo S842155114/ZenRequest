@@ -991,6 +991,109 @@ describe('app-shell services', () => {
     ])
   })
 
+  it('persists compact sampling summaries while preserving replay snapshots', async () => {
+    const state = reactive(createInitialAppShellState())
+    state.workspace.items = [{ id: 'workspace-1', name: 'Primary Workspace' }]
+    state.workspace.activeId = 'workspace-1'
+    state.environment.items = [{ id: 'env-local', name: 'Local', variables: [] }]
+    state.environment.activeId = 'env-local'
+
+    const tab = createRequestTabFromPreset(defaultRequestPreset)
+    tab.id = 'tab-mcp-sampling'
+    tab.name = 'MCP Sampling'
+    tab.requestKind = 'mcp'
+    tab.mcp = {
+      connection: {
+        transport: 'http',
+        baseUrl: 'https://example.com/mcp',
+        headers: [],
+        auth: {
+          type: 'none',
+          bearerToken: '',
+          username: '',
+          password: '',
+          apiKeyKey: 'X-API-Key',
+          apiKeyValue: '',
+          apiKeyPlacement: 'header',
+        },
+        sessionId: 'session-sampling-1',
+      },
+      operation: {
+        type: 'sampling',
+        input: {
+          prompt: 'Write a short haiku about autumn leaves.',
+          systemPrompt: 'Respond with exactly three short lines.',
+          maxTokens: 120,
+          temperature: 0.2,
+        },
+      },
+    }
+    state.request.openTabs = [tab]
+    state.request.activeTabId = tab.id
+
+    const store = createAppShellStore(state)
+    const runtime = {
+      sendRequest: vi.fn(async () => ({ ok: true, data: {} })),
+      sendMcpRequest: vi.fn(async () => ({
+        ok: true,
+        data: {
+          requestMethod: 'POST',
+          requestUrl: 'https://example.com/mcp',
+          status: 200,
+          statusText: 'OK',
+          elapsedMs: 15,
+          sizeBytes: 64,
+          contentType: 'application/json',
+          responseBody: '{"result":{"content":{"type":"text","text":"Generated text"}}}',
+          headers: [],
+          truncated: false,
+          executionSource: 'live',
+          mcpArtifact: {
+            transport: 'http',
+            operation: 'sampling',
+            sessionId: 'session-sampling-1',
+          },
+        },
+      })),
+    } as const
+
+    const services = createAppShellServices({ runtime: runtime as never, store })
+
+    const payload: SendRequestPayload = {
+      tabId: tab.id,
+      requestKind: 'mcp',
+      mcp: tab.mcp,
+      requestId: tab.requestId,
+      name: tab.name,
+      description: tab.description,
+      tags: tab.tags,
+      collectionName: tab.collectionName,
+      method: tab.method,
+      url: tab.mcp.connection.baseUrl,
+      params: [],
+      headers: [],
+      body: '',
+      bodyType: 'json',
+      auth: tab.auth,
+      tests: [],
+      executionOptions: tab.executionOptions,
+    }
+
+    const result = await services.sendRequest({ payload })
+
+    expect(result).toMatchObject({ ok: true, code: 'request.sent' })
+    expect(state.request.historyItems[0]).toMatchObject({
+      mcpSummary: {
+        operation: 'sampling',
+        transport: 'http',
+        promptSummary: 'Write a short haiku about autumn leaves.',
+        sessionId: 'session-sampling-1',
+      },
+    })
+    expect(state.request.historyItems[0]?.requestSnapshot?.requestKind).toBe('mcp')
+    expect(state.request.historyItems[0]?.mcpArtifact?.operation).toBe('sampling')
+  })
+
   it('discovers mcp tools through the runtime bridge', async () => {
     const state = reactive(createInitialAppShellState())
     state.workspace.items = [{ id: 'workspace-1', name: 'Primary Workspace' }]

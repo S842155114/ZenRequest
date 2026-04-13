@@ -573,6 +573,10 @@ export const createAppShellStore = (state: AppShellState): AppShellStore => {
           executionSource: artifact?.executionSource ?? input.response.executionSource ?? 'live',
         }))
       } else if (input.payload.requestKind === 'mcp' && mcpArtifact) {
+        const samplingPromptSummary = input.payload.mcp?.operation.type === 'sampling'
+          ? input.payload.mcp.operation.input.prompt.trim().slice(0, 80)
+          : undefined
+
         mutations.prependHistoryItem(createHistoryEntry({
           requestId: input.payload.requestId,
           requestSnapshot: input.payload,
@@ -590,6 +594,9 @@ export const createAppShellStore = (state: AppShellState): AppShellStore => {
               : undefined,
             resourceUri: input.payload.mcp?.operation.type === 'resources.read'
               ? input.payload.mcp.operation.input.uri
+              : undefined,
+            promptSummary: samplingPromptSummary && samplingPromptSummary.length > 0
+              ? samplingPromptSummary
               : undefined,
             sessionId: input.payload.mcp?.connection.sessionId,
           },
