@@ -288,6 +288,31 @@ describe('ResponsePanel i18n copy', () => {
     expect(wrapper.get('[data-testid="response-mcp-error-message"]').text()).toContain('bad request')
   })
 
+  it('surfaces sampling failures as boundary-first diagnostics before raw protocol details', () => {
+    const wrapper = mount(ResponsePanel, {
+      props: {
+        locale: 'en',
+        requestKind: 'mcp',
+        responseBody: JSON.stringify({ error: { code: -32001, message: 'sampling not supported' } }),
+        contentType: 'application/json',
+        mcpArtifact: {
+          transport: 'http',
+          operation: 'sampling',
+          errorCategory: 'sampling',
+          protocolResponse: { error: { code: -32001, message: 'sampling not supported' } },
+        },
+      },
+    })
+
+    const notice = wrapper.get('[data-testid="response-mcp-error-notice"]')
+
+    expect(notice.text()).toContain('Sampling boundary')
+    expect(notice.text()).toContain('Category: sampling')
+    expect(wrapper.get('[data-testid="response-mcp-error-description"]').text()).toContain('Sampling depends on server support and runtime/model boundaries')
+    expect(wrapper.get('[data-testid="response-mcp-error-description"]').text()).toContain('unsupported capability')
+    expect(wrapper.get('[data-testid="response-mcp-error-message"]').text()).toContain('sampling not supported')
+  })
+
   it('renders stdio runtime diagnostics when the artifact exposes failure details', () => {
     const wrapper = mount(ResponsePanel, {
       props: {

@@ -179,6 +179,19 @@ const getHistorySummary = (item: HistoryItem) => {
   if (!item.mcpSummary) return ''
 
   const parts = [item.mcpSummary.operation, item.mcpSummary.transport]
+
+  if (item.mcpSummary.operation === 'tools.call' && item.mcpSummary.toolName) {
+    parts.push(item.mcpSummary.toolName)
+  }
+
+  if (item.mcpSummary.operation === 'resources.read' && item.mcpSummary.resourceUri) {
+    parts.push(item.mcpSummary.resourceUri)
+  }
+
+  if (item.mcpSummary.operation === 'sampling' && item.mcpSummary.promptSummary) {
+    parts.push(item.mcpSummary.promptSummary)
+  }
+
   const errorCategory = item.mcpSummary.errorCategory
   return errorCategory ? [...parts, errorCategory].join(' · ') : parts.join(' · ')
 }

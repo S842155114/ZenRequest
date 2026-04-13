@@ -278,6 +278,29 @@ describe('AppSidebar', () => {
     expect(wrapper.findAllComponents(BadgeStub)).toHaveLength(3)
   })
 
+  it('shows compact sampling summaries with prompt previews in history mode', async () => {
+    const wrapper = mountSidebar({
+      historyItems: [
+        createHistoryItem({
+          id: 'history-sampling',
+          name: 'MCP Sampling',
+          method: 'POST',
+          url: 'https://example.com/mcp',
+          mcpSummary: {
+            operation: 'sampling',
+            transport: 'http',
+            promptSummary: 'Write a short haiku about autumn leaves.',
+          },
+        }),
+      ],
+    })
+
+    await wrapper.get('[data-testid="sidebar-history-tab"]').trigger('click')
+
+    expect(wrapper.get('[data-testid="history-mcp-summary-history-sampling"]').text()).toContain('sampling')
+    expect(wrapper.get('[data-testid="history-mcp-summary-history-sampling"]').text()).toContain('Write a short haiku about autumn leaves.')
+  })
+
   it('filters history rows by name, method, and url without mutating the source list', async () => {
     const items = [
       createHistoryItem({

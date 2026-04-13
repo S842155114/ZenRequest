@@ -164,6 +164,8 @@ const mcpProtocolError = computed(() => {
 })
 const mcpErrorNoticeTitle = computed(() => {
   switch (mcpErrorCategoryLabel.value) {
+    case 'sampling':
+      return 'Sampling boundary'
     case 'transport':
       return 'Transport error'
     case 'session':
@@ -181,6 +183,13 @@ const mcpErrorCode = computed(() => {
 const mcpErrorMessage = computed(() => {
   const message = mcpProtocolError.value?.message
   return typeof message === 'string' ? message : ''
+})
+const mcpErrorNoticeDescription = computed(() => {
+  if (mcpErrorCategoryLabel.value === 'sampling') {
+    return text.value.request.mcp.samplingBoundary
+  }
+
+  return ''
 })
 const mcpFailurePhaseLabel = computed(() => props.mcpArtifact?.failurePhase ?? '')
 const mcpSessionStateLabel = computed(() => props.mcpArtifact?.sessionState ?? '')
@@ -564,6 +573,9 @@ const downloadCurrentContent = async () => {
             >
               <div class="text-xs font-semibold uppercase tracking-[0.16em] text-rose-300">{{ mcpErrorNoticeTitle }}</div>
               <div class="mt-1 text-xs text-[var(--zr-text-muted)]">Category: {{ mcpErrorCategoryLabel }}</div>
+              <div v-if="mcpErrorNoticeDescription" data-testid="response-mcp-error-description" class="mt-1 text-xs leading-5 text-[var(--zr-text-muted)]">
+                {{ mcpErrorNoticeDescription }}
+              </div>
               <div v-if="mcpErrorCode" data-testid="response-mcp-error-code" class="mt-1 font-mono text-xs text-[var(--zr-text-primary)]">Code: {{ mcpErrorCode }}</div>
               <div v-if="mcpErrorMessage" data-testid="response-mcp-error-message" class="mt-1 text-xs text-[var(--zr-text-primary)]">{{ mcpErrorMessage }}</div>
             </div>

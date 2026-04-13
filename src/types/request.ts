@@ -343,6 +343,7 @@ export interface HistoryItem {
     errorCategory?: McpExecutionArtifact['errorCategory']
     toolName?: string
     resourceUri?: string
+    promptSummary?: string
     sessionId?: string
   }
 }
