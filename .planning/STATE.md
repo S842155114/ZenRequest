@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.3
-milestone_name: mcp-sampling-debugging
-status: "Ready for Phase 15 discuss/planning"
-last_updated: "2026-04-10T21:05:00+08:00"
+milestone_name: milestone
+status: "Phase 15 shipped — PR #37"
+last_updated: "2026-04-13T01:29:22.745Z"
 progress:
-  total_phases: 0
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_phases: 2
+  completed_phases: 1
+  total_plans: 1
+  completed_plans: 1
+  percent: 100
 ---
 
 # GSD State
