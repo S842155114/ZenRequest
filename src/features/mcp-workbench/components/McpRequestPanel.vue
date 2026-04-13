@@ -199,6 +199,10 @@ const executionBadgeClass = computed(() => {
 const toolName = computed(() => props.mcp?.operation.type === 'tools.call' ? props.mcp.operation.input.toolName : '')
 const resourceUri = computed(() => props.mcp?.operation.type === 'resources.read' ? props.mcp.operation.input.uri : '')
 const promptName = computed(() => props.mcp?.operation.type === 'prompts.get' ? props.mcp.operation.input.promptName : '')
+const samplingPrompt = computed(() => props.mcp?.operation.type === 'sampling' ? props.mcp.operation.input.prompt : '')
+const samplingSystemPrompt = computed(() => props.mcp?.operation.type === 'sampling' ? props.mcp.operation.input.systemPrompt ?? '' : '')
+const samplingMaxTokens = computed(() => props.mcp?.operation.type === 'sampling' ? String(props.mcp.operation.input.maxTokens ?? '') : '')
+const samplingTemperature = computed(() => props.mcp?.operation.type === 'sampling' ? String(props.mcp.operation.input.temperature ?? '') : '')
 const roots = computed<McpRootSnapshot[]>(() => props.mcp?.roots ?? [])
 
 const availableTools = computed<McpToolSchemaSnapshot[]>(() => {
@@ -513,6 +517,21 @@ const handleOperationChange = (value: unknown) => {
       }
     }
 
+    if (value === 'sampling') {
+      return {
+        ...current,
+        operation: {
+          type: 'sampling',
+          input: {
+            prompt: '',
+            systemPrompt: '',
+            maxTokens: undefined,
+            temperature: undefined,
+          },
+        },
+      }
+    }
+
     return {
       ...current,
       operation: {
@@ -654,6 +673,37 @@ const handlePromptNameChange = (value: string | number) => {
       },
     }
   })
+}
+
+const updateSamplingInput = (updater: (input: Extract<McpOperationInput, { type: 'sampling' }>['input']) => Extract<McpOperationInput, { type: 'sampling' }>['input']) => {
+  updateMcp((current) => {
+    if (current.operation.type !== 'sampling') return current
+    return {
+      ...current,
+      operation: {
+        type: 'sampling',
+        input: updater(current.operation.input),
+      },
+    }
+  })
+}
+
+const handleSamplingPromptChange = (value: string | number) => {
+  updateSamplingInput((input) => ({ ...input, prompt: String(value) }))
+}
+
+const handleSamplingSystemPromptChange = (value: string | number) => {
+  updateSamplingInput((input) => ({ ...input, systemPrompt: String(value) }))
+}
+
+const handleSamplingMaxTokensChange = (value: string | number) => {
+  const textValue = String(value).trim()
+  updateSamplingInput((input) => ({ ...input, maxTokens: textValue ? Number(textValue) : undefined }))
+}
+
+const handleSamplingTemperatureChange = (value: string | number) => {
+  const textValue = String(value).trim()
+  updateSamplingInput((input) => ({ ...input, temperature: textValue ? Number(textValue) : undefined }))
 }
 
 const handleStructuredFieldChange = (key: string, value: string | number) => {
@@ -849,6 +899,7 @@ const handleDiscoverPrompts = () => emit('discover-prompts')
                   <SelectItem value="resources.read">resources.read</SelectItem>
                   <SelectItem value="prompts.list">prompts.list</SelectItem>
                   <SelectItem value="prompts.get">prompts.get</SelectItem>
+                  <SelectItem value="sampling">sampling</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -870,13 +921,6 @@ const handleDiscoverPrompts = () => emit('discover-prompts')
                 placeholder="node dist/index.js stdio"
                 @update:model-value="handleStdioCommandChange"
               />
-              <div
-                v-if="transportLabel === 'stdio'"
-                data-testid="mcp-stdio-command-hint"
-                class="mt-2 text-xs leading-5 text-[var(--zr-text-muted)]"
-              >
-                {{ text.request.mcp.stdioCommandHint }}
-              </div>
             </div>
             <div data-testid="request-command-actions" class="flex items-center justify-end gap-2 xl:justify-self-end xl:self-center">
               <button
@@ -968,6 +1012,9 @@ const handleDiscoverPrompts = () => emit('discover-prompts')
                 {{ text.request.mcp.stdioCwdHint }}
               </div>
             </div>
+          </div>
+          <div data-testid="mcp-stdio-command-hint" class="mt-3 text-xs leading-5 text-[var(--zr-text-muted)]">
+            {{ text.request.mcp.stdioCommandHint }}
           </div>
           <div data-testid="mcp-stdio-troubleshooting" class="mt-3 text-xs leading-5 text-[var(--zr-text-muted)]">
             {{ text.request.mcp.stdioTroubleshooting }}
@@ -1186,6 +1233,58 @@ const handleDiscoverPrompts = () => emit('discover-prompts')
             class="text-sm leading-5 text-[var(--zr-text-secondary)]"
           >
             {{ text.request.mcp.promptDiscoveryRecommended }}
+          </div>
+        </section>
+
+        <section
+          v-else-if="currentOperation === 'sampling'"
+          data-testid="mcp-sampling-panel"
+          class="grid gap-3 rounded-xl border border-[color:var(--zr-border-soft)] bg-[color:color-mix(in_srgb,var(--zr-control-bg)_88%,var(--zr-editor-bg))] p-3.5"
+        >
+          <div>
+            <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--zr-text-muted)]">{{ text.request.mcp.sampling }}</div>
+            <div class="mt-1 text-sm leading-5 text-[var(--zr-text-secondary)]">{{ text.request.mcp.samplingHint }}</div>
+          </div>
+          <div data-testid="mcp-sampling-boundary-note" class="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2.5 text-sm leading-6 text-[var(--zr-text-secondary)]">
+            {{ text.request.mcp.samplingBoundary }}
+          </div>
+          <div>
+            <div class="text-sm font-medium text-[var(--zr-text-primary)]">{{ text.request.mcp.samplingPrompt }}</div>
+            <Textarea
+              data-testid="mcp-sampling-prompt-input"
+              class="mt-2 min-h-[120px]"
+              :model-value="samplingPrompt"
+              @update:model-value="handleSamplingPromptChange"
+            />
+          </div>
+          <div>
+            <div class="text-sm font-medium text-[var(--zr-text-primary)]">{{ text.request.mcp.samplingSystemPrompt }}</div>
+            <Textarea
+              data-testid="mcp-sampling-system-prompt-input"
+              class="mt-2 min-h-[96px]"
+              :model-value="samplingSystemPrompt"
+              @update:model-value="handleSamplingSystemPromptChange"
+            />
+          </div>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div>
+              <div class="text-sm font-medium text-[var(--zr-text-primary)]">{{ text.request.mcp.samplingMaxTokens }}</div>
+              <Input
+                data-testid="mcp-sampling-max-tokens-input"
+                class="mt-2"
+                :model-value="samplingMaxTokens"
+                @update:model-value="handleSamplingMaxTokensChange"
+              />
+            </div>
+            <div>
+              <div class="text-sm font-medium text-[var(--zr-text-primary)]">{{ text.request.mcp.samplingTemperature }}</div>
+              <Input
+                data-testid="mcp-sampling-temperature-input"
+                class="mt-2"
+                :model-value="samplingTemperature"
+                @update:model-value="handleSamplingTemperatureChange"
+              />
+            </div>
           </div>
         </section>
 

@@ -28,6 +28,32 @@ const baseMcp = {
 }
 
 describe('McpRequestPanel', () => {
+  it('renders structured sampling inputs and boundary guidance', () => {
+    const wrapper = mount(McpRequestPanel, {
+      props: {
+        locale: 'en',
+        requestName: 'MCP Sampling',
+        requestKey: 'tab-sampling',
+        mcp: {
+          ...baseMcp,
+          operation: {
+            type: 'sampling',
+            input: {
+              prompt: 'Summarize this file',
+              systemPrompt: 'Be concise',
+              maxTokens: 256,
+              temperature: 0.2,
+            },
+          },
+        },
+      },
+    })
+
+    expect(wrapper.get('[data-testid="mcp-sampling-panel"]').text()).toContain('Sampling')
+    expect(wrapper.get('[data-testid="mcp-sampling-boundary-note"]').text()).toContain('server support')
+    expect(wrapper.get('[data-testid="mcp-sampling-prompt-input"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="mcp-sampling-system-prompt-input"]').exists()).toBe(true)
+  })
   it('keeps the tool selector when cached tools exist without protocol tool results', () => {
     const wrapper = mount(McpRequestPanel, {
       props: {

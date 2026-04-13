@@ -402,6 +402,19 @@ pub struct McpPromptGetInputDto {
     pub prompt: Option<McpPromptSnapshotDto>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct McpSamplingInputDto {
+    #[serde(default)]
+    pub prompt: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub system_prompt: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub temperature: Option<f64>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum McpOperationInputDto {
@@ -419,6 +432,8 @@ pub enum McpOperationInputDto {
     PromptsList { input: McpPromptsListInputDto },
     #[serde(rename = "prompts.get", alias = "promptsGet")]
     PromptsGet { input: McpPromptGetInputDto },
+    #[serde(rename = "sampling")]
+    Sampling { input: McpSamplingInputDto },
 }
 
 impl Default for McpOperationInputDto {

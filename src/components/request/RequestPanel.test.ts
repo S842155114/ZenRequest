@@ -805,6 +805,82 @@ describe('RequestPanel i18n copy', () => {
     expect(wrapper.find('[data-testid="request-params-stub"]').exists()).toBe(false)
   })
 
+  it('shows sampling as an mcp operation path inside the request panel', () => {
+    const wrapper = mount(McpRequestPanel, {
+      props: {
+        locale: 'en',
+        requestName: 'MCP Sampling',
+        requestKey: 'tab-sampling',
+        mcp: {
+          connection: {
+            transport: 'http',
+            baseUrl: 'https://example.com/mcp',
+            headers: [],
+            auth: {
+              type: 'none',
+              bearerToken: '',
+              username: '',
+              password: '',
+              apiKeyKey: 'X-API-Key',
+              apiKeyValue: '',
+              apiKeyPlacement: 'header',
+            },
+          },
+          operation: {
+            type: 'sampling',
+            input: {
+              prompt: 'Hello',
+            },
+          },
+        },
+      },
+    })
+
+    expect(wrapper.get('[data-testid="mcp-sampling-panel"]').exists()).toBe(true)
+  })
+
+  it('blocks mcp sampling send when prompt is empty', async () => {
+    const tab = createTab({
+      requestKind: 'mcp',
+      mcp: {
+        connection: {
+          transport: 'http',
+          baseUrl: 'https://example.com/mcp',
+          headers: [],
+          auth: {
+            type: 'none',
+            bearerToken: '',
+            username: '',
+            password: '',
+            apiKeyKey: 'X-API-Key',
+            apiKeyValue: '',
+            apiKeyPlacement: 'header',
+          },
+        },
+        operation: {
+          type: 'sampling',
+          input: {
+            prompt: '',
+          },
+        },
+      },
+    })
+
+    const wrapper = mount(RequestPanel, {
+      props: {
+        locale: 'en',
+        tabs: [tab],
+        activeTabId: tab.id,
+        activeEnvironmentName: 'Local',
+        activeEnvironmentVariables: [],
+        resolvedActiveUrl: 'https://example.com/mcp',
+      },
+    })
+
+    await wrapper.get('[data-testid="request-url-bar-send"]').trigger('click')
+    expect(wrapper.emitted('send')).toBeFalsy()
+  })
+
   it('forwards discover-tools from the mcp panel', async () => {
     const wrapper = mount(RequestPanel, {
       props: {
@@ -1650,6 +1726,8 @@ describe('McpRequestPanel discoverability', () => {
     expect(wrapper.get('[data-testid="mcp-stdio-onboarding"]').text()).toContain('First stdio run')
     expect(wrapper.get('[data-testid="mcp-stdio-command-empty-state"]').text()).toContain('The executable to launch')
     expect(wrapper.get('[data-testid="mcp-stdio-command-hint"]').text()).toContain('The executable to launch')
+    expect(wrapper.get('[data-testid="mcp-stdio-panel"]').text()).toContain('The executable to launch')
+    expect(wrapper.get('[data-testid="mcp-stdio-onboarding"]').text()).toContain('The executable to launch')
     expect(wrapper.get('[data-testid="mcp-stdio-args-hint"]').text()).toContain('space-separated arguments')
     expect(wrapper.get('[data-testid="mcp-stdio-cwd-hint"]').text()).toContain('specific project folder')
     expect(wrapper.get('[data-testid="mcp-stdio-troubleshooting"]').text()).toContain('check command path')

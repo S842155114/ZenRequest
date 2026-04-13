@@ -271,6 +271,12 @@ export const useRequestPanelState = (
         }
       }
 
+      if (operation?.type === 'sampling') {
+        if (!operation.input.prompt.trim()) {
+          blockers.push(text.value.request.mcp.blockerSamplingPrompt)
+        }
+      }
+
       if (operation?.type === 'resources.read' && !operation.input.uri.trim()) {
         blockers.push(text.value.request.mcp.blockerResourceUri)
       }
