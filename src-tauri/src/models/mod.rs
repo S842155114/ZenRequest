@@ -8,6 +8,7 @@ pub use app::{
     CommandAck, CreateCollectionPayloadDto, CreateEnvironmentPayloadDto, CreateWorkspacePayloadDto,
     DeleteCollectionPayloadDto, DeleteEnvironmentPayloadDto, DeleteRequestPayloadDto,
     DeleteWorkspacePayloadDto, EnvironmentDto, ExportPackageScopeDto, HistoryItemDto,
+    RecoveryNoticeDto,
     HistoryQueryPayloadDto, HistoryStoredPayloadDto, ImportConflictStrategy,
     ImportExportPackageDto, ImportWorkspacePayloadDto, LegacyWorkspaceSnapshotDto,
     RemoveHistoryItemPayloadDto, RenameEnvironmentPayloadDto, RequestCollectionDto,

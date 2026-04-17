@@ -163,6 +163,28 @@ describe('App workbench shell - startup and layout', () => {
     expect(wrapper.find('[data-testid="workbench-request"]').exists()).toBe(true)
   })
 
+
+  it('surfaces degraded recovery when the stored browser snapshot cannot be parsed', async () => {
+    window.innerWidth = 1440
+    window.localStorage.setItem('zenrequest.workspace', '{bad-json')
+
+    const bootstrapPayload = createBootstrapPayload()
+    const bootstrapApp = vi.fn<RuntimeAdapter['bootstrapApp']>()
+      .mockResolvedValueOnce(ok(bootstrapPayload))
+
+    setRuntimeAdapter(createAdapter(bootstrapPayload, {
+      bootstrapApp,
+    }))
+
+    const wrapper = await mountApp()
+
+    expect(bootstrapApp).toHaveBeenCalledTimes(1)
+    expect(bootstrapApp).toHaveBeenCalledWith(null)
+    expect(wrapper.find('[data-testid="startup-screen"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="workbench-request"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="toast-stub"]').text()).toContain('Saved browser snapshot could not be parsed and was ignored')
+  })
+
   it('shows a workbench-scoped busy overlay while switching workspaces', async () => {
     window.innerWidth = 1440
 

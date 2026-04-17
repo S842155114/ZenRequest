@@ -276,10 +276,11 @@ describe('App workbench shell - history recovery', () => {
     await nextTick()
 
     const historyItems = wrapper.findComponent(AppSidebarStub).props('historyItems') as HistoryItem[]
-    expect(historyItems[0]?.mcpSummary).toEqual({
+    expect(historyItems[0]?.mcpSummary).toMatchObject({
       operation: 'tools.call',
       transport: 'http',
-        errorCategory: 'tool-call',
+      errorCategory: 'tool-call',
+      toolName: 'search',
     })
     expect(historyItems[0]?.requestSnapshot?.requestKind).toBe('mcp')
 
