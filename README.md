@@ -11,6 +11,13 @@
 
 ---
 
+致谢 Linux.do
+感谢 Linux.do 佬友们的一切分享。
+
+LinuxDo 地址：https://linux.do/
+
+---
+
 ## 为什么选择 ZenRequest？
 
 Postman、Insomnia 等现代 API 工具越来越臃肿——强制登录、云同步、动辄数 GB 内存占用，还有你从未同意过的遥测数据收集。
