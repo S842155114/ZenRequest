@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v2.0-local-trust-and-execution-foundation
 milestone_name: v2.0 Local Trust & Execution Foundation
-status: "Milestone active; Phase 17 planning ready"
-last_updated: "2026-04-14T21:00:00.000Z"
+status: "Phase 18 shipped — PR #40"
+last_updated: "2026-04-17T06:28:29.000Z"
 progress:
   total_phases: 4
   completed_phases: 0
@@ -43,8 +43,8 @@ See: `.planning/PROJECT.md` (updated 2026-04-14)
 - `v1.3 MCP Sampling Debugging` has been shipped, audited, and archived
 - New milestone started: `v2.0 Local Trust & Execution Foundation`
 - Requirements and roadmap for v2.0 have been defined
-- Current status: Phase 17 planning ready
-- Recommended next step: run `$gsd-phase-start 17`
+- Current status: Phase 18 shipped — PR #40
+- Recommended next step: review and merge PR #40, then continue v2.0 execution on the next phase
 
 ## Branch Strategy
 
