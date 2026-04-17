@@ -11,7 +11,7 @@
 
 ---
 
-致谢 Linux.do
+# 致谢 Linux.do
 感谢 Linux.do 佬友们的一切分享。
 
 LinuxDo 地址：https://linux.do/
