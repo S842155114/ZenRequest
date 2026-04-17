@@ -431,7 +431,10 @@ describe('request workspace mock state helpers', () => {
     expect(readWorkspaceSnapshotResult()).toEqual({
       ok: false,
       reason: 'parse_failed',
-      message: 'Saved workspace snapshot could not be parsed',
+      message: 'Saved browser snapshot could not be parsed and was ignored. ZenRequest will restore from more reliable persisted state when available.',
+      degraded: true,
+      userVisible: true,
+      ignoredSource: 'browser_snapshot',
     })
   })
 
@@ -446,7 +449,10 @@ describe('request workspace mock state helpers', () => {
     expect(readWorkspaceSnapshotResult()).toEqual({
       ok: false,
       reason: 'invalid',
-      message: 'Saved workspace snapshot is invalid or incomplete',
+      message: 'Saved browser snapshot was ignored because it is invalid. ZenRequest will restore from more reliable persisted state when available.',
+      degraded: true,
+      userVisible: true,
+      ignoredSource: 'browser_snapshot',
     })
   })
 
@@ -462,6 +468,8 @@ describe('request workspace mock state helpers', () => {
       ok: false,
       reason: 'missing',
       message: 'No saved workspace snapshot found',
+      degraded: false,
+      userVisible: false,
     })
   })
 })

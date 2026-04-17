@@ -690,7 +690,8 @@ const WorkspaceDialogStub = defineComponent({
 
 const AppToastListStub = defineComponent({
   name: 'AppToastList',
-  template: '<div data-testid="toast-stub"></div>',
+  props: { items: { type: Array, required: false, default: () => [] } },
+  template: '<div data-testid="toast-stub">{{ JSON.stringify(items) }}</div>',
 })
 
 const mountApp = async () => {

@@ -4,7 +4,7 @@ use rusqlite::{params, Connection, Row};
 
 use crate::errors::AppError;
 use crate::models::{
-    DeleteRequestPayloadDto, RequestExecutionOptionsDto, RequestPresetDto, SaveRequestPayloadDto,
+    DeleteRequestPayloadDto, RequestPresetDto, SaveRequestPayloadDto,
 };
 use crate::storage::connection::{
     db_error, generate_id, next_sort_order, now_epoch_ms, open_connection, serialize_json,
@@ -171,8 +171,24 @@ fn map_request_row(row: &Row<'_>) -> rusqlite::Result<RequestPresetDto> {
     let auth_json: String = row.get(17)?;
     let tests_json: String = row.get(18)?;
     let mock_json: String = row.get(19)?;
-
     let execution_options_json: String = row.get(20)?;
+
+    let tags = serde_json::from_str(&tags_json)
+        .map_err(|err| rusqlite::Error::FromSqlConversionFailure(6, rusqlite::types::Type::Text, Box::new(err)))?;
+    let params = serde_json::from_str(&params_json)
+        .map_err(|err| rusqlite::Error::FromSqlConversionFailure(9, rusqlite::types::Type::Text, Box::new(err)))?;
+    let headers = serde_json::from_str(&headers_json)
+        .map_err(|err| rusqlite::Error::FromSqlConversionFailure(10, rusqlite::types::Type::Text, Box::new(err)))?;
+    let form_data_fields = serde_json::from_str(&form_data_fields_json)
+        .map_err(|err| rusqlite::Error::FromSqlConversionFailure(14, rusqlite::types::Type::Text, Box::new(err)))?;
+    let auth = serde_json::from_str(&auth_json)
+        .map_err(|err| rusqlite::Error::FromSqlConversionFailure(17, rusqlite::types::Type::Text, Box::new(err)))?;
+    let tests = serde_json::from_str(&tests_json)
+        .map_err(|err| rusqlite::Error::FromSqlConversionFailure(18, rusqlite::types::Type::Text, Box::new(err)))?;
+    let mock = serde_json::from_str(&mock_json)
+        .map_err(|err| rusqlite::Error::FromSqlConversionFailure(19, rusqlite::types::Type::Text, Box::new(err)))?;
+    let execution_options = serde_json::from_str(&execution_options_json)
+        .map_err(|err| rusqlite::Error::FromSqlConversionFailure(20, rusqlite::types::Type::Text, Box::new(err)))?;
 
     Ok(RequestPresetDto {
         id: row.get(0)?,
@@ -183,23 +199,21 @@ fn map_request_row(row: &Row<'_>) -> rusqlite::Result<RequestPresetDto> {
         collection_name: Some(row.get(3)?),
         name: row.get(4)?,
         description: row.get(5)?,
-        tags: serde_json::from_str(&tags_json).unwrap_or_default(),
+        tags,
         method: row.get(7)?,
         url: row.get(8)?,
-        params: serde_json::from_str(&params_json).unwrap_or_default(),
-        headers: serde_json::from_str(&headers_json).unwrap_or_default(),
+        params,
+        headers,
         body: row.get(11)?,
         body_type: row.get(12)?,
         body_content_type: row.get(13)?,
-        form_data_fields: serde_json::from_str(&form_data_fields_json).unwrap_or_default(),
+        form_data_fields,
         binary_file_name: row.get(15)?,
         binary_mime_type: row.get(16)?,
-        auth: serde_json::from_str(&auth_json).unwrap_or_default(),
-        tests: serde_json::from_str(&tests_json).unwrap_or_default(),
-        mock: serde_json::from_str(&mock_json).unwrap_or_default(),
-        execution_options: serde_json::from_str(&execution_options_json).unwrap_or_else(|_| {
-            RequestExecutionOptionsDto::default()
-        }),
+        auth,
+        tests,
+        mock,
+        execution_options,
     })
 }
 
@@ -367,4 +381,32 @@ mod tests {
 
         let _ = fs::remove_file(db_path);
     }
+
+
+    #[test]
+    fn request_repo_returns_error_for_corrupted_persisted_json_row() {
+        let db_path = temp_db_path("request-repo-corrupted");
+        initialize_database(&db_path).expect("database initialized");
+
+        let bootstrap = ensure_bootstrap_data(&db_path, None).expect("bootstrap payload");
+        let workspace_id = bootstrap
+            .active_workspace_id
+            .clone()
+            .expect("active workspace id");
+
+        let connection = open_connection(&db_path).expect("connection opened");
+        connection
+            .execute(
+                "UPDATE requests SET headers_json = ?1 WHERE workspace_id = ?2",
+                rusqlite::params!["{bad-json", workspace_id],
+            )
+            .expect("request row corrupted");
+
+        let err = load_collections_with_connection(&connection, &workspace_id)
+            .expect_err("corrupted request row should fail");
+        assert!(err.message.contains("failed to map request row") || err.details.unwrap_or_default().contains("expected"));
+
+        let _ = fs::remove_file(db_path);
+    }
+
 }

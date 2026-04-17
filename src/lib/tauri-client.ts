@@ -84,6 +84,13 @@ export interface RuntimeCapabilities {
   pluginManifests: RuntimePluginManifestCapability[]
 }
 
+export interface RecoveryNotice {
+  severity: string
+  message: string
+  scope: string
+  diagnosticKey?: string
+}
+
 export interface AppBootstrapPayload {
   settings: AppSettings
   workspaces: WorkspaceSummary[]
@@ -93,6 +100,7 @@ export interface AppBootstrapPayload {
   collections: RequestCollection[]
   environments: EnvironmentPreset[]
   history: HistoryItem[]
+  recoveryNotices?: RecoveryNotice[]
 }
 
 export interface WorkspaceSaveResult {

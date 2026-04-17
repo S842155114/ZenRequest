@@ -16,10 +16,6 @@ export const useAppShell = (): AppShellViewModel => {
   const legacySnapshot = snapshotResult.ok ? snapshotResult.snapshot : null
   const state = reactive(createInitialAppShellState(legacySnapshot))
   const store = createAppShellStore(state)
-  const services = createAppShellServices({
-    runtime: runtimeClient,
-    store,
-  })
 
   const locale = toRef(state.settings, 'locale')
   const themeMode = toRef(state.settings, 'themeMode')
@@ -73,11 +69,6 @@ export const useAppShell = (): AppShellViewModel => {
   const isStartupLoading = computed(() => startupState.value === 'loading')
   const canImportOpenApi = computed(() => store.selectors.canImportOpenApi())
 
-  if (!snapshotResult.ok && snapshotResult.reason !== 'missing') {
-    state.runtime.startupState = 'degraded'
-    state.runtime.startupErrorMessage = snapshotResult.message
-  }
-
   const showToast = (toast: Omit<ToastItem, 'id'>) => {
     const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     toasts.value = [...toasts.value, { id, ...toast }]
@@ -95,6 +86,29 @@ export const useAppShell = (): AppShellViewModel => {
       description: description ?? toast.description,
       tone: 'error',
     })
+  }
+
+
+  const showRecoveryNoticeToast = (message: string) => {
+    showToast({
+      title: 'Recovery notice',
+      description: message,
+      tone: 'info',
+    })
+  }
+
+
+  const services = createAppShellServices({
+    runtime: runtimeClient,
+    store,
+    onBootstrapRecoveryNotice: showRecoveryNoticeToast,
+  })
+
+
+  if (!snapshotResult.ok && snapshotResult.degraded) {
+    state.runtime.startupState = 'degraded'
+    state.runtime.startupErrorMessage = snapshotResult.message
+    showRecoveryNoticeToast(snapshotResult.message)
   }
 
   const dismissToast = (id: string) => {
@@ -227,7 +241,10 @@ export const useAppShell = (): AppShellViewModel => {
     showErrorToast,
     dismissToast,
     scheduleEnvironmentPersist: effects.scheduleEnvironmentPersist,
-    runStartupBootstrap: effects.runStartupBootstrap,
+    runStartupBootstrap: async () => {
+      const result = await effects.runStartupBootstrap()
+      return result
+    },
     handleRequestPanelResize: effects.handleRequestPanelResize,
     handleResponsePanelResize: effects.handleResponsePanelResize,
     handleToggleNavigation: effects.handleToggleNavigation,

@@ -492,6 +492,17 @@ pub struct LegacyWorkspaceSnapshotDto {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+pub struct RecoveryNoticeDto {
+    pub severity: String,
+    pub message: String,
+    #[serde(default)]
+    pub scope: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diagnostic_key: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct AppBootstrapPayload {
     pub settings: AppSettings,
     pub workspaces: Vec<WorkspaceSummaryDto>,
@@ -507,6 +518,8 @@ pub struct AppBootstrapPayload {
     pub environments: Vec<EnvironmentDto>,
     #[serde(default)]
     pub history: Vec<HistoryItemDto>,
+    #[serde(default)]
+    pub recovery_notices: Vec<RecoveryNoticeDto>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

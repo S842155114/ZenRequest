@@ -31,6 +31,7 @@ export type ServiceResult<T = void> =
 interface AppShellServiceDeps {
   runtime: typeof runtimeClient
   store: AppShellStore
+  onBootstrapRecoveryNotice?: (message: string) => void
 }
 
 export interface AppShellServices {
@@ -226,6 +227,9 @@ export const createAppShellServices = (deps: AppShellServiceDeps): AppShellServi
     }
 
     deps.store.mutations.applyBootstrapPayload(bootstrapResult.data)
+    bootstrapResult.data.recoveryNotices?.forEach((notice) => {
+      if (notice.message) deps.onBootstrapRecoveryNotice?.(notice.message)
+    })
     deps.store.mutations.setRuntimeReady(true)
     deps.store.mutations.setStartupState('ready')
     return success('runtime.bootstrap_ready', bootstrapResult.data)

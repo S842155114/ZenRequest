@@ -839,16 +839,35 @@ export const sanitizeSnapshot = (snapshot: Partial<WorkspaceSnapshot> | null | u
 
 export type SnapshotValidationResult =
   | { ok: true; snapshot: WorkspaceSnapshot }
-  | { ok: false; reason: 'missing' | 'parse_failed' | 'invalid'; message: string }
+  | {
+    ok: false
+    reason: 'missing' | 'parse_failed' | 'invalid'
+    message: string
+    degraded: boolean
+    userVisible: boolean
+    ignoredSource?: 'browser_snapshot'
+  }
 
 export const readWorkspaceSnapshotResult = (): SnapshotValidationResult => {
   if (typeof window === 'undefined') {
-    return { ok: false, reason: 'missing', message: 'Workspace snapshot unavailable outside browser runtime' }
+    return {
+      ok: false,
+      reason: 'missing',
+      message: 'Workspace snapshot unavailable outside browser runtime',
+      degraded: false,
+      userVisible: false,
+    }
   }
 
   const raw = window.localStorage.getItem(WORKSPACE_STORAGE_KEY)
   if (!raw) {
-    return { ok: false, reason: 'missing', message: 'No saved workspace snapshot found' }
+    return {
+      ok: false,
+      reason: 'missing',
+      message: 'No saved workspace snapshot found',
+      degraded: false,
+      userVisible: false,
+    }
   }
 
   try {
@@ -856,12 +875,26 @@ export const readWorkspaceSnapshotResult = (): SnapshotValidationResult => {
     const snapshot = sanitizeSnapshot(parsed)
 
     if (!snapshot) {
-      return { ok: false, reason: 'invalid', message: 'Saved workspace snapshot is invalid or incomplete' }
+      return {
+        ok: false,
+        reason: 'invalid',
+        message: 'Saved browser snapshot was ignored because it is invalid. ZenRequest will restore from more reliable persisted state when available.',
+        degraded: true,
+        userVisible: true,
+        ignoredSource: 'browser_snapshot',
+      }
     }
 
     return { ok: true, snapshot }
   } catch {
-    return { ok: false, reason: 'parse_failed', message: 'Saved workspace snapshot could not be parsed' }
+    return {
+      ok: false,
+      reason: 'parse_failed',
+      message: 'Saved browser snapshot could not be parsed and was ignored. ZenRequest will restore from more reliable persisted state when available.',
+      degraded: true,
+      userVisible: true,
+      ignoredSource: 'browser_snapshot',
+    }
   }
 }
 

@@ -143,7 +143,7 @@ describe('RequestParams compact chrome', () => {
     const tabsList = wrapper.get('[role="tablist"]')
 
     expect(tabsList.classes()).toEqual(
-      expect.arrayContaining(['mx-3', 'mt-3.5', 'rounded-xl', 'p-1']),
+      expect.arrayContaining(['mx-3', 'mt-3', 'rounded-xl', 'p-1']),
     )
   })
 

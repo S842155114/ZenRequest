@@ -5,6 +5,7 @@ use std::path::Path;
 use crate::errors::AppError;
 use crate::models::{
     AppBootstrapPayload, AppSettings, ApplicationExportPackageDto, AuthConfigDto,
+    RecoveryNoticeDto,
     CreateWorkspacePayloadDto, DeleteWorkspacePayloadDto, EnvironmentDto,
     ExportPackageScopeDto, HistoryStoredPayloadDto, ImportConflictStrategy,
     KeyValueItemDto, LegacyWorkspaceSnapshotDto, RequestCollectionDto,
@@ -163,6 +164,7 @@ pub fn ensure_bootstrap_data(
     db_path: &Path,
     legacy_snapshot: Option<LegacyWorkspaceSnapshotDto>,
 ) -> Result<AppBootstrapPayload, AppError> {
+    let mut recovery_notices = Vec::new();
     let connection = open_connection(db_path)?;
     let workspace_count: i64 = connection
         .query_row("SELECT COUNT(*) FROM workspaces", [], |row| row.get(0))
@@ -203,10 +205,21 @@ pub fn ensure_bootstrap_data(
         update_active_workspace_in_connection(&connection, Some(active_id))?;
     }
 
-    let session = active_workspace_id
-        .as_deref()
-        .map(|workspace_id| load_workspace_session_with_connection(&connection, workspace_id))
-        .transpose()?;
+    let session = match active_workspace_id.as_deref() {
+        Some(workspace_id) => match load_workspace_session_with_connection(&connection, workspace_id) {
+            Ok(value) => value,
+            Err(_) => {
+                recovery_notices.push(RecoveryNoticeDto {
+                    severity: "warning".to_string(),
+                    scope: "workspace_session".to_string(),
+                    diagnostic_key: Some("workspace_session_corrupted".to_string()),
+                    message: "Saved workspace session data was corrupted and was ignored. ZenRequest restored from more reliable persisted state where possible.".to_string(),
+                });
+                None
+            }
+        },
+        None => None,
+    };
     let collections = active_workspace_id
         .as_deref()
         .map(|workspace_id| load_collections_with_connection(&connection, workspace_id))
@@ -228,10 +241,11 @@ pub fn ensure_bootstrap_data(
         workspaces,
         active_workspace_id,
         capabilities: None,
-        session: session.flatten(),
+        session,
         collections,
         environments,
         history,
+        recovery_notices,
     })
 }
 
@@ -1364,6 +1378,35 @@ mod tests {
         let _ = fs::remove_file(db_path);
     }
 
+    #[test]
+    fn bootstrap_ignores_corrupted_workspace_session_and_reports_recovery_notice() {
+        let db_path = temp_db_path("workspace-session-corrupted");
+        initialize_database(&db_path).expect("database initialized");
+
+        let bootstrap = ensure_bootstrap_data(&db_path, None).expect("bootstrap payload");
+        let workspace_id = bootstrap
+            .active_workspace_id
+            .clone()
+            .expect("active workspace id");
+
+        let connection = open_connection(&db_path).expect("connection opened");
+        connection
+            .execute(
+                "UPDATE workspace_sessions SET tabs_json = ?1 WHERE workspace_id = ?2",
+                rusqlite::params!["{bad-json", workspace_id],
+            )
+            .expect("session corrupted");
+
+        let payload = ensure_bootstrap_data(&db_path, None).expect("bootstrap payload");
+
+        assert!(payload.session.is_none());
+        assert!(payload
+            .recovery_notices
+            .iter()
+            .any(|notice| notice.diagnostic_key.as_deref() == Some("workspace_session_corrupted")));
+
+        let _ = fs::remove_file(db_path);
+    }
 
     #[test]
     fn workspace_export_redacts_request_auth_and_environment_secrets() {

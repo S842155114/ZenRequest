@@ -9,7 +9,7 @@ use crate::models::{
 };
 use crate::models::app::McpHistorySummaryDto;
 use crate::storage::connection::{
-    db_error, generate_id, open_connection, serialize_json, touch_workspace,
+    db_error, deserialize_json, generate_id, open_connection, serialize_json, touch_workspace,
 };
 
 pub fn list_history(db_path: &Path, workspace_id: &str) -> Result<Vec<HistoryItemDto>, AppError> {
@@ -123,13 +123,15 @@ pub(crate) fn load_history_export_with_connection(
                 request_name: row.get(2)?,
                 request_method: row.get(3)?,
                 request_url: row.get(4)?,
-                request_snapshot: serde_json::from_str(&request_snapshot_json).unwrap_or_default(),
+                request_snapshot: deserialize_json(&request_snapshot_json, "history request snapshot")
+                    .map_err(|err| rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, err.message))))?,
                 status: row.get(6)?,
                 status_text: row.get(7)?,
                 elapsed_ms: row.get::<_, i64>(8)? as u64,
                 size_bytes: row.get::<_, i64>(9)? as usize,
                 content_type: row.get(10)?,
-                response_headers: serde_json::from_str(&response_headers_json).unwrap_or_default(),
+                response_headers: deserialize_json(&response_headers_json, "history response headers")
+                    .map_err(|err| rusqlite::Error::FromSqlConversionFailure(11, rusqlite::types::Type::Text, Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, err.message))))?,
                 response_preview: row.get(12)?,
                 truncated: row.get::<_, i64>(13)? != 0,
                 execution_source: row.get(14)?,
@@ -244,21 +246,23 @@ fn map_history_row(row: &Row<'_>) -> rusqlite::Result<HistoryItemDto> {
     let response_preview: String = row.get(12)?;
     let status: u16 = row.get(6)?;
     let executed_at_epoch_ms: i64 = row.get(15)?;
-    let request_snapshot = serde_json::from_str(&request_snapshot_json).ok();
-    let mcp_summary = derive_mcp_history_summary(&request_snapshot, status, &response_preview);
+    let request_snapshot: crate::models::SendRequestPayloadDto = deserialize_json(&request_snapshot_json, "history request snapshot")
+        .map_err(|err| rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, err.message))))?;
+    let mcp_summary = derive_mcp_history_summary(&Some(request_snapshot.clone()), status, &response_preview);
     Ok(HistoryItemDto {
         id: row.get(0)?,
         request_id: row.get(1)?,
         name: row.get(2)?,
         method: row.get(3)?,
         url: row.get(4)?,
-        request_snapshot,
+        request_snapshot: Some(request_snapshot),
         status,
         status_text: row.get(7)?,
         elapsed_ms: row.get::<_, i64>(8)? as u64,
         size_bytes: row.get::<_, i64>(9)? as usize,
         content_type: row.get(10)?,
-        response_headers: serde_json::from_str(&response_headers_json).unwrap_or_default(),
+        response_headers: deserialize_json(&response_headers_json, "history response headers")
+            .map_err(|err| rusqlite::Error::FromSqlConversionFailure(11, rusqlite::types::Type::Text, Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, err.message))))?,
         response_preview,
         truncated: row.get::<_, i64>(13)? != 0,
         execution_source: row.get(14)?,
@@ -630,4 +634,74 @@ mod tests {
 
         let _ = fs::remove_file(db_path);
     }
+
+
+    #[test]
+    fn history_repo_returns_error_for_corrupted_persisted_json_row() {
+        let db_path = temp_db_path("history-corrupted");
+        initialize_database(&db_path).expect("database initialized");
+
+        let bootstrap = ensure_bootstrap_data(&db_path, None).expect("bootstrap payload");
+        let workspace_id = bootstrap
+            .active_workspace_id
+            .clone()
+            .expect("active workspace id");
+
+        let persisted = insert_history_item(
+            &db_path,
+            &workspace_id,
+            &HistoryStoredPayloadDto {
+                request_id: None,
+                request_name: "Orders".to_string(),
+                request_method: "GET".to_string(),
+                request_url: "https://example.com/orders".to_string(),
+                request_snapshot: SendRequestPayloadDto {
+                    workspace_id: workspace_id.clone(),
+                    request_kind: None,
+                    mcp: None,
+                    active_environment_id: None,
+                    tab_id: "tab-history-corrupted".to_string(),
+                    request_id: None,
+                    name: "Orders".to_string(),
+                    description: String::new(),
+                    tags: Vec::new(),
+                    collection_name: "Scratch Pad".to_string(),
+                    method: "GET".to_string(),
+                    url: "https://example.com/orders".to_string(),
+                    params: Vec::new(),
+                    headers: Vec::new(),
+                    body: RequestBodyDto::Json { value: "{}".to_string() },
+                    auth: Default::default(),
+                    tests: Vec::new(),
+                    mock: None,
+                    execution_options: RequestExecutionOptionsDto::default(),
+                },
+                status: 200,
+                status_text: "OK".to_string(),
+                elapsed_ms: 10,
+                size_bytes: 2,
+                content_type: "application/json".to_string(),
+                response_headers: Vec::new(),
+                response_preview: "{}".to_string(),
+                truncated: false,
+                execution_source: "live".to_string(),
+                executed_at_epoch_ms: 1,
+            },
+        )
+        .expect("history inserted");
+
+        let connection = crate::storage::connection::open_connection(&db_path).expect("connection opened");
+        connection
+            .execute(
+                "UPDATE history_items SET request_snapshot_json = ?1 WHERE id = ?2",
+                rusqlite::params!["{bad-json", persisted.id],
+            )
+            .expect("history row corrupted");
+
+        let err = list_history(&db_path, &workspace_id).expect_err("corrupted history row should fail");
+        assert!(err.message.contains("failed to map history row") || err.details.unwrap_or_default().contains("history request snapshot"));
+
+        let _ = fs::remove_file(db_path);
+    }
+
 }
