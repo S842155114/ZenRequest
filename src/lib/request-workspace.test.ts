@@ -9,6 +9,7 @@ import {
   createRequestTabFromPreset,
   createResponseStateFromHistoryItem,
   readWorkspaceSnapshotResult,
+  writeWorkspaceSnapshot,
 } from './request-workspace'
 import type { HistoryItem, RequestPreset, RequestTabState } from '@/types/request'
 
@@ -163,6 +164,135 @@ describe('request workspace mock state helpers', () => {
 
     expect(item.requestSnapshot?.requestKind).toBe('mcp')
     expect(item.requestSnapshot?.mcp?.operation.type).toBe('tools.call')
+  })
+
+  it('redacts secret-bearing fields when creating local history entries', () => {
+    const item = createHistoryEntry({
+      requestId: 'request-http-secret',
+      name: 'Orders',
+      method: 'GET',
+      url: 'https://example.com/orders',
+      status: 200,
+      requestSnapshot: {
+        tabId: 'tab-http-secret',
+        requestId: 'request-http-secret',
+        name: 'Orders',
+        description: '',
+        tags: [],
+        collectionName: 'Scratch Pad',
+        method: 'GET',
+        url: 'https://example.com/orders',
+        params: [],
+        headers: [{ key: 'Authorization', value: 'Bearer secret-token', enabled: true }],
+        body: '',
+        bodyType: 'json',
+        auth: {
+          type: 'bearer',
+          bearerToken: 'secret-token',
+          username: '',
+          password: 'secret-password',
+          apiKeyKey: 'X-API-Key',
+          apiKeyValue: 'secret-api-key',
+          apiKeyPlacement: 'header',
+        },
+        tests: [],
+      },
+    })
+
+    expect(item.requestSnapshot?.headers[0]?.value).toBe('[REDACTED]')
+    expect(item.requestSnapshot?.auth.bearerToken).toBe('[REDACTED]')
+    expect(item.requestSnapshot?.auth.password).toBe('[REDACTED]')
+    expect(item.requestSnapshot?.auth.apiKeyValue).toBe('[REDACTED]')
+  })
+
+  it('redacts secret-bearing fields before writing browser snapshots', () => {
+    let storedValue = ''
+    Object.defineProperty(window, 'localStorage', {
+      value: {
+        getItem: () => storedValue || null,
+        setItem: (_key: string, value: string) => {
+          storedValue = value
+        },
+        removeItem: () => {
+          storedValue = ''
+        },
+      },
+      configurable: true,
+    })
+
+    writeWorkspaceSnapshot({
+      locale: 'zh-CN',
+      themeMode: 'dark',
+      activeEnvironmentId: 'env-local',
+      environments: [{
+        id: 'env-local',
+        name: 'Local',
+        variables: [{ key: 'token', value: 'secret-token', enabled: true }],
+      }],
+      collections: [],
+      historyItems: [{
+        id: 'history-1',
+        name: 'Orders',
+        method: 'GET',
+        time: '10:00:00',
+        status: 200,
+        url: 'https://example.com/orders',
+        requestSnapshot: {
+          tabId: 'tab-1',
+          requestId: 'request-1',
+          name: 'Orders',
+          description: '',
+          tags: [],
+          collectionName: 'Scratch Pad',
+          method: 'GET',
+          url: 'https://example.com/orders',
+          params: [],
+          headers: [{ key: 'Authorization', value: 'Bearer secret-token', enabled: true }],
+          body: '',
+          bodyType: 'json',
+          auth: {
+            type: 'bearer',
+            bearerToken: 'secret-token',
+            username: '',
+            password: '',
+            apiKeyKey: 'X-API-Key',
+            apiKeyValue: '',
+            apiKeyPlacement: 'header',
+          },
+          tests: [],
+        },
+      }],
+      openTabs: [{
+        ...createRequestTabFromPreset({
+          id: 'request-orders',
+          name: 'Orders',
+          method: 'GET',
+          url: 'https://example.com/orders',
+          body: '',
+          bodyType: 'json',
+          headers: [{ key: 'Authorization', value: 'Bearer secret-token', enabled: true }],
+          params: [],
+          auth: {
+            type: 'bearer',
+            bearerToken: 'secret-token',
+            username: '',
+            password: '',
+            apiKeyKey: 'X-API-Key',
+            apiKeyValue: '',
+            apiKeyPlacement: 'header',
+          },
+        }),
+        id: 'tab-1',
+      }],
+      activeTabId: 'tab-1',
+    })
+
+    const parsed = JSON.parse(storedValue)
+    expect(parsed.environments[0].variables[0].value).toBe('[REDACTED]')
+    expect(parsed.historyItems[0].requestSnapshot.headers[0].value).toBe('[REDACTED]')
+    expect(parsed.historyItems[0].requestSnapshot.auth.bearerToken).toBe('[REDACTED]')
+    expect(parsed.openTabs[0].headers[0].value).toBe('[REDACTED]')
+    expect(parsed.openTabs[0].auth.bearerToken).toBe('[REDACTED]')
   })
 
   it('clones sampling mcp definitions without dropping operation input', () => {

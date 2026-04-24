@@ -1,6 +1,6 @@
 # Milestone v2.0: Local Trust & Execution Foundation
 
-**Status:** 🚧 ACTIVE — Phases 17-18 shipped, 19-20 pending
+**Status:** 🚧 ACTIVE — Phases 17-19 shipped, 20 pending
 **Phases:** 17-20
 **Total Plans:** 4
 
@@ -52,7 +52,7 @@ Plans:
 
 Plans:
 
-- [ ] 19-PLAN: Secret Hygiene & Safe Projection
+- [x] 19-PLAN: Secret Hygiene & Safe Projection
 
 **Details:**
 - sensitive field inventory
@@ -92,12 +92,13 @@ Plans:
 **Issues Resolved So Far:**
 - execution/data model 边界不再继续停留在未定义状态
 - startup restore precedence 与 persistence recovery path 已完成第一轮可信化收口
+- secret-safe persistence 与 safe projection baseline 已完成第一轮收口
 
 **Issues Still Being Addressed:**
 - execution/data model 边界不清
 - startup restore precedence 脆弱
 - persistence corruption / malformed JSON 可诊断性不足
-- secret leakage 风险与 replay explainability 不足
+- replay explainability 仍待系统化补齐
 
 **Issues Deferred:**
 - 完整 multi-server MCP management UI

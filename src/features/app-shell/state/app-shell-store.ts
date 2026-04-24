@@ -32,6 +32,7 @@ import {
   cloneResponse,
   cloneTab,
   cloneTests,
+  createSafeWorkspaceSessionSnapshot,
   createHistoryEntry,
   createRequestTabFromPreset,
   defaultEnvironments,
@@ -220,7 +221,7 @@ export const createAppShellStore = (state: AppShellState): AppShellStore => {
         descriptor.key === 'import.openapi' && descriptor.availability === 'active'
       ))
     },
-    buildWorkspaceSession: () => ({
+    buildWorkspaceSession: () => createSafeWorkspaceSessionSnapshot({
       activeEnvironmentId: state.environment.activeId,
       openTabs: state.request.openTabs.map(cloneTab),
       activeTabId: state.request.activeTabId,
