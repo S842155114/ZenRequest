@@ -313,6 +313,39 @@ describe('ResponsePanel i18n copy', () => {
     expect(wrapper.get('[data-testid="response-mcp-error-message"]').text()).toContain('sampling not supported')
   })
 
+
+  it('renders explainability cards with expandable limitation details', async () => {
+    const wrapper = mount(ResponsePanel, {
+      props: {
+        locale: 'en',
+        explainability: {
+          summary: 'Replay uses safe-projected values',
+          sources: [
+            { category: 'authored', label: 'authored input', detail: 'Replay starts from the stored authored request shape.' },
+            { category: 'safe-projected', label: 'safe projection', detail: 'Sensitive values were redacted before storage.' },
+          ],
+          limitations: [
+            {
+              code: 'safe_projection_loss',
+              label: 'Replay uses safe-projected values',
+              detail: 'Sensitive values were redacted, so this replay cannot exactly reproduce the original execution.',
+            },
+          ],
+        },
+      },
+    })
+
+    expect(wrapper.get('[data-testid="response-explainability-summary"]').text()).toContain('Replay uses safe-projected values')
+    expect(wrapper.findAll('[data-testid="response-explainability-source"]')).toHaveLength(2)
+    expect(wrapper.get('[data-testid="response-explainability-limitation"]').text()).toContain('Replay uses safe-projected values')
+    expect(wrapper.find('[data-testid="response-explainability-source-detail"]').exists()).toBe(false)
+
+    await wrapper.get('[data-testid="response-explainability"] button').trigger('click')
+
+    expect(wrapper.findAll('[data-testid="response-explainability-source-detail"]')).toHaveLength(2)
+    expect(wrapper.get('[data-testid="response-explainability-limitation"]').text()).toContain('cannot exactly reproduce the original execution')
+  })
+
   it('renders stdio runtime diagnostics when the artifact exposes failure details', () => {
     const wrapper = mount(ResponsePanel, {
       props: {

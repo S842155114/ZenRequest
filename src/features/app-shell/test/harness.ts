@@ -576,6 +576,7 @@ const ResponsePanelStub = defineComponent({
     state: { type: String, required: false, default: 'idle' },
     stale: { type: Boolean, required: false, default: false },
     executionSource: { type: String, required: false, default: 'live' },
+    explainability: { type: Object, required: false, default: undefined },
     collapsed: { type: Boolean, required: false, default: false },
   },
   emits: ['create-mock-template'],
@@ -598,6 +599,8 @@ const ResponsePanelStub = defineComponent({
       JSON.stringify(props.headers),
       ' ',
       JSON.stringify(props.testResults),
+      ' ',
+      JSON.stringify(props.explainability),
       h('button', {
         'data-testid': 'response-panel-create-mock',
         onClick: () => emit('create-mock-template'),

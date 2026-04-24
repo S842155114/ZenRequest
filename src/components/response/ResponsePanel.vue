@@ -16,6 +16,7 @@ import type {
   RequestKind,
   RequestTestResult,
   ResponseHeaderItem,
+  ReplayExplainability,
   ResolvedTheme,
   ResponseLifecycleState,
 } from '@/types/request'
@@ -43,6 +44,7 @@ const props = withDefaults(defineProps<{
   state?: ResponseLifecycleState
   stale?: boolean
   executionSource?: RequestExecutionSource
+  explainability?: ReplayExplainability
   collapsed?: boolean
 }>(), {
   requestKind: 'http',
@@ -197,6 +199,12 @@ const mcpStderrSummary = computed(() => props.mcpArtifact?.stderrSummary?.trim()
 const showMcpRuntimeDiagnostics = computed(() => (
   isMcpResponse.value
   && Boolean(mcpFailurePhaseLabel.value || mcpSessionStateLabel.value || mcpStderrSummary.value)
+))
+const explainabilityExpanded = ref(false)
+const hasExplainability = computed(() => Boolean(
+  props.explainability?.summary
+  || props.explainability?.sources?.length
+  || props.explainability?.limitations?.length,
 ))
 
 const isBodyTab = computed(() => activeTab.value === 'body')
@@ -463,6 +471,61 @@ const downloadCurrentContent = async () => {
     </div>
 
     <template v-if="!props.collapsed">
+      <div
+        v-if="hasExplainability"
+        data-testid="response-explainability"
+        class="border-b border-[color:var(--zr-border-soft)] bg-[var(--zr-elevated)] px-3 py-2"
+      >
+        <div class="flex items-start justify-between gap-3">
+          <div class="space-y-1">
+            <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--zr-text-muted)]">explainability</div>
+            <div data-testid="response-explainability-summary" class="text-sm text-[var(--zr-text-primary)]">
+              {{ props.explainability?.summary }}
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            class="h-7 px-2 text-[11px]"
+            @click="explainabilityExpanded = !explainabilityExpanded"
+          >
+            {{ explainabilityExpanded ? 'Hide details' : 'Show details' }}
+          </Button>
+        </div>
+        <div class="mt-2 flex flex-wrap gap-1.5">
+          <Badge
+            v-for="source in props.explainability?.sources ?? []"
+            :key="`${source.category}-${source.label}`"
+            data-testid="response-explainability-source"
+            variant="outline"
+            class="rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-[0.12em]"
+          >
+            {{ source.label }}
+          </Badge>
+        </div>
+        <div v-if="props.explainability?.limitations?.length" class="mt-2 space-y-1.5">
+          <div
+            v-for="limitation in props.explainability?.limitations ?? []"
+            :key="`${limitation.code}-${limitation.label}`"
+            data-testid="response-explainability-limitation"
+            class="rounded-md border border-amber-500/25 bg-amber-500/10 px-2.5 py-2 text-xs text-amber-800 dark:text-amber-200"
+          >
+            <div class="font-medium">{{ limitation.label }}</div>
+            <div v-if="explainabilityExpanded && limitation.detail" class="mt-1 leading-5">{{ limitation.detail }}</div>
+          </div>
+        </div>
+        <div v-if="explainabilityExpanded" class="mt-2 space-y-1.5">
+          <div
+            v-for="source in props.explainability?.sources ?? []"
+            :key="`${source.category}-${source.label}-detail`"
+            data-testid="response-explainability-source-detail"
+            class="rounded-md border border-[color:var(--zr-border)] bg-[var(--zr-surface)] px-2.5 py-2 text-xs text-[var(--zr-text-primary)]"
+          >
+            <div class="font-medium">{{ source.label }}</div>
+            <div v-if="source.detail" class="mt-1 leading-5 text-[var(--zr-text-muted)]">{{ source.detail }}</div>
+          </div>
+        </div>
+      </div>
       <div
         data-testid="response-panel-tabs"
         class="zr-response-tab-strip flex items-center gap-1 border-b border-[color:var(--zr-border-soft)] bg-[var(--zr-elevated)] px-3 py-1.5"

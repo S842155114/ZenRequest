@@ -122,6 +122,52 @@ describe('history-replay domain', () => {
     expect(tab.persistenceState).toBe('unsaved')
   })
 
+
+  it('records replay limitations when history only keeps safe-projected secrets', () => {
+    const item: HistoryItem = {
+      id: 'history-safe-1',
+      name: 'Protected Request',
+      method: 'GET',
+      time: '8 ms',
+      status: 200,
+      url: 'https://example.com/protected',
+      requestSnapshot: {
+        tabId: 'tab-safe-1',
+        requestId: 'request-safe-1',
+        name: 'Protected Request',
+        description: 'Recovered from safe projection',
+        tags: ['history'],
+        collectionName: 'Scratch Pad',
+        method: 'GET',
+        url: 'https://example.com/protected',
+        params: [],
+        headers: [{ key: 'Authorization', value: '[REDACTED]', enabled: true }],
+        body: { kind: 'json', value: '{}' },
+        bodyType: 'json',
+        auth: {
+          type: 'bearer',
+          bearerToken: '[REDACTED]',
+          username: '',
+          password: '',
+          apiKeyKey: 'X-API-Key',
+          apiKeyValue: '',
+          apiKeyPlacement: 'header',
+        },
+        tests: [],
+      },
+    }
+
+    const tab = buildHistoryReplayDraft({
+      item,
+      collections: [],
+      recoveredDescription: 'Recovered safely',
+      historyTag: 'history',
+    })
+
+    expect(tab.response.explainability?.sources.map((item) => item.category)).toContain('safe-projected')
+    expect(tab.response.explainability?.limitations.map((item) => item.code)).toContain('safe_projection_loss')
+  })
+
   it('preserves mcp protocol context when replaying mcp history', () => {
     const item: HistoryItem = {
       id: 'history-mcp-1',
