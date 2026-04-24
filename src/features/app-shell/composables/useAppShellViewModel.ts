@@ -599,6 +599,7 @@ export const createAppShellViewModel = (deps: AppShellViewModelDeps): AppShellVi
     state: deps.activeTab.value?.response.state,
     stale: deps.activeTab.value?.response.stale,
     executionSource: deps.activeTab.value?.response.executionSource,
+    explainability: deps.activeTab.value?.response.explainability,
     theme: deps.resolvedTheme.value,
     collapsed: deps.responsePanelCollapsed.value,
   }))

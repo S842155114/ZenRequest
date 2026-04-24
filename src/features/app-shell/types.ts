@@ -100,7 +100,7 @@ export interface RequestPanelBindings {
 
 export interface ResponsePanelBindings extends Partial<Pick<
   ResponseState,
-  'responseBody' | 'status' | 'statusText' | 'time' | 'size' | 'headers' | 'testResults' | 'contentType' | 'requestMethod' | 'requestUrl' | 'state' | 'stale' | 'executionSource'
+  'responseBody' | 'status' | 'statusText' | 'time' | 'size' | 'headers' | 'testResults' | 'contentType' | 'requestMethod' | 'requestUrl' | 'state' | 'stale' | 'executionSource' | 'explainability'
 >> {
   locale: AppLocale
   configuredTestsCount: number

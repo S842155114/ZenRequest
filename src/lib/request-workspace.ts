@@ -9,6 +9,9 @@ import type {
   RequestKind,
   RequestMockState,
   RequestBodySnapshot,
+  ReplayExplainability,
+  ReplayLimitation,
+  ReplaySourceNote,
   McpExecutionArtifact,
   McpRequestDefinition,
   McpRootSnapshot,
@@ -650,6 +653,60 @@ export const formatBytes = (value: number) => {
   return `${(value / (1024 * 1024)).toFixed(2)} MB`
 }
 
+const createExplainabilitySummary = (sources: ReplaySourceNote[], limitations: ReplayLimitation[]): string => {
+  if (limitations.length > 0) {
+    return limitations[0]?.label ?? 'Replay limitations detected'
+  }
+
+  if (sources.length > 0) {
+    return `Execution composed from ${sources.map((item) => item.label).join(' · ')}`
+  }
+
+  return 'Execution details available'
+}
+
+export const createReplayExplainability = (payload: {
+  requestSnapshot?: HistoryItem['requestSnapshot']
+  limitations?: ReplayLimitation[]
+  extraSources?: ReplaySourceNote[]
+}): ReplayExplainability => {
+  const sources: ReplaySourceNote[] = [
+    { category: 'authored', label: 'authored input', detail: 'Replay starts from the stored authored request shape.' },
+  ]
+
+  if (payload.requestSnapshot?.url.includes('{{')) {
+    sources.push({ category: 'template', label: 'template resolution', detail: 'The original request contained template placeholders.' })
+  }
+
+  const secretBearing = [
+    ...(payload.requestSnapshot?.headers ?? []),
+    ...(payload.requestSnapshot?.params ?? []),
+  ].some((item) => item.value?.trim() === REDACTED_SECRET_VALUE)
+    || payload.requestSnapshot?.auth?.bearerToken?.trim() === REDACTED_SECRET_VALUE
+    || payload.requestSnapshot?.auth?.password?.trim() === REDACTED_SECRET_VALUE
+    || payload.requestSnapshot?.auth?.apiKeyValue?.trim() === REDACTED_SECRET_VALUE
+
+  if (secretBearing) {
+    sources.push({
+      category: 'safe-projected',
+      label: 'safe projection',
+      detail: 'Sensitive values were redacted before this replayable snapshot was stored.',
+    })
+  }
+
+  if (payload.extraSources?.length) {
+    sources.push(...payload.extraSources)
+  }
+
+  const limitations = payload.limitations ?? []
+
+  return {
+    summary: createExplainabilitySummary(sources, limitations),
+    sources,
+    limitations,
+  }
+}
+
 export const createHistoryEntry = (payload: {
   requestId?: string
   requestSnapshot?: HistoryItem['requestSnapshot']
@@ -667,6 +724,7 @@ export const createHistoryEntry = (payload: {
   responseHeaders?: HistoryItem['responseHeaders']
   responsePreview?: string
   mcpSummary?: HistoryItem['mcpSummary']
+  explainability?: HistoryItem['explainability']
 }): HistoryItem => ({
   id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   requestId: payload.requestId,
@@ -683,6 +741,9 @@ export const createHistoryEntry = (payload: {
   responsePreview: payload.responsePreview,
   url: payload.url,
   requestSnapshot: payload.requestSnapshot ? toSafeProjectionHistorySnapshot(clonePlainData(payload.requestSnapshot)) : undefined,
+  explainability: payload.explainability ?? createReplayExplainability({
+    requestSnapshot: payload.requestSnapshot ? toSafeProjectionHistorySnapshot(clonePlainData(payload.requestSnapshot)) : undefined,
+  }),
   executionSource: payload.executionSource ?? 'live',
   mcpArtifact: payload.mcpArtifact ? cloneMcpExecutionArtifact(payload.mcpArtifact) : undefined,
   mcpSummary: payload.mcpSummary ? { ...payload.mcpSummary } : undefined,
@@ -812,6 +873,7 @@ export const createResponseStateFromHistoryItem = (
   state: resolveResponseStateFromStatus(item.status),
   stale: false,
   executionSource: item.executionSource ?? 'live',
+  explainability: item.explainability,
 })
 
 export const applyThemeToDocument = (theme: ResolvedTheme) => {

@@ -318,6 +318,40 @@ export interface RequestCollection {
   requests: RequestPreset[]
 }
 
+export type ReplaySourceCategory =
+  | 'authored'
+  | 'environment'
+  | 'template'
+  | 'defaulted'
+  | 'safe-projected'
+  | 'runtime-blocked'
+  | 'replay-recovered'
+
+export type ReplayLimitationCode =
+  | 'safe_projection_loss'
+  | 'runtime_blocked'
+  | 'missing_history_snapshot'
+  | 'recovered_from_saved_request'
+  | 'request_no_longer_available'
+
+export interface ReplaySourceNote {
+  category: ReplaySourceCategory
+  label: string
+  detail?: string
+}
+
+export interface ReplayLimitation {
+  code: ReplayLimitationCode
+  label: string
+  detail?: string
+}
+
+export interface ReplayExplainability {
+  summary: string
+  sources: ReplaySourceNote[]
+  limitations: ReplayLimitation[]
+}
+
 export interface HistoryItem {
   id: string
   name: string
@@ -335,6 +369,7 @@ export interface HistoryItem {
   responseHeaders?: ResponseHeaderItem[]
   responsePreview?: string
   requestSnapshot?: HistoryRequestSnapshot
+  explainability?: ReplayExplainability
   executionSource?: RequestExecutionSource
   mcpArtifact?: McpExecutionArtifact
   mcpSummary?: {
@@ -369,6 +404,7 @@ export interface ResponseState {
   state?: ResponseLifecycleState
   stale?: boolean
   executionSource?: RequestExecutionSource
+  explainability?: ReplayExplainability
 }
 
 export interface EnvironmentPreset {

@@ -7,7 +7,9 @@ use crate::models::{
     HistoryItemDto, HistoryStoredPayloadDto, RemoveHistoryItemPayloadDto,
     WorkspaceHistoryExportItemDto,
 };
-use crate::models::app::McpHistorySummaryDto;
+use crate::models::app::{
+    McpHistorySummaryDto, ReplayExplainabilityDto, ReplayLimitationDto, ReplaySourceNoteDto,
+};
 use crate::storage::connection::{
     db_error, deserialize_json, generate_id, open_connection, serialize_json, touch_workspace,
 };
@@ -188,6 +190,104 @@ pub(crate) fn insert_history_item_in_connection(
     load_history_item_with_connection(connection, &history_id)
 }
 
+const REDACTED_SECRET_VALUE: &str = "[REDACTED]";
+
+fn contains_template_marker(value: &str) -> bool {
+    value.contains("{{") && value.contains("}}")
+}
+
+fn is_redacted_value(value: &str) -> bool {
+    value.trim() == REDACTED_SECRET_VALUE
+}
+
+fn has_safe_projected_fields(snapshot: &crate::models::SendRequestPayloadDto) -> bool {
+    snapshot.headers.iter().any(|item| is_redacted_value(&item.value))
+        || snapshot.params.iter().any(|item| is_redacted_value(&item.value))
+        || is_redacted_value(&snapshot.auth.bearer_token)
+        || is_redacted_value(&snapshot.auth.username)
+        || is_redacted_value(&snapshot.auth.password)
+        || is_redacted_value(&snapshot.auth.api_key_value)
+}
+
+fn has_template_sources(snapshot: &crate::models::SendRequestPayloadDto) -> bool {
+    contains_template_marker(&snapshot.url)
+        || snapshot.headers.iter().any(|item| contains_template_marker(&item.value))
+        || snapshot.params.iter().any(|item| contains_template_marker(&item.value))
+        || contains_template_marker(&snapshot.auth.bearer_token)
+        || contains_template_marker(&snapshot.auth.username)
+        || contains_template_marker(&snapshot.auth.password)
+        || contains_template_marker(&snapshot.auth.api_key_value)
+}
+
+fn create_replay_explainability_summary(
+    sources: &[ReplaySourceNoteDto],
+    limitations: &[ReplayLimitationDto],
+) -> String {
+    let source_labels = sources
+        .iter()
+        .map(|source| source.label.as_str())
+        .collect::<Vec<_>>()
+        .join(" + ");
+    if limitations.is_empty() {
+        format!("Replay is based on {source_labels}.")
+    } else {
+        format!(
+            "Replay is based on {source_labels}, but cannot fully reproduce the original execution."
+        )
+    }
+}
+
+pub(crate) fn derive_replay_explainability(
+    snapshot: &crate::models::SendRequestPayloadDto,
+) -> Option<ReplayExplainabilityDto> {
+    if snapshot.request_kind.as_deref() == Some("mcp") {
+        return None;
+    }
+
+    let mut sources = vec![ReplaySourceNoteDto {
+        category: "authored".to_string(),
+        label: "Authored request".to_string(),
+        detail: Some("Replay starts from the persisted history request snapshot.".to_string()),
+    }];
+    let mut limitations = Vec::new();
+
+    if has_template_sources(snapshot) {
+        sources.push(ReplaySourceNoteDto {
+            category: "template".to_string(),
+            label: "Template markers".to_string(),
+            detail: Some(
+                "Saved history still contains template placeholders that must be resolved again during replay."
+                    .to_string(),
+            ),
+        });
+    }
+
+    if has_safe_projected_fields(snapshot) {
+        sources.push(ReplaySourceNoteDto {
+            category: "safe-projected".to_string(),
+            label: "Safe-projected secrets".to_string(),
+            detail: Some(
+                "Persisted history redacts sensitive values, so replay can only use their safe projection."
+                    .to_string(),
+            ),
+        });
+        limitations.push(ReplayLimitationDto {
+            code: "safe_projection_loss".to_string(),
+            label: "Sensitive values were redacted".to_string(),
+            detail: Some(
+                "Replay cannot recover secret headers, params, or auth fields that were stored as [REDACTED]."
+                    .to_string(),
+            ),
+        });
+    }
+
+    Some(ReplayExplainabilityDto {
+        summary: create_replay_explainability_summary(&sources, &limitations),
+        sources,
+        limitations,
+    })
+}
+
 fn derive_mcp_error_category(
     operation: &str,
     status: u16,
@@ -249,6 +349,7 @@ fn map_history_row(row: &Row<'_>) -> rusqlite::Result<HistoryItemDto> {
     let request_snapshot: crate::models::SendRequestPayloadDto = deserialize_json(&request_snapshot_json, "history request snapshot")
         .map_err(|err| rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, err.message))))?;
     let mcp_summary = derive_mcp_history_summary(&Some(request_snapshot.clone()), status, &response_preview);
+    let explainability = derive_replay_explainability(&request_snapshot);
     Ok(HistoryItemDto {
         id: row.get(0)?,
         request_id: row.get(1)?,
@@ -267,6 +368,7 @@ fn map_history_row(row: &Row<'_>) -> rusqlite::Result<HistoryItemDto> {
         truncated: row.get::<_, i64>(13)? != 0,
         execution_source: row.get(14)?,
         mcp_summary,
+        explainability,
         executed_at_epoch_ms: executed_at_epoch_ms as u64,
         time: format_history_time(executed_at_epoch_ms),
     })
@@ -300,6 +402,101 @@ mod tests {
             .map(|duration| duration.as_millis())
             .unwrap_or_default();
         std::env::temp_dir().join(format!("zenrequest-{name}-{suffix}.sqlite3"))
+    }
+
+
+    #[test]
+    fn history_repo_derives_http_replay_explainability_from_snapshot() {
+        let db_path = temp_db_path("history-http-explainability");
+        initialize_database(&db_path).expect("database initialized");
+
+        let bootstrap = ensure_bootstrap_data(&db_path, None).expect("bootstrap payload");
+        let workspace_id = bootstrap
+            .active_workspace_id
+            .clone()
+            .expect("active workspace id");
+
+        let persisted = insert_history_item(
+            &db_path,
+            &workspace_id,
+            &HistoryStoredPayloadDto {
+                request_id: None,
+                request_name: "Explainable Orders".to_string(),
+                request_method: "GET".to_string(),
+                request_url: "https://example.com/orders/{{orderId}}".to_string(),
+                request_snapshot: SendRequestPayloadDto {
+                    workspace_id: workspace_id.clone(),
+                    request_kind: None,
+                    mcp: None,
+                    active_environment_id: None,
+                    tab_id: "tab-http-explainability".to_string(),
+                    request_id: None,
+                    name: "Explainable Orders".to_string(),
+                    description: String::new(),
+                    tags: Vec::new(),
+                    collection_name: "Scratch Pad".to_string(),
+                    method: "GET".to_string(),
+                    url: "https://example.com/orders/{{orderId}}".to_string(),
+                    params: vec![crate::models::KeyValueItemDto {
+                        key: "token".to_string(),
+                        value: "[REDACTED]".to_string(),
+                        description: String::new(),
+                        enabled: true,
+                    }],
+                    headers: vec![crate::models::KeyValueItemDto {
+                        key: "Authorization".to_string(),
+                        value: "[REDACTED]".to_string(),
+                        description: String::new(),
+                        enabled: true,
+                    }],
+                    body: RequestBodyDto::Json { value: "{}".to_string() },
+                    auth: crate::models::AuthConfigDto {
+                        r#type: "bearer".to_string(),
+                        bearer_token: "[REDACTED]".to_string(),
+                        ..Default::default()
+                    },
+                    tests: Vec::new(),
+                    mock: None,
+                    execution_options: RequestExecutionOptionsDto::default(),
+                },
+                status: 200,
+                status_text: "OK".to_string(),
+                elapsed_ms: 8,
+                size_bytes: 64,
+                content_type: "application/json".to_string(),
+                response_headers: Vec::new(),
+                response_preview: "{}".to_string(),
+                truncated: false,
+                execution_source: "live".to_string(),
+                executed_at_epoch_ms: 1_775_100_000_000,
+            },
+        )
+        .expect("history inserted");
+
+        let explainability = persisted.explainability.expect("explainability");
+        assert!(explainability
+            .sources
+            .iter()
+            .any(|source| source.category == "authored"));
+        assert!(explainability
+            .sources
+            .iter()
+            .any(|source| source.category == "template"));
+        assert!(explainability
+            .sources
+            .iter()
+            .any(|source| source.category == "safe-projected"));
+        assert!(explainability
+            .limitations
+            .iter()
+            .any(|limitation| limitation.code == "safe_projection_loss"));
+
+        let history = list_history(&db_path, &workspace_id).expect("history listed");
+        let item = history.first().expect("history item");
+        let explainability = item.explainability.as_ref().expect("history explainability");
+        assert!(explainability.summary.contains("cannot fully reproduce"));
+
+        let _ = fs::remove_file(db_path);
     }
 
     #[test]

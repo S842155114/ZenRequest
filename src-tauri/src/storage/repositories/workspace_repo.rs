@@ -20,7 +20,7 @@ use crate::storage::connection::{
 use crate::storage::repositories::collection_repo::load_collections_with_connection;
 use crate::storage::repositories::environment_repo::load_environments_with_connection;
 use crate::storage::repositories::history_repo::{
-    insert_history_item_in_connection, load_history_export_with_connection,
+    derive_replay_explainability, insert_history_item_in_connection, load_history_export_with_connection,
     load_history_with_connection,
 };
 use crate::storage::repositories::settings_repo::{
@@ -107,6 +107,11 @@ fn redact_bootstrap_history_item(item: &HistoryItemDto) -> HistoryItemDto {
         .request_snapshot
         .as_ref()
         .map(redact_request_snapshot);
+    next.explainability = next
+        .request_snapshot
+        .as_ref()
+        .and_then(derive_replay_explainability)
+        .or(next.explainability);
     next
 }
 
@@ -1596,6 +1601,18 @@ mod tests {
             .headers
             .iter()
             .all(|header| header.key != "Cookie" || header.value == "[REDACTED]"));
+        let explainability = history
+            .explainability
+            .as_ref()
+            .expect("history explainability present");
+        assert!(explainability
+            .sources
+            .iter()
+            .any(|source| source.category == "safe-projected"));
+        assert!(explainability
+            .limitations
+            .iter()
+            .any(|limitation| limitation.code == "safe_projection_loss"));
 
         let _ = fs::remove_file(db_path);
     }

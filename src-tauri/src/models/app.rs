@@ -132,6 +132,39 @@ pub struct McpHistorySummaryDto {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+pub struct ReplaySourceNoteDto {
+    #[serde(default)]
+    pub category: String,
+    #[serde(default)]
+    pub label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ReplayLimitationDto {
+    #[serde(default)]
+    pub code: String,
+    #[serde(default)]
+    pub label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ReplayExplainabilityDto {
+    #[serde(default)]
+    pub summary: String,
+    #[serde(default)]
+    pub sources: Vec<ReplaySourceNoteDto>,
+    #[serde(default)]
+    pub limitations: Vec<ReplayLimitationDto>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct HistoryItemDto {
     #[serde(default)]
     pub id: String,
@@ -162,6 +195,8 @@ pub struct HistoryItemDto {
     pub execution_source: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_summary: Option<McpHistorySummaryDto>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub explainability: Option<ReplayExplainabilityDto>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_snapshot: Option<SendRequestPayloadDto>,
 }
