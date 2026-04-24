@@ -23,6 +23,7 @@ import type {
   ResolvedTheme,
   ThemeMode,
   WorkspaceSnapshot,
+  WorkspaceSessionSnapshot,
 } from '@/types/request'
 import {
   cloneTabOrigin,
@@ -134,6 +135,62 @@ export const cloneMock = (mock?: RequestMockState): RequestMockState | undefined
 export const cloneAuth = (auth?: Partial<AuthConfig>): AuthConfig => ({
   ...defaultAuthConfig(),
   ...auth,
+})
+
+const REDACTED_SECRET_VALUE = '[REDACTED]'
+const SENSITIVE_KEY_PATTERN = /(token|secret|password|cookie|api[-_]?key|apikey|authorization)/i
+
+const isSensitiveKey = (key?: string) => SENSITIVE_KEY_PATTERN.test(key?.trim() ?? '')
+
+const toSafeProjectionItem = (item: KeyValueItem): KeyValueItem => (
+  isSensitiveKey(item.key) && item.value.trim()
+    ? { ...item, value: REDACTED_SECRET_VALUE }
+    : { ...item }
+)
+
+const toSafeProjectionAuth = (auth?: Partial<AuthConfig>): AuthConfig => {
+  const next = cloneAuth(auth)
+  if (next.bearerToken.trim()) next.bearerToken = REDACTED_SECRET_VALUE
+  if (next.password.trim()) next.password = REDACTED_SECRET_VALUE
+  if (next.apiKeyValue.trim()) next.apiKeyValue = REDACTED_SECRET_VALUE
+  return next
+}
+
+const toSafeProjectionEnvironment = (environment: EnvironmentPreset): EnvironmentPreset => ({
+  ...environment,
+  variables: environment.variables.map(toSafeProjectionItem),
+})
+
+const toSafeProjectionHistorySnapshot = (snapshot: HistoryRequestSnapshot): HistoryRequestSnapshot => ({
+  ...snapshot,
+  params: cloneItems(snapshot.params),
+  headers: snapshot.headers.map(toSafeProjectionItem),
+  auth: toSafeProjectionAuth(snapshot.auth),
+  tests: cloneTests(snapshot.tests),
+  mock: cloneMock(snapshot.mock),
+  executionOptions: cloneExecutionOptions(snapshot.executionOptions),
+})
+
+const toSafeProjectionTab = (tab: RequestTabState): RequestTabState => ({
+  ...cloneTab(tab),
+  headers: tab.headers.map(toSafeProjectionItem),
+  auth: toSafeProjectionAuth(tab.auth),
+})
+
+const toSafeProjectionWorkspaceSnapshot = (snapshot: WorkspaceSnapshot): WorkspaceSnapshot => ({
+  ...snapshot,
+  environments: snapshot.environments.map(toSafeProjectionEnvironment),
+  historyItems: snapshot.historyItems.map((item) => ({
+    ...item,
+    requestSnapshot: item.requestSnapshot ? toSafeProjectionHistorySnapshot(item.requestSnapshot) : undefined,
+  })),
+  openTabs: snapshot.openTabs.map(toSafeProjectionTab),
+})
+
+export const createSafeWorkspaceSessionSnapshot = (session: WorkspaceSessionSnapshot): WorkspaceSessionSnapshot => ({
+  activeEnvironmentId: session.activeEnvironmentId,
+  activeTabId: session.activeTabId,
+  openTabs: session.openTabs.map(toSafeProjectionTab),
 })
 
 const clonePlainData = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
@@ -625,7 +682,7 @@ export const createHistoryEntry = (payload: {
   responseHeaders: payload.responseHeaders ? clonePlainData(payload.responseHeaders) : undefined,
   responsePreview: payload.responsePreview,
   url: payload.url,
-  requestSnapshot: payload.requestSnapshot ? clonePlainData(payload.requestSnapshot) : undefined,
+  requestSnapshot: payload.requestSnapshot ? toSafeProjectionHistorySnapshot(clonePlainData(payload.requestSnapshot)) : undefined,
   executionSource: payload.executionSource ?? 'live',
   mcpArtifact: payload.mcpArtifact ? cloneMcpExecutionArtifact(payload.mcpArtifact) : undefined,
   mcpSummary: payload.mcpSummary ? { ...payload.mcpSummary } : undefined,
@@ -906,7 +963,7 @@ export const readWorkspaceSnapshot = (): WorkspaceSnapshot | null => {
 export const writeWorkspaceSnapshot = (snapshot: WorkspaceSnapshot) => {
   if (typeof window === 'undefined') return
 
-  window.localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify(snapshot))
+  window.localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify(toSafeProjectionWorkspaceSnapshot(snapshot)))
 }
 
 export const clearWorkspaceSnapshot = () => {

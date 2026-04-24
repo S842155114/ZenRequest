@@ -7,7 +7,7 @@ use crate::models::{
     AppBootstrapPayload, AppSettings, ApplicationExportPackageDto, AuthConfigDto,
     RecoveryNoticeDto,
     CreateWorkspacePayloadDto, DeleteWorkspacePayloadDto, EnvironmentDto,
-    ExportPackageScopeDto, HistoryStoredPayloadDto, ImportConflictStrategy,
+    ExportPackageScopeDto, HistoryItemDto, HistoryStoredPayloadDto, ImportConflictStrategy,
     KeyValueItemDto, LegacyWorkspaceSnapshotDto, RequestCollectionDto,
     RequestExecutionOptionsDto, RequestPresetDto, RequestTabStateDto, SaveWorkspacePayloadDto,
     SendRequestPayloadDto, SetActiveWorkspacePayloadDto, WorkspaceExportDataDto,
@@ -36,7 +36,9 @@ fn should_redact_secret_key(key: &str) -> bool {
     lower.contains("token")
         || lower.contains("secret")
         || lower.contains("password")
+        || lower.contains("cookie")
         || lower.contains("api_key")
+        || lower.contains("api-key")
         || lower.contains("apikey")
         || lower == "authorization"
 }
@@ -96,6 +98,15 @@ fn redact_environment(environment: &EnvironmentDto) -> EnvironmentDto {
 fn redact_history_item(item: &WorkspaceHistoryExportItemDto) -> WorkspaceHistoryExportItemDto {
     let mut next = item.clone();
     next.request_snapshot = redact_request_snapshot(&item.request_snapshot);
+    next
+}
+
+fn redact_bootstrap_history_item(item: &HistoryItemDto) -> HistoryItemDto {
+    let mut next = item.clone();
+    next.request_snapshot = item
+        .request_snapshot
+        .as_ref()
+        .map(redact_request_snapshot);
     next
 }
 
@@ -235,6 +246,22 @@ pub fn ensure_bootstrap_data(
         .map(|workspace_id| load_history_with_connection(&connection, workspace_id))
         .transpose()?
         .unwrap_or_default();
+
+    let session = session.map(|session| WorkspaceSessionDto {
+        active_tab_id: session.active_tab_id,
+        active_environment_id: session.active_environment_id,
+        open_tabs: session.open_tabs.iter().map(redact_request_tab).collect(),
+    });
+    let collections = collections
+        .iter()
+        .map(|collection| {
+            let mut next = collection.clone();
+            next.requests = collection.requests.iter().map(redact_request_preset).collect();
+            next
+        })
+        .collect();
+    let environments = environments.iter().map(redact_environment).collect();
+    let history = history.iter().map(redact_bootstrap_history_item).collect();
 
     Ok(AppBootstrapPayload {
         settings,
@@ -1409,6 +1436,171 @@ mod tests {
     }
 
     #[test]
+    fn bootstrap_redacts_session_collection_environment_and_history_secrets() {
+        let db_path = temp_db_path("bootstrap-redaction");
+        initialize_database(&db_path).expect("database initialized");
+
+        let bootstrap = ensure_bootstrap_data(&db_path, None).expect("bootstrap payload");
+        let workspace_id = bootstrap
+            .active_workspace_id
+            .clone()
+            .expect("active workspace id");
+        let collection_id = bootstrap.collections[0].id.clone();
+        let request = bootstrap.collections[0].requests[0].clone();
+        let environment_id = bootstrap.environments[0].id.clone();
+
+        let mut secret_request = request.clone();
+        secret_request.auth.r#type = "bearer".to_string();
+        secret_request.auth.bearer_token = "secret-token".to_string();
+        secret_request.headers.push(KeyValueItemDto {
+            key: "Cookie".to_string(),
+            value: "session=secret-cookie".to_string(),
+            description: String::new(),
+            enabled: true,
+        });
+
+        let saved_request = save_request(
+            &db_path,
+            &crate::models::SaveRequestPayloadDto {
+                workspace_id: workspace_id.clone(),
+                collection_id,
+                request: secret_request.clone(),
+            },
+        )
+        .expect("request saved");
+
+        save_workspace_session(
+            &db_path,
+            &SaveWorkspacePayloadDto {
+                workspace_id: workspace_id.clone(),
+                session: WorkspaceSessionDto {
+                    active_tab_id: Some("tab-secret".to_string()),
+                    active_environment_id: Some(environment_id),
+                    open_tabs: vec![crate::models::RequestTabStateDto {
+                        id: "tab-secret".to_string(),
+                        request_kind: None,
+                        mcp: None,
+                        request_id: Some(saved_request.id.clone()),
+                        origin: None,
+                        persistence_state: Some("saved".to_string()),
+                        execution_state: Some("idle".to_string()),
+                        name: saved_request.name.clone(),
+                        description: saved_request.description.clone(),
+                        tags: saved_request.tags.clone(),
+                        collection_name: saved_request.collection_name.clone().unwrap_or_default(),
+                        collection_id: saved_request.collection_id.clone(),
+                        method: saved_request.method.clone(),
+                        url: saved_request.url.clone(),
+                        params: saved_request.params.clone(),
+                        headers: secret_request.headers.clone(),
+                        body: saved_request.body.clone(),
+                        body_type: saved_request.body_type.clone(),
+                        body_content_type: saved_request.body_content_type.clone(),
+                        form_data_fields: saved_request.form_data_fields.clone(),
+                        binary_file_name: saved_request.binary_file_name.clone(),
+                        binary_mime_type: saved_request.binary_mime_type.clone(),
+                        auth: secret_request.auth.clone(),
+                        tests: saved_request.tests.clone(),
+                        mock: saved_request.mock.clone(),
+                        execution_options: saved_request.execution_options.clone(),
+                        response: crate::models::ResponseStateDto::default(),
+                        is_sending: false,
+                        is_dirty: false,
+                    }],
+                },
+            },
+        )
+        .expect("session saved");
+
+        insert_history_item(
+            &db_path,
+            &workspace_id,
+            &HistoryStoredPayloadDto {
+                request_id: Some(saved_request.id.clone()),
+                request_name: saved_request.name.clone(),
+                request_method: saved_request.method.clone(),
+                request_url: saved_request.url.clone(),
+                request_snapshot: SendRequestPayloadDto {
+                    workspace_id: workspace_id.clone(),
+                    request_kind: None,
+                    mcp: None,
+                    active_environment_id: None,
+                    tab_id: "tab-secret".to_string(),
+                    request_id: Some(saved_request.id.clone()),
+                    name: saved_request.name.clone(),
+                    description: saved_request.description.clone(),
+                    tags: saved_request.tags.clone(),
+                    collection_name: saved_request.collection_name.clone().unwrap_or_default(),
+                    method: saved_request.method.clone(),
+                    url: saved_request.url.clone(),
+                    params: saved_request.params.clone(),
+                    headers: secret_request.headers.clone(),
+                    body: RequestBodyDto::Raw {
+                        value: String::new(),
+                        content_type: None,
+                    },
+                    auth: secret_request.auth.clone(),
+                    tests: saved_request.tests.clone(),
+                    mock: None,
+                    execution_options: saved_request.execution_options.clone(),
+                },
+                status: 200,
+                status_text: "OK".to_string(),
+                elapsed_ms: 12,
+                size_bytes: 128,
+                content_type: "application/json".to_string(),
+                response_headers: Vec::new(),
+                response_preview: "{\"ok\":true}".to_string(),
+                truncated: false,
+                execution_source: "live".to_string(),
+                executed_at_epoch_ms: 1_717_171_717_000,
+            },
+        )
+        .expect("history inserted");
+
+        let refreshed = ensure_bootstrap_data(&db_path, None).expect("bootstrap refreshed");
+        let session_tab = &refreshed.session.expect("session").open_tabs[0];
+        let collection_request = refreshed
+            .collections
+            .iter()
+            .flat_map(|collection| collection.requests.iter())
+            .find(|item| item.id == saved_request.id)
+            .expect("saved request present");
+        let environment = &refreshed.environments[0];
+        let history = refreshed
+            .history
+            .iter()
+            .find(|item| item.request_id.as_deref() == Some(saved_request.id.as_str()))
+            .expect("history item present");
+        let history_snapshot = history
+            .request_snapshot
+            .as_ref()
+            .expect("history snapshot present");
+
+        assert_eq!(session_tab.auth.bearer_token, "[REDACTED]");
+        assert!(session_tab
+            .headers
+            .iter()
+            .all(|header| header.key != "Cookie" || header.value == "[REDACTED]"));
+        assert_eq!(collection_request.auth.bearer_token, "[REDACTED]");
+        assert!(collection_request
+            .headers
+            .iter()
+            .all(|header| header.key != "Cookie" || header.value == "[REDACTED]"));
+        assert!(environment
+            .variables
+            .iter()
+            .any(|item| item.key == "token" && item.value == "[REDACTED]"));
+        assert_eq!(history_snapshot.auth.bearer_token, "[REDACTED]");
+        assert!(history_snapshot
+            .headers
+            .iter()
+            .all(|header| header.key != "Cookie" || header.value == "[REDACTED]"));
+
+        let _ = fs::remove_file(db_path);
+    }
+
+    #[test]
     fn workspace_export_redacts_request_auth_and_environment_secrets() {
         let db_path = temp_db_path("workspace-redaction");
         initialize_database(&db_path).expect("database initialized");
@@ -1425,6 +1617,12 @@ mod tests {
         secret_request.name = "Secret Request".to_string();
         secret_request.auth.r#type = "bearer".to_string();
         secret_request.auth.bearer_token = "secret-token".to_string();
+        secret_request.headers.push(KeyValueItemDto {
+            key: "Cookie".to_string(),
+            value: "session=secret-cookie".to_string(),
+            description: String::new(),
+            enabled: true,
+        });
 
         let saved_request = save_request(
             &db_path,
@@ -1446,6 +1644,10 @@ mod tests {
         let environment = &export.environments[0];
 
         assert_eq!(request.auth.bearer_token, "[REDACTED]");
+        assert!(request
+            .headers
+            .iter()
+            .all(|header| header.key != "Cookie" || header.value == "[REDACTED]"));
         assert!(environment
             .variables
             .iter()

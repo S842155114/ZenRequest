@@ -65,3 +65,24 @@ it('treats redacted auth secrets as blocking send issues', () => {
 
   expect(result.blockingIssues.map((issue) => issue.key)).toContain('bearerToken')
 })
+
+
+it('treats redacted sensitive headers as blocking send issues', () => {
+  const result = resolveHttpRequestDraft({
+    url: 'https://example.com/orders',
+    params: [],
+    headers: [{ key: 'Authorization', value: '[REDACTED]', enabled: true }],
+    auth: {
+      type: 'none',
+      bearerToken: '',
+      username: '',
+      password: '',
+      apiKeyKey: 'X-API-Key',
+      apiKeyValue: '',
+      apiKeyPlacement: 'header',
+    },
+    variables: [],
+  })
+
+  expect(result.blockingIssues.map((issue) => issue.key)).toContain('Authorization')
+})

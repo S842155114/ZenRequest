@@ -130,6 +130,60 @@ describe('app-shell services', () => {
   })
 
 
+
+
+  it('blocks replayed redacted authorization headers before runtime send', async () => {
+    const state = reactive(createInitialAppShellState())
+    state.workspace.items = [{ id: 'workspace-1', name: 'Primary Workspace' }]
+    state.workspace.activeId = 'workspace-1'
+    state.environment.items = [{ id: 'env-local', name: 'Local', variables: [] }]
+    state.environment.activeId = 'env-local'
+
+    const tab = createRequestTabFromPreset(defaultRequestPreset)
+    tab.id = 'tab-http-redacted-header'
+    tab.url = 'https://example.com/orders'
+    tab.headers = [{ key: 'Authorization', value: '[REDACTED]', enabled: true }]
+    state.request.openTabs = [tab]
+    state.request.activeTabId = tab.id
+
+    const store = createAppShellStore(state)
+    const runtime = {
+      sendRequest: vi.fn(async () => ({ ok: true, data: {} })),
+      sendMcpRequest: vi.fn(async () => ({ ok: true, data: {} })),
+    } as const
+
+    const services = createAppShellServices({ runtime: runtime as never, store })
+
+    const result = await services.sendRequest({
+      payload: {
+        tabId: tab.id,
+        requestKind: 'http',
+        requestId: tab.requestId,
+        name: tab.name,
+        description: tab.description,
+        tags: tab.tags,
+        collectionName: tab.collectionName,
+        method: tab.method,
+        url: tab.url,
+        params: [],
+        headers: tab.headers,
+        body: tab.body,
+        bodyType: tab.bodyType,
+        auth: tab.auth,
+        tests: [],
+        executionOptions: tab.executionOptions,
+      },
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      code: 'request.send_failed',
+      message: 'Missing required variables: Authorization',
+    })
+    expect(runtime.sendRequest).not.toHaveBeenCalled()
+  })
+
+
   it('maps runtime request failures to structured advice', async () => {
     const state = reactive(createInitialAppShellState())
     state.workspace.items = [{ id: 'workspace-1', name: 'Primary Workspace' }]

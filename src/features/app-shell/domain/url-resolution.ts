@@ -23,6 +23,9 @@ export const resolveActiveRequestUrl = (url: string, variables: KeyValueItem[]) 
 
 const TEMPLATE_PATTERN = /\{\{\s*([^}]+?)\s*\}\}/g
 const REDACTED_SECRET_VALUE = '[REDACTED]'
+const SENSITIVE_KEY_PATTERN = /(token|secret|password|cookie|api[-_]?key|apikey|authorization)/i
+
+const isSensitiveKey = (key: string) => SENSITIVE_KEY_PATTERN.test(key.trim())
 
 export interface TemplateResolutionIssue {
   key: string
@@ -102,6 +105,9 @@ export const resolveHttpRequestDraft = (input: {
   ))
   const resolvedAuth = resolveAuth(input.auth, variableMap)
 
+  const resolvedParams = resolveItemList(input.params, variableMap)
+  const resolvedHeaders = resolveItemList(input.headers, variableMap)
+
   const blockingIssues = [
     ...dedupedIssues.filter((issue) => {
       if (issue.template == input.url) return true
@@ -110,18 +116,24 @@ export const resolveHttpRequestDraft = (input: {
       if (input.auth.type == 'apiKey' && (issue.template == input.auth.apiKeyKey || issue.template == input.auth.apiKeyValue)) return true
       return false
     }),
-    ...(input.auth.type == 'bearer' && resolveAuth(input.auth, variableMap).bearerToken.trim() == REDACTED_SECRET_VALUE
+    ...resolvedHeaders
+      .filter((item) => item.enabled && isSensitiveKey(item.key) && item.value.trim() == REDACTED_SECRET_VALUE)
+      .map((item) => ({ key: item.key.trim() || 'headerSecret', template: item.value })),
+    ...resolvedParams
+      .filter((item) => item.enabled && isSensitiveKey(item.key) && item.value.trim() == REDACTED_SECRET_VALUE)
+      .map((item) => ({ key: item.key.trim() || 'paramSecret', template: item.value })),
+    ...(input.auth.type == 'bearer' && resolvedAuth.bearerToken.trim() == REDACTED_SECRET_VALUE
       ? [{ key: 'bearerToken', template: input.auth.bearerToken || REDACTED_SECRET_VALUE }]
       : []),
     ...(input.auth.type == 'basic' && (
-      resolveAuth(input.auth, variableMap).username.trim() == REDACTED_SECRET_VALUE
-      || resolveAuth(input.auth, variableMap).password.trim() == REDACTED_SECRET_VALUE
+      resolvedAuth.username.trim() == REDACTED_SECRET_VALUE
+      || resolvedAuth.password.trim() == REDACTED_SECRET_VALUE
     )
       ? [{ key: 'basicAuth', template: `${input.auth.username}:${input.auth.password}` || REDACTED_SECRET_VALUE }]
       : []),
     ...(input.auth.type == 'apiKey' && (
-      resolveAuth(input.auth, variableMap).apiKeyKey.trim() == REDACTED_SECRET_VALUE
-      || resolveAuth(input.auth, variableMap).apiKeyValue.trim() == REDACTED_SECRET_VALUE
+      resolvedAuth.apiKeyKey.trim() == REDACTED_SECRET_VALUE
+      || resolvedAuth.apiKeyValue.trim() == REDACTED_SECRET_VALUE
     )
       ? [{ key: 'apiKey', template: input.auth.apiKeyValue || REDACTED_SECRET_VALUE }]
       : []),
@@ -129,8 +141,8 @@ export const resolveHttpRequestDraft = (input: {
 
   return {
     url: resolveTemplate(input.url, variableMap),
-    params: resolveItemList(input.params, variableMap),
-    headers: resolveItemList(input.headers, variableMap),
+    params: resolvedParams,
+    headers: resolvedHeaders,
     auth: resolvedAuth,
     issues: dedupedIssues,
     blockingIssues,
